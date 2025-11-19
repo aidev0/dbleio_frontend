@@ -1,0 +1,24 @@
+{
+  "total_customers": 250000,
+  "total_personas": 20,
+  "num_chunks": 2500,
+  "chunk_size": 100,
+  "statistics": {
+    "avg_age": 44.23,
+    "avg_orders": 7.88,
+    "avg_revenue": 620.28,
+    "total_revenue": 155071247.61
+  },
+  "region_distribution": {
+    "Northwest": 50000,
+    "West": 50002,
+    "South": 37499,
+    "Midwest": 37499,
+    "East": 37500,
+    "Northeast": 37500
+  },
+  "gender_distribution": {
+    "Male": 124999,
+    "Female": 125001
+  }
+}

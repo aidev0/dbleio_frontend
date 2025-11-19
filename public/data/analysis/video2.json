@@ -1,0 +1,10 @@
+{
+  "summary": "The video showcases textured faux linen curtains in various colors, highlighting their features such as room darkening, weighted hem, and different header types.",
+  "objects": ["linen curtains", "gray sofa", "white pillow", "coffee table", "rug"],
+  "colors": ["white", "gray", "beige", "brown", "light blue"],
+  "textures": ["textured faux linen"],
+  "number_of_scene_cut": 4,
+  "qualities_demonstrated": ["room darkening", "weighted hem", "hook belt", "back tabs", "pole pocket"],
+  "duration": "30 seconds",
+  "timestamp_most_important_info_shown": [7, 9, 14, 18]
+}

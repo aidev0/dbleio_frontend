@@ -1,0 +1,10 @@
+{
+  "summary": "The video showcases various drapes in different colors and textures, highlighting their appearance in different room settings.",
+  "objects": ["curtains", "sofa", "armchair", "side table", "vase", "rug"],
+  "colors": ["grey", "dark grey", "light grey", "teal", "yellow", "white", "blue", "orange", "purple", "green", "brown", "dark purple"],
+  "textures": ["oyster textured", "dark gravel", "birch faux", "dandelion gold", "sea thistle", "heather grey", "mink textured", "tuscany green", "iris"],
+  "number_of_scene_cut": 14,
+  "qualities_demonstrated": ["color variety", "texture diversity", "room setting versatility"],
+  "duration": "14 seconds",
+  "timestamp_most_important_info_shown": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]
+}

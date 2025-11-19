@@ -1,0 +1,10 @@
+{
+  "summary": "The video showcases various types of drapes in different settings, highlighting their textures, colors, and how they interact with light. It emphasizes the versatility and aesthetic appeal of the drapes, ending with a promotional message.",
+  "objects": ["bed", "curtains", "window", "chair", "shelf"],
+  "colors": ["white", "gray", "green", "orange"],
+  "textures": ["linen-like", "smooth", "woven"],
+  "number_of_scene_cut": 4,
+  "qualities_demonstrated": ["light filtering", "aesthetic appeal", "versatility"],
+  "duration": "18 seconds (00:18)",
+  "timestamp_most_important_info_shown": [14, 15, 16, 17]
+}

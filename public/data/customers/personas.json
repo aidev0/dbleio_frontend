@@ -1,0 +1,302 @@
+[
+  {
+    "id": 1,
+    "name": "Persona 1",
+    "demographics": {
+      "gender": "Male",
+      "age_mean": 63.0,
+      "age_std": 6.982714934301164,
+      "num_orders_mean": 3.5680870581262933,
+      "num_orders_std": 2.449227500681923,
+      "revenue_per_customer_mean": 756.5351737411357,
+      "revenue_per_customer_std": 161.4581882133978,
+      "region": "Northwest",
+      "weight": 0.05
+    }
+  },
+  {
+    "id": 2,
+    "name": "Persona 2",
+    "demographics": {
+      "gender": "Female",
+      "age_mean": 35.0,
+      "age_std": 7.330880728874676,
+      "num_orders_mean": 9.415610164404923,
+      "num_orders_std": 2.2701814444901136,
+      "revenue_per_customer_mean": 122.6429437253827,
+      "revenue_per_customer_std": 292.4774630404986,
+      "region": "West",
+      "weight": 0.05
+    }
+  },
+  {
+    "id": 3,
+    "name": "Persona 3",
+    "demographics": {
+      "gender": "Male",
+      "age_mean": 62.0,
+      "age_std": 3.0038938292050714,
+      "num_orders_mean": 14.890961830077046,
+      "num_orders_std": 2.043703774069291,
+      "revenue_per_customer_mean": 772.818476537109,
+      "revenue_per_customer_std": 51.76657630492935,
+      "region": "South",
+      "weight": 0.049999999999999996
+    }
+  },
+  {
+    "id": 4,
+    "name": "Persona 4",
+    "demographics": {
+      "gender": "Female",
+      "age_mean": 51.0,
+      "age_std": 6.059264473611897,
+      "num_orders_mean": 2.9529140491285855,
+      "num_orders_std": 1.2303616213380453,
+      "revenue_per_customer_mean": 502.99802762306086,
+      "revenue_per_customer_std": 164.01749605425897,
+      "region": "Midwest",
+      "weight": 0.049999999999999996
+    }
+  },
+  {
+    "id": 5,
+    "name": "Persona 5",
+    "demographics": {
+      "gender": "Male",
+      "age_mean": 68.0,
+      "age_std": 5.571172192068058,
+      "num_orders_mean": 9.293803964068594,
+      "num_orders_std": 0.6161260317999944,
+      "revenue_per_customer_mean": 768.2993370915822,
+      "revenue_per_customer_std": 92.63103092182288,
+      "region": "East",
+      "weight": 0.05
+    }
+  },
+  {
+    "id": 6,
+    "name": "Persona 6",
+    "demographics": {
+      "gender": "Female",
+      "age_mean": 28.0,
+      "age_std": 7.711008778424263,
+      "num_orders_mean": 8.88603504983755,
+      "num_orders_std": 1.4635412563497903,
+      "revenue_per_customer_mean": 117.56287744223562,
+      "revenue_per_customer_std": 107.72345640553725,
+      "region": "Northeast",
+      "weight": 0.05
+    }
+  },
+  {
+    "id": 7,
+    "name": "Persona 7",
+    "demographics": {
+      "gender": "Male",
+      "age_mean": 31.0,
+      "age_std": 6.049983288913104,
+      "num_orders_mean": 12.6647287643063,
+      "num_orders_std": 0.9334116337694303,
+      "revenue_per_customer_mean": 530.1666683305649,
+      "revenue_per_customer_std": 95.55902194701558,
+      "region": "Northwest",
+      "weight": 0.05
+    }
+  },
+  {
+    "id": 8,
+    "name": "Persona 8",
+    "demographics": {
+      "gender": "Female",
+      "age_mean": 30.0,
+      "age_std": 4.0397083143409445,
+      "num_orders_mean": 8.94780458947988,
+      "num_orders_std": 0.5782832311388965,
+      "revenue_per_customer_mean": 1026.5132520544983,
+      "revenue_per_customer_std": 162.43853334244142,
+      "region": "West",
+      "weight": 0.05
+    }
+  },
+  {
+    "id": 9,
+    "name": "Persona 9",
+    "demographics": {
+      "gender": "Male",
+      "age_mean": 60.0,
+      "age_std": 5.989499894055426,
+      "num_orders_mean": 13.906239290323636,
+      "num_orders_std": 0.7212312551297988,
+      "revenue_per_customer_mean": 315.58114866105973,
+      "revenue_per_customer_std": 61.30682222763452,
+      "region": "South",
+      "weight": 0.05
+    }
+  },
+  {
+    "id": 10,
+    "name": "Persona 10",
+    "demographics": {
+      "gender": "Female",
+      "age_mean": 40.0,
+      "age_std": 6.736600550686904,
+      "num_orders_mean": 8.555689853447117,
+      "num_orders_std": 1.9668779141596207,
+      "revenue_per_customer_mean": 1161.7808379905518,
+      "revenue_per_customer_std": 201.75856192167117,
+      "region": "Midwest",
+      "weight": 0.05
+    }
+  },
+  {
+    "id": 11,
+    "name": "Persona 11",
+    "demographics": {
+      "gender": "Male",
+      "age_mean": 53.0,
+      "age_std": 7.010984903770199,
+      "num_orders_mean": 2.0437090115167917,
+      "num_orders_std": 2.9672173415012932,
+      "revenue_per_customer_mean": 949.4692462263232,
+      "revenue_per_customer_std": 99.6789203835431,
+      "region": "East",
+      "weight": 0.05
+    }
+  },
+  {
+    "id": 12,
+    "name": "Persona 12",
+    "demographics": {
+      "gender": "Female",
+      "age_mean": 35.0,
+      "age_std": 3.9942120204440257,
+      "num_orders_mean": 10.9587873384811,
+      "num_orders_std": 2.475438851328014,
+      "revenue_per_customer_mean": 766.5559722591125,
+      "revenue_per_customer_std": 281.57521962833727,
+      "region": "Northeast",
+      "weight": 0.05
+    }
+  },
+  {
+    "id": 13,
+    "name": "Persona 13",
+    "demographics": {
+      "gender": "Male",
+      "age_mean": 52.0,
+      "age_std": 7.315517129377968,
+      "num_orders_mean": 9.72617377558581,
+      "num_orders_std": 1.327245062131623,
+      "revenue_per_customer_mean": 169.914185314626,
+      "revenue_per_customer_std": 127.74558042891555,
+      "region": "Northwest",
+      "weight": 0.05
+    }
+  },
+  {
+    "id": 14,
+    "name": "Persona 14",
+    "demographics": {
+      "gender": "Female",
+      "age_mean": 59.0,
+      "age_std": 5.9564889385386355,
+      "num_orders_mean": 4.846105101860898,
+      "num_orders_std": 1.903108564619253,
+      "revenue_per_customer_mean": 521.2195622291688,
+      "revenue_per_customer_std": 292.92802384727594,
+      "region": "West",
+      "weight": 0.05
+    }
+  },
+  {
+    "id": 15,
+    "name": "Persona 15",
+    "demographics": {
+      "gender": "Male",
+      "age_mean": 29.0,
+      "age_std": 5.806385987847481,
+      "num_orders_mean": 11.793540519363853,
+      "num_orders_std": 1.7344889909109769,
+      "revenue_per_customer_mean": 675.0061123201934,
+      "revenue_per_customer_std": 156.8852545896374,
+      "region": "South",
+      "weight": 0.05
+    }
+  },
+  {
+    "id": 16,
+    "name": "Persona 16",
+    "demographics": {
+      "gender": "Female",
+      "age_mean": 37.0,
+      "age_std": 4.008596011676981,
+      "num_orders_mean": 13.540690339429272,
+      "num_orders_std": 1.6884255579552794,
+      "revenue_per_customer_mean": 719.603129174022,
+      "revenue_per_customer_std": 223.87902160653186,
+      "region": "Midwest",
+      "weight": 0.05
+    }
+  },
+  {
+    "id": 17,
+    "name": "Persona 17",
+    "demographics": {
+      "gender": "Male",
+      "age_mean": 63.0,
+      "age_std": 5.051914615178148,
+      "num_orders_mean": 11.577715939602681,
+      "num_orders_std": 1.0719954137290562,
+      "revenue_per_customer_mean": 184.6779008116723,
+      "revenue_per_customer_std": 122.43786322844201,
+      "region": "East",
+      "weight": 0.05
+    }
+  },
+  {
+    "id": 18,
+    "name": "Persona 18",
+    "demographics": {
+      "gender": "Female",
+      "age_mean": 26.0,
+      "age_std": 6.121770240668966,
+      "num_orders_mean": 5.138871601727995,
+      "num_orders_std": 0.7637356495756765,
+      "revenue_per_customer_mean": 602.1880275312012,
+      "revenue_per_customer_std": 104.6101093042084,
+      "region": "Northeast",
+      "weight": 0.05
+    }
+  },
+  {
+    "id": 19,
+    "name": "Persona 19",
+    "demographics": {
+      "gender": "Male",
+      "age_mean": 35.0,
+      "age_std": 4.6217251050263695,
+      "num_orders_mean": 2.709231365809427,
+      "num_orders_std": 1.3907445951924373,
+      "revenue_per_customer_mean": 1097.5112857003294,
+      "revenue_per_customer_std": 118.03306234615883,
+      "region": "Northwest",
+      "weight": 0.05
+    }
+  },
+  {
+    "id": 20,
+    "name": "Persona 20",
+    "demographics": {
+      "gender": "Female",
+      "age_mean": 37.0,
+      "age_std": 7.303652916281717,
+      "num_orders_mean": 1.0973298274366698,
+      "num_orders_std": 1.7768682564439144,
+      "revenue_per_customer_mean": 559.1521034636569,
+      "revenue_per_customer_std": 105.52695261768257,
+      "region": "West",
+      "weight": 0.05
+    }
+  }
+]
