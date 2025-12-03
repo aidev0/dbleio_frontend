@@ -11,6 +11,8 @@ import PersonasTab from './components/PersonasTab';
 import SimulationTab from './components/SimulationTab';
 import FeedbackTab from './components/FeedbackTab';
 import SynthesisTab from './components/SynthesisTab';
+import IntegrationsTab from './components/IntegrationsTab';
+import ShopifyDataTab from './components/ShopifyDataTab';
 import VideoUploadModal from './components/VideoUploadModal';
 import CampaignWizard, { CampaignData } from './components/CampaignWizard';
 import { Video, Persona, Campaign, ChatMessage, ModelEvaluation } from './types';
@@ -32,7 +34,7 @@ function Home() {
   const { user, login, logout, isAuthenticated, loading: authLoading } = useAuth();
   const [videos, setVideos] = useState<Video[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'campaign' | 'videos' | 'personas' | 'simulations' | 'insights' | 'synthesis'>('campaign');
+  const [activeTab, setActiveTab] = useState<'campaign' | 'videos' | 'personas' | 'simulations' | 'insights' | 'synthesis' | 'integrations' | 'shopify-data'>('campaign');
   const [campaign, setCampaign] = useState<any>(null);
   const [personas, setPersonas] = useState<Persona[]>([]);
   const [evaluations, setEvaluations] = useState<ModelEvaluation[]>([]);
@@ -44,6 +46,7 @@ function Home() {
   const [campaigns, setCampaigns] = useState<any[]>([]);
   const [showCampaignWizard, setShowCampaignWizard] = useState(false);
   const [editingCampaign, setEditingCampaign] = useState<any | null>(null);
+  const [selectedShopifyIntegration, setSelectedShopifyIntegration] = useState<any | null>(null);
 
   // Simulations state
   const [simulations, setSimulations] = useState<any[]>([]);
@@ -101,6 +104,17 @@ function Home() {
     const code = searchParams.get('code');
     if (code && !user) {
       handleAuthCallback(code);
+    }
+
+    // Handle Shopify OAuth callback redirect
+    const tab = searchParams.get('tab');
+    const shopifyStatus = searchParams.get('shopify');
+    if (tab === 'integrations') {
+      setActiveTab('integrations');
+      if (shopifyStatus === 'connected') {
+        // Clean up URL
+        window.history.replaceState({}, '', '/app');
+      }
     }
   }, [searchParams]);
 
@@ -1196,6 +1210,16 @@ function Home() {
               Campaigns
             </button>
             <button
+              onClick={() => setActiveTab('integrations')}
+              className={`px-4 py-2 rounded-md ${
+                activeTab === 'integrations' || activeTab === 'shopify-data'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              }`}
+            >
+              Integrations
+            </button>
+            <button
               onClick={() => setActiveTab('videos')}
               className={`px-4 py-2 rounded-md ${
                 activeTab === 'videos'
@@ -1505,6 +1529,32 @@ function Home() {
               onGenerateSynthesis={handleGenerateSynthesis}
               loadingSynthesis={loadingSynthesis}
               generatedSynthesisPlan={generatedSynthesisPlan}
+            />
+          )}
+
+          {activeTab === 'integrations' && user && (
+            <IntegrationsTab
+              userId={user._id}
+              onShopifyConnected={(integration) => {
+                setSelectedShopifyIntegration(integration);
+                setActiveTab('shopify-data');
+              }}
+            />
+          )}
+
+          {activeTab === 'integrations' && !user && (
+            <div className="bg-white rounded-lg shadow p-8 text-center">
+              <p className="text-gray-500">Please login to manage integrations.</p>
+            </div>
+          )}
+
+          {activeTab === 'shopify-data' && selectedShopifyIntegration && (
+            <ShopifyDataTab
+              integration={selectedShopifyIntegration}
+              onBack={() => {
+                setSelectedShopifyIntegration(null);
+                setActiveTab('integrations');
+              }}
             />
           )}
         </div>
