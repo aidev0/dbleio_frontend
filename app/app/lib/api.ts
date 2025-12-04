@@ -1,10 +1,15 @@
 /**
  * API utility for making authenticated requests to the backend
  * Supports both JWT tokens (preferred) and API key authentication
+ * Includes automatic token refresh when tokens expire
  */
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 const API_KEY = process.env.NEXT_PUBLIC_API_KEY || '';
+
+// Flag to prevent multiple simultaneous refresh attempts
+let isRefreshing = false;
+let refreshPromise: Promise<boolean> | null = null;
 
 /**
  * Get access token from localStorage
@@ -34,11 +39,64 @@ function isTokenExpired(token: string): boolean {
     const payload = JSON.parse(atob(token.split('.')[1]));
     const exp = payload.exp;
     if (!exp) return false;
-    // Add 30 second buffer
-    return Date.now() >= (exp * 1000) - 30000;
+    // Add 60 second buffer to refresh before actual expiry
+    return Date.now() >= (exp * 1000) - 60000;
   } catch {
     return true;
   }
+}
+
+/**
+ * Refresh the access token using the refresh token
+ */
+async function refreshAccessToken(): Promise<boolean> {
+  // If already refreshing, wait for that to complete
+  if (isRefreshing && refreshPromise) {
+    return refreshPromise;
+  }
+
+  const refreshToken = getRefreshToken();
+  if (!refreshToken) {
+    return false;
+  }
+
+  isRefreshing = true;
+  refreshPromise = (async () => {
+    try {
+      const response = await fetch(`${API_URL}/api/users/auth/refresh`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ refresh_token: refreshToken }),
+      });
+
+      if (!response.ok) {
+        console.log('Token refresh failed, clearing auth');
+        clearAuthData();
+        return false;
+      }
+
+      const data = await response.json();
+      if (data.access_token) {
+        localStorage.setItem('access_token', data.access_token);
+        if (data.refresh_token) {
+          localStorage.setItem('refresh_token', data.refresh_token);
+        }
+        console.log('Token refreshed successfully');
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error('Token refresh error:', error);
+      return false;
+    } finally {
+      isRefreshing = false;
+      refreshPromise = null;
+    }
+  })();
+
+  return refreshPromise;
 }
 
 /**
@@ -50,6 +108,28 @@ export function clearAuthData(): void {
     localStorage.removeItem('refresh_token');
     localStorage.removeItem('user');
   }
+}
+
+/**
+ * Ensure we have a valid access token, refreshing if needed
+ */
+async function ensureValidToken(): Promise<string | null> {
+  const accessToken = getAccessToken();
+
+  if (!accessToken) {
+    return null;
+  }
+
+  if (isTokenExpired(accessToken)) {
+    console.log('Token expired, attempting refresh...');
+    const refreshed = await refreshAccessToken();
+    if (refreshed) {
+      return getAccessToken();
+    }
+    return null;
+  }
+
+  return accessToken;
 }
 
 /**
@@ -81,22 +161,63 @@ export function getApiHeaders(additionalHeaders?: HeadersInit): HeadersInit {
 }
 
 /**
- * Handle 401 responses by clearing auth data
+ * Get headers with token refresh if needed (async version)
  */
-async function handleUnauthorized(response: Response): Promise<Response> {
+export async function getApiHeadersAsync(additionalHeaders?: HeadersInit): Promise<HeadersInit> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+
+  // Ensure we have a valid token, refreshing if needed
+  const accessToken = await ensureValidToken();
+  if (accessToken) {
+    headers['Authorization'] = `Bearer ${accessToken}`;
+  } else if (API_KEY) {
+    // Fall back to API key if no valid token
+    headers['X-API-Key'] = API_KEY;
+  }
+
+  if (additionalHeaders) {
+    const additional = additionalHeaders instanceof Headers
+      ? Object.fromEntries(additionalHeaders.entries())
+      : additionalHeaders;
+    Object.assign(headers, additional);
+  }
+
+  return headers;
+}
+
+/**
+ * Handle 401 responses - try to refresh token first
+ */
+async function handleUnauthorized(response: Response, url: string, options: RequestInit): Promise<Response> {
   if (response.status === 401) {
-    // Token is invalid or expired, clear auth data
-    clearAuthData();
-    // Optionally redirect to login
-    if (typeof window !== 'undefined' && !window.location.pathname.includes('/auth')) {
-      window.location.href = '/';
+    // Try to refresh the token
+    console.log('Got 401, attempting token refresh...');
+    const refreshed = await refreshAccessToken();
+
+    if (refreshed) {
+      // Retry the request with new token
+      console.log('Token refreshed, retrying request...');
+      const newHeaders = await getApiHeadersAsync(options.headers);
+      const retryResponse = await fetch(url, {
+        ...options,
+        headers: newHeaders,
+      });
+      return retryResponse;
+    } else {
+      // Refresh failed, clear auth data and redirect
+      clearAuthData();
+      if (typeof window !== 'undefined' && !window.location.pathname.includes('/auth')) {
+        window.location.href = '/';
+      }
     }
   }
   return response;
 }
 
 /**
- * Make an authenticated API request
+ * Make an authenticated API request with automatic token refresh
  */
 export async function apiFetch(
   endpoint: string,
@@ -104,14 +225,15 @@ export async function apiFetch(
 ): Promise<Response> {
   const url = endpoint.startsWith('http') ? endpoint : `${API_URL}${endpoint}`;
 
-  const headers = getApiHeaders(options.headers);
+  // Use async version to refresh token if needed before request
+  const headers = await getApiHeadersAsync(options.headers);
 
   const response = await fetch(url, {
     ...options,
     headers,
   });
 
-  return handleUnauthorized(response);
+  return handleUnauthorized(response, url, options);
 }
 
 /**

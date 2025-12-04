@@ -154,11 +154,11 @@ function Home() {
   useEffect(() => {
     if (!authLoading && isAuthenticated) {
       loadCampaignData();
-    } else if (!authLoading && !isAuthenticated) {
-      // User is not authenticated, stop loading
-      setLoading(false);
+    } else if (!authLoading && !isAuthenticated && !processingAuth) {
+      // User is not authenticated, redirect to login page
+      router.push('/');
     }
-  }, [user, authLoading, isAuthenticated]);
+  }, [user, authLoading, isAuthenticated, processingAuth, router]);
 
   // Load videos when navigating to videos tab
   useEffect(() => {
@@ -840,17 +840,23 @@ function Home() {
     setIsLoadingChat(true);
 
     try {
-      // Parse @mentions - supports @Persona 1 and @Video 2 formats (with optional space)
-      const personaMentions = [...userMessage.matchAll(/@Persona\s*(\d+)/gi)].map(m => m[1]);
-      const videoMentions = [...userMessage.matchAll(/@Video\s*(\d+)/gi)].map(m => m[1]);
+      // Parse @mentions - format: @Type[id] name
+      // Extract IDs from mentions like @Persona[abc123] John Smith
+      const personaMentionMatches = [...userMessage.matchAll(/@Persona\[([^\]]+)\]/gi)];
+      const videoMentionMatches = [...userMessage.matchAll(/@Video\[([^\]]+)\]/gi)];
+      const campaignMentionMatches = [...userMessage.matchAll(/@Campaign\[([^\]]+)\]/gi)];
+
+      const personaIds = personaMentionMatches.map(m => m[1]);
+      const videoIds = videoMentionMatches.map(m => m[1]);
+      const campaignMentioned = campaignMentionMatches.length > 0 || /@Campaign/i.test(userMessage);
 
       // Gather context data
       const contextData: any = {
-        mentioned_personas: personaMentions.map(id => {
-          const persona = personas.find((p, idx) => (idx + 1).toString() === id);
+        mentioned_personas: personaIds.map(id => {
+          const persona = personas.find(p => (p._id || p.id) === id);
           if (persona) {
             // Include evaluations for this persona
-            const personaEvals = evaluations.filter(e => e.persona_id === persona.id);
+            const personaEvals = evaluations.filter(e => e.persona_id === (persona._id || persona.id));
             return {
               persona_data: persona,
               evaluations: personaEvals
@@ -858,8 +864,8 @@ function Home() {
           }
           return null;
         }).filter(p => p !== null),
-        mentioned_videos: videoMentions.map(id => {
-          const video = videos.find((v, idx) => (idx + 1).toString() === id);
+        mentioned_videos: videoIds.map(id => {
+          const video = videos.find(v => v.id === id);
           if (video) {
             // Include evaluations mentioning this video
             const videoEvals = evaluations.map(e => ({
@@ -885,6 +891,17 @@ function Home() {
         }))
       };
 
+      // Determine mode based on mentions
+      let chatMode = 'persona_chat';
+      if (campaignMentioned && personaIds.length === 0 && videoIds.length === 0) {
+        chatMode = 'campaign_chat';
+      }
+
+      // Add campaign context if mentioned
+      if (campaignMentioned && campaign) {
+        contextData.campaign = campaign;
+      }
+
       // Call API
       const response = await fetch(`${API_URL}/api/chat`, {
         method: 'POST',
@@ -893,7 +910,8 @@ function Home() {
           message: userMessage,
           context: contextData,
           provider: askPersonaModel,
-          mode: 'persona_chat'
+          mode: chatMode,
+          campaign_id: selectedCampaign
         }),
       });
 
@@ -1135,8 +1153,8 @@ function Home() {
     return { distribution, percentages, total };
   };
 
-  // Show loading while auth is loading or processing OAuth callback
-  if (loading || authLoading || processingAuth) {
+  // Show loading while auth is loading, processing OAuth callback, or redirecting to login
+  if (loading || authLoading || processingAuth || !isAuthenticated) {
     return (
       <div className="min-h-screen bg-gray-100 flex items-center justify-center">
         <div className="text-center">
