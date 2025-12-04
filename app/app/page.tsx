@@ -97,10 +97,18 @@ function Home() {
   const [loadingSynthesis, setLoadingSynthesis] = useState(false);
   const [generatedSynthesisPlan, setGeneratedSynthesisPlan] = useState<any>(null);
 
+  // State to track if we're processing OAuth callback
+  const [processingAuth, setProcessingAuth] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return new URLSearchParams(window.location.search).has('code');
+    }
+    return false;
+  });
+
   // Handle OAuth callback
   useEffect(() => {
     const code = searchParams.get('code');
-    if (code && !user) {
+    if (code) {
       handleAuthCallback(code);
     }
 
@@ -117,10 +125,11 @@ function Home() {
   }, [searchParams]);
 
   const handleAuthCallback = async (code: string) => {
+    setProcessingAuth(true);
     try {
       const response = await fetch(`${API_URL}/api/users/auth/callback`, {
         method: 'POST',
-        headers: getApiHeaders(),
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ code }),
       });
 
@@ -135,11 +144,10 @@ function Home() {
 
       // Remove code from URL and force reload to update auth state
       window.history.replaceState({}, '', '/app');
-      setTimeout(() => {
-        window.location.href = '/app';
-      }, 100);
+      window.location.reload();
     } catch (error) {
       console.error('Auth callback error:', error);
+      setProcessingAuth(false);
     }
   };
 
@@ -1127,10 +1135,16 @@ function Home() {
     return { distribution, percentages, total };
   };
 
-  if (loading || authLoading) {
+  // Show loading while auth is loading or processing OAuth callback
+  if (loading || authLoading || processingAuth) {
     return (
       <div className="min-h-screen bg-gray-100 flex items-center justify-center">
-        <div className="text-xl text-gray-600">Loading...</div>
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto mb-4"></div>
+          <div className="text-xl text-gray-600">
+            {processingAuth ? 'Completing login...' : 'Loading...'}
+          </div>
+        </div>
       </div>
     );
   }

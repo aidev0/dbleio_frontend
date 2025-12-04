@@ -20,37 +20,70 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+/**
+ * Check if a JWT token is expired
+ */
+function isTokenExpired(token: string): boolean {
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    const exp = payload.exp;
+    if (!exp) return false;
+    // Add 30 second buffer
+    return Date.now() >= (exp * 1000) - 30000;
+  } catch {
+    return true;
+  }
+}
+
+/**
+ * Check if user has a valid (non-expired) access token
+ */
+function hasValidToken(): boolean {
+  if (typeof window === 'undefined') return false;
+  const token = localStorage.getItem('access_token');
+  if (!token) return false;
+  return !isTokenExpired(token);
+}
+
+/**
+ * Clear all auth data from localStorage
+ */
+function clearAuthData() {
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem('user');
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
+  }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(() => {
-    // Initialize user from localStorage
-    if (typeof window !== 'undefined') {
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  // Check auth state on mount
+  useEffect(() => {
+    const checkAuth = () => {
+      // Check if we have a valid token
+      if (!hasValidToken()) {
+        // Token is missing or expired - clear everything
+        clearAuthData();
+        setUser(null);
+        setLoading(false);
+        return;
+      }
+
+      // Token is valid, load user from localStorage
       const storedUser = localStorage.getItem('user');
       if (storedUser) {
         try {
           const parsed = JSON.parse(storedUser);
-          return parsed;
-        } catch (err) {
-          console.error('Failed to parse stored user:', err);
-          localStorage.removeItem('user');
-        }
-      }
-    }
-    return null;
-  });
-  const [loading, setLoading] = useState(false);
-
-  // Re-check localStorage on mount and when storage changes
-  useEffect(() => {
-    const checkAuth = () => {
-      const storedUser = localStorage.getItem('user');
-      if (storedUser && !user) {
-        try {
-          const parsed = JSON.parse(storedUser);
           setUser(parsed);
         } catch (err) {
-          console.error('Failed to re-parse stored user:', err);
+          console.error('Failed to parse stored user:', err);
+          clearAuthData();
         }
       }
+      setLoading(false);
     };
 
     checkAuth();
@@ -58,7 +91,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Listen for storage changes (e.g., from other tabs)
     window.addEventListener('storage', checkAuth);
     return () => window.removeEventListener('storage', checkAuth);
-  }, [user]);
+  }, []);
 
   const login = () => {
     const clientId = process.env.NEXT_PUBLIC_WORKOS_CLIENT_ID;
