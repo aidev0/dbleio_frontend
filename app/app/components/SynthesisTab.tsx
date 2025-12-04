@@ -2,8 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Video } from '../types';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL;
+import { API_URL, getApiHeaders } from '../lib/api';
 
 interface SynthesisTabProps {
   videos: Video[];
@@ -68,7 +67,8 @@ export default function SynthesisTab({
     try {
       // Load synthesis videos (only what we need for auto-refresh)
       const videosResponse = await fetch(
-        `${API_URL}/api/synthesis/videos?campaign_id=${selectedCampaignId}`
+        `${API_URL}/api/synthesis/videos?campaign_id=${selectedCampaignId}`,
+        { headers: getApiHeaders() }
       );
       if (videosResponse.ok) {
         const videos = await videosResponse.json();
@@ -83,7 +83,8 @@ export default function SynthesisTab({
       // Only load plans on initial load, not during auto-refresh
       if (!silent) {
         const plansResponse = await fetch(
-          `${API_URL}/api/synthesis/plans?campaign_id=${selectedCampaignId}`
+          `${API_URL}/api/synthesis/plans?campaign_id=${selectedCampaignId}`,
+          { headers: getApiHeaders() }
         );
         if (plansResponse.ok) {
           const plans = await plansResponse.json();
@@ -150,9 +151,7 @@ export default function SynthesisTab({
         `${API_URL}/api/synthesis/plans/${editingPlan._id}`,
         {
           method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          headers: getApiHeaders(),
           body: JSON.stringify({ synthesis_plan: updatedPlan })
         }
       );
@@ -206,9 +205,7 @@ export default function SynthesisTab({
         `${API_URL}/api/synthesis/videos`,
         {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          headers: getApiHeaders(),
           body: JSON.stringify(requestBody)
         }
       );

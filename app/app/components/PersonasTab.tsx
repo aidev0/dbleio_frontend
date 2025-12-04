@@ -4,8 +4,7 @@ import { useState } from 'react';
 import PersonaCreationModal from './PersonaCreationModal';
 import ChatInterface from './ChatInterface';
 import { Persona, ChatMessage, Video } from '../types';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL;
+import { API_URL, getApiHeaders } from '../lib/api';
 
 interface PersonasTabProps {
   personas: Persona[];
@@ -70,7 +69,8 @@ export default function PersonasTab({
 
     try {
       const response = await fetch(`${API_URL}/api/personas/${personaId}`, {
-        method: 'DELETE'
+        method: 'DELETE',
+        headers: getApiHeaders()
       });
 
       if (!response.ok) throw new Error('Failed to delete persona');

@@ -1,8 +1,7 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+import { API_URL, getApiHeaders } from '../lib/api';
 
 interface Integration {
   _id: string;
@@ -102,7 +101,7 @@ export default function ShopifyDataTab({ integration, onBack }: ShopifyDataTabPr
 
   const loadAnalytics = async () => {
     try {
-      const response = await fetch(`${API_URL}/api/integrations/shopify/${integration._id}/analytics`);
+      const response = await fetch(`${API_URL}/api/integrations/shopify/${integration._id}/analytics`, { headers: getApiHeaders() });
       if (response.ok) {
         const data = await response.json();
         setAnalytics(data);
@@ -121,7 +120,7 @@ export default function ShopifyDataTab({ integration, onBack }: ShopifyDataTabPr
         ? `${API_URL}/api/integrations/shopify/${integration._id}/products?page_info=${pageInfo}`
         : `${API_URL}/api/integrations/shopify/${integration._id}/products`;
 
-      const response = await fetch(url);
+      const response = await fetch(url, { headers: getApiHeaders() });
       if (response.ok) {
         const data = await response.json();
         if (pageInfo) {
@@ -145,7 +144,7 @@ export default function ShopifyDataTab({ integration, onBack }: ShopifyDataTabPr
         ? `${API_URL}/api/integrations/shopify/${integration._id}/orders?page_info=${pageInfo}`
         : `${API_URL}/api/integrations/shopify/${integration._id}/orders`;
 
-      const response = await fetch(url);
+      const response = await fetch(url, { headers: getApiHeaders() });
       if (response.ok) {
         const data = await response.json();
         if (pageInfo) {
@@ -169,7 +168,7 @@ export default function ShopifyDataTab({ integration, onBack }: ShopifyDataTabPr
         ? `${API_URL}/api/integrations/shopify/${integration._id}/customers?page_info=${pageInfo}`
         : `${API_URL}/api/integrations/shopify/${integration._id}/customers`;
 
-      const response = await fetch(url);
+      const response = await fetch(url, { headers: getApiHeaders() });
       if (response.ok) {
         const data = await response.json();
         if (pageInfo) {

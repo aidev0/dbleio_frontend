@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { API_URL, API_KEY, getApiHeaders } from '../lib/api';
 
 interface VideoUploadModalProps {
   isOpen: boolean;
@@ -126,7 +127,7 @@ export default function VideoUploadModal({
 
   const pollTaskStatus = async (taskIdToPoll: string) => {
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/tasks/${taskIdToPoll}`);
+      const response = await fetch(`${API_URL}/api/tasks/${taskIdToPoll}`, { headers: getApiHeaders() });
       if (!response.ok) {
         throw new Error('Failed to fetch task status');
       }
@@ -299,7 +300,10 @@ export default function VideoUploadModal({
     });
 
     // Send request
-    xhr.open('POST', `${process.env.NEXT_PUBLIC_API_URL}/api/videos/upload`);
+    xhr.open('POST', `${API_URL}/api/videos/upload`);
+    if (API_KEY) {
+      xhr.setRequestHeader('X-API-Key', API_KEY);
+    }
     xhr.send(formData);
   };
 

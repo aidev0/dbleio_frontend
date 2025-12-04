@@ -16,9 +16,7 @@ import ShopifyDataTab from './components/ShopifyDataTab';
 import VideoUploadModal from './components/VideoUploadModal';
 import CampaignWizard, { CampaignData } from './components/CampaignWizard';
 import { Video, Persona, Campaign, ChatMessage, ModelEvaluation } from './types';
-
-// API URL from environment variable
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+import { API_URL, getApiHeaders } from './lib/api';
 
 interface TimelineSegment {
   start: number;
@@ -122,7 +120,7 @@ function Home() {
     try {
       const response = await fetch(`${API_URL}/api/users/auth/callback`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getApiHeaders(),
         body: JSON.stringify({ code }),
       });
 
@@ -183,7 +181,7 @@ function Home() {
   const loadCampaignData = async (campaignId?: string) => {
     try {
       // First, get campaigns for authenticated user
-      const campaignsResponse = await fetch(`${API_URL}/api/campaigns${user ? `?workos_user_id=${user.workos_user_id}` : ''}`);
+      const campaignsResponse = await fetch(`${API_URL}/api/campaigns${user ? `?workos_user_id=${user.workos_user_id}` : ''}`, { headers: getApiHeaders() });
       const campaignsData = await campaignsResponse.json();
 
       if (!campaignsData || campaignsData.length === 0) {
@@ -200,7 +198,7 @@ function Home() {
       setSelectedCampaign(targetCampaign);
 
       // Fetch campaign data
-      const response = await fetch(`${API_URL}/api/campaigns/${targetCampaign}`);
+      const response = await fetch(`${API_URL}/api/campaigns/${targetCampaign}`, { headers: getApiHeaders() });
       const campaignData = await response.json();
 
       // Store campaign data for lazy loading and state
@@ -232,7 +230,7 @@ function Home() {
       // Note: Evaluations, personas, and videos are now fetched separately below
 
       // Fetch personas for this campaign
-      const personasResponse = await fetch(`${API_URL}/api/personas?campaign_id=${targetCampaign}`);
+      const personasResponse = await fetch(`${API_URL}/api/personas?campaign_id=${targetCampaign}`, { headers: getApiHeaders() });
       if (personasResponse.ok) {
         const personasData = await personasResponse.json();
         const mappedPersonas: Persona[] = personasData.map((p: any) => ({
@@ -250,14 +248,14 @@ function Home() {
       }
 
       // Fetch videos for this campaign
-      const videosResponse = await fetch(`${API_URL}/api/videos?campaign_id=${targetCampaign}`);
+      const videosResponse = await fetch(`${API_URL}/api/videos?campaign_id=${targetCampaign}`, { headers: getApiHeaders() });
       if (videosResponse.ok) {
         const videosData = await videosResponse.json();
         setVideos(videosData);
       }
 
       // Fetch evaluations for this campaign
-      const evaluationsResponse = await fetch(`${API_URL}/api/evaluations?campaign_id=${targetCampaign}`);
+      const evaluationsResponse = await fetch(`${API_URL}/api/evaluations?campaign_id=${targetCampaign}`, { headers: getApiHeaders() });
       if (evaluationsResponse.ok) {
         const evaluationsData = await evaluationsResponse.json();
         const mappedEvaluations: ModelEvaluation[] = evaluationsData.map((e: any) => ({
@@ -279,7 +277,7 @@ function Home() {
       }
 
       // Fetch simulations for this campaign
-      const simulationsResponse = await fetch(`${API_URL}/api/simulations/?campaign_id=${targetCampaign}`);
+      const simulationsResponse = await fetch(`${API_URL}/api/simulations/?campaign_id=${targetCampaign}`, { headers: getApiHeaders() });
       if (simulationsResponse.ok) {
         const simulationsData = await simulationsResponse.json();
         setSimulations(simulationsData);
@@ -317,7 +315,7 @@ function Home() {
     if (!selectedCampaign) return;
 
     try {
-      const response = await fetch(`${API_URL}/api/campaigns/${selectedCampaign}/insights`);
+      const response = await fetch(`${API_URL}/api/campaigns/${selectedCampaign}/insights`, { headers: getApiHeaders() });
       if (response.ok) {
         const data = await response.json();
         // Backend returns array directly, not wrapped in object
@@ -343,7 +341,7 @@ function Home() {
 
       const response = await fetch(`${API_URL}/api/campaigns/${selectedCampaign}/generate-insights`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getApiHeaders(),
         body: JSON.stringify({
           question: insightsInput || undefined,
           evaluations: evaluationsToSend,
@@ -382,7 +380,7 @@ function Home() {
     try {
       const response = await fetch(`${API_URL}/api/synthesis/plans`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getApiHeaders(),
         body: JSON.stringify({
           campaign_id: selectedCampaign,
           description: synthesisInput
@@ -520,9 +518,7 @@ function Home() {
       // Call API
       const response = await fetch(`${API_URL}/api/chat`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: getApiHeaders(),
         body: JSON.stringify({
           message: userMessage,
           context: contextData,
@@ -625,9 +621,7 @@ function Home() {
       // Call API
       const response = await fetch(`${API_URL}/api/chat`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: getApiHeaders(),
         body: JSON.stringify({
           message: userMessage,
           context: contextData,
@@ -712,9 +706,7 @@ function Home() {
       // Call API with selected model
       const response = await fetch(`${API_URL}/api/chat`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: getApiHeaders(),
         body: JSON.stringify({
           message: userMessage,
           context: contextData,
@@ -876,9 +868,7 @@ function Home() {
       // Call API
       const response = await fetch(`${API_URL}/api/chat`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: getApiHeaders(),
         body: JSON.stringify({
           message: userMessage,
           context: contextData,
@@ -930,9 +920,7 @@ function Home() {
 
       const response = await fetch(url, {
         method: isEditing ? 'PUT' : 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: getApiHeaders(),
         body: JSON.stringify(campaignWithUser),
       });
 
@@ -961,6 +949,7 @@ function Home() {
     try {
       const response = await fetch(`${API_URL}/api/campaigns/${campaignId}`, {
         method: 'DELETE',
+        headers: getApiHeaders(),
       });
 
       if (!response.ok) {
@@ -991,7 +980,7 @@ function Home() {
     try {
       const response = await fetch(`${API_URL}/api/simulations/`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getApiHeaders(),
         body: JSON.stringify({
           name: simulationName,
           campaign_id: selectedCampaign,
@@ -1025,7 +1014,7 @@ function Home() {
 
     const poll = async () => {
       try {
-        const response = await fetch(`${API_URL}/api/simulations/${simulationId}`);
+        const response = await fetch(`${API_URL}/api/simulations/${simulationId}`, { headers: getApiHeaders() });
         if (!response.ok) return;
 
         const simulation = await response.json();
@@ -1067,6 +1056,7 @@ function Home() {
     try {
       const response = await fetch(`${API_URL}/api/simulations/${simulationId}`, {
         method: 'DELETE',
+        headers: getApiHeaders(),
       });
 
       if (!response.ok) throw new Error('Failed to delete simulation');
