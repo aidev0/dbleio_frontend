@@ -28,6 +28,7 @@ export interface Strategy {
 
 export interface Campaign {
   id: string;
+  _id?: string; // MongoDB ObjectId
   name: string;
   description?: string;
   platform?: string; // vibe.co, facebook, instagram, linkedin, tiktok, x
