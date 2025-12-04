@@ -144,10 +144,13 @@ function Home() {
   };
 
   useEffect(() => {
-    if (!authLoading) {
+    if (!authLoading && isAuthenticated) {
       loadCampaignData();
+    } else if (!authLoading && !isAuthenticated) {
+      // User is not authenticated, stop loading
+      setLoading(false);
     }
-  }, [user, authLoading]);
+  }, [user, authLoading, isAuthenticated]);
 
   // Load videos when navigating to videos tab
   useEffect(() => {
@@ -181,10 +184,19 @@ function Home() {
   const loadCampaignData = async (campaignId?: string) => {
     try {
       // First, get campaigns for authenticated user
-      const campaignsResponse = await fetch(`${API_URL}/api/campaigns${user ? `?workos_user_id=${user.workos_user_id}` : ''}`, { headers: getApiHeaders() });
+      // User ID is now extracted from JWT on the backend
+      const campaignsResponse = await fetch(`${API_URL}/api/campaigns`, { headers: getApiHeaders() });
+
+      // Handle error responses (401, 403, etc.)
+      if (!campaignsResponse.ok) {
+        console.error('Failed to fetch campaigns:', campaignsResponse.status, campaignsResponse.statusText);
+        setLoading(false);
+        return;
+      }
+
       const campaignsData = await campaignsResponse.json();
 
-      if (!campaignsData || campaignsData.length === 0) {
+      if (!campaignsData || !Array.isArray(campaignsData) || campaignsData.length === 0) {
         console.error('No campaigns found');
         setLoading(false);
         return;
@@ -907,13 +919,7 @@ function Home() {
     try {
       const isEditing = !!editingCampaign;
 
-      // Add user information to campaign data
-      const campaignWithUser = {
-        ...campaignData,
-        user_id: user?._id,
-        workos_user_id: user?.workos_user_id,
-      };
-
+      // User ID is now extracted from JWT on the backend - no need to send it
       const url = isEditing
         ? `${API_URL}/api/campaigns/${editingCampaign._id}`
         : `${API_URL}/api/campaigns`;
@@ -921,7 +927,7 @@ function Home() {
       const response = await fetch(url, {
         method: isEditing ? 'PUT' : 'POST',
         headers: getApiHeaders(),
-        body: JSON.stringify(campaignWithUser),
+        body: JSON.stringify(campaignData),
       });
 
       if (!response.ok) {
@@ -1524,7 +1530,6 @@ function Home() {
 
           {activeTab === 'integrations' && user && (
             <IntegrationsTab
-              userId={user._id}
               onShopifyConnected={(integration) => {
                 setSelectedShopifyIntegration(integration);
                 setActiveTab('shopify-data');

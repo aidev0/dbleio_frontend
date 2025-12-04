@@ -16,11 +16,10 @@ interface Integration {
 }
 
 interface IntegrationsTabProps {
-  userId: string;
   onShopifyConnected?: (integration: Integration) => void;
 }
 
-export default function IntegrationsTab({ userId, onShopifyConnected }: IntegrationsTabProps) {
+export default function IntegrationsTab({ onShopifyConnected }: IntegrationsTabProps) {
   const [integrations, setIntegrations] = useState<Integration[]>([]);
   const [loading, setLoading] = useState(true);
   const [showShopifyModal, setShowShopifyModal] = useState(false);
@@ -30,11 +29,12 @@ export default function IntegrationsTab({ userId, onShopifyConnected }: Integrat
 
   useEffect(() => {
     loadIntegrations();
-  }, [userId]);
+  }, []);
 
   const loadIntegrations = async () => {
     try {
-      const response = await fetch(`${API_URL}/api/integrations?user_id=${userId}`, { headers: getApiHeaders() });
+      // User ID is now extracted from JWT on the backend
+      const response = await fetch(`${API_URL}/api/integrations/`, { headers: getApiHeaders() });
       if (response.ok) {
         const data = await response.json();
         setIntegrations(data);
@@ -56,11 +56,11 @@ export default function IntegrationsTab({ userId, onShopifyConnected }: Integrat
     setError(null);
 
     try {
+      // User ID is now extracted from JWT on the backend
       const response = await fetch(`${API_URL}/api/integrations/shopify/connect`, {
         method: 'POST',
         headers: getApiHeaders(),
         body: JSON.stringify({
-          user_id: userId,
           store_url: shopifyUrl
         })
       });
