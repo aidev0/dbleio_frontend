@@ -1,8 +1,7 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+import { API_URL, getApiHeaders } from '../lib/api';
 
 interface Integration {
   _id: string;
@@ -35,7 +34,7 @@ export default function IntegrationsTab({ userId, onShopifyConnected }: Integrat
 
   const loadIntegrations = async () => {
     try {
-      const response = await fetch(`${API_URL}/api/integrations?user_id=${userId}`);
+      const response = await fetch(`${API_URL}/api/integrations?user_id=${userId}`, { headers: getApiHeaders() });
       if (response.ok) {
         const data = await response.json();
         setIntegrations(data);
@@ -59,7 +58,7 @@ export default function IntegrationsTab({ userId, onShopifyConnected }: Integrat
     try {
       const response = await fetch(`${API_URL}/api/integrations/shopify/connect`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getApiHeaders(),
         body: JSON.stringify({
           user_id: userId,
           store_url: shopifyUrl
@@ -86,7 +85,8 @@ export default function IntegrationsTab({ userId, onShopifyConnected }: Integrat
 
     try {
       const response = await fetch(`${API_URL}/api/integrations/${integrationId}`, {
-        method: 'DELETE'
+        method: 'DELETE',
+        headers: getApiHeaders()
       });
 
       if (response.ok) {

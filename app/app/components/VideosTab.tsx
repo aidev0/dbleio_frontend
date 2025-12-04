@@ -5,6 +5,7 @@ import Image from 'next/image';
 import ChatInterface from './ChatInterface';
 import VideoUploadModal from './VideoUploadModal';
 import { Video, ChatMessage } from '../types';
+import { API_URL, getApiHeaders } from '../lib/api';
 
 interface TimelineSegment {
   start: number;
@@ -62,8 +63,9 @@ export default function VideosTab({
 
     setDeletingVideoId(videoId);
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/videos/${videoId}`, {
-        method: 'DELETE'
+      const response = await fetch(`${API_URL}/api/videos/${videoId}`, {
+        method: 'DELETE',
+        headers: getApiHeaders()
       });
 
       if (!response.ok) throw new Error('Failed to delete video');
@@ -382,8 +384,9 @@ export default function VideosTab({
                   <button
                     onClick={async () => {
                       try {
-                        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/videos/${selectedVideo.id}/analyze`, {
-                          method: 'POST'
+                        const response = await fetch(`${API_URL}/api/videos/${selectedVideo.id}/analyze`, {
+                          method: 'POST',
+                          headers: getApiHeaders()
                         });
                         if (response.ok) {
                           onRefresh();

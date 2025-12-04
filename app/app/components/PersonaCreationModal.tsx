@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { Persona, Demographics } from '../types';
+import { API_URL, getApiHeaders } from '../lib/api';
 
 interface PersonaCreationModalProps {
   isOpen: boolean;
@@ -163,8 +164,8 @@ export default function PersonaCreationModal({
   const handleManualCreate = async () => {
     try {
       const url = isEditMode
-        ? `${process.env.NEXT_PUBLIC_API_URL}/api/personas/${editingPersona!.id}`
-        : `${process.env.NEXT_PUBLIC_API_URL}/api/personas`;
+        ? `${API_URL}/api/personas/${editingPersona!.id}`
+        : `${API_URL}/api/personas`;
 
       const method = isEditMode ? 'PUT' : 'POST';
 
@@ -184,7 +185,7 @@ export default function PersonaCreationModal({
 
       const response = await fetch(url, {
         method,
-        headers: { 'Content-Type': 'application/json' },
+        headers: getApiHeaders(),
         body: JSON.stringify(body)
       });
 
@@ -201,7 +202,7 @@ export default function PersonaCreationModal({
 
   const pollTaskStatus = async (taskIdToPoll: string) => {
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/tasks/${taskIdToPoll}`);
+      const response = await fetch(`${API_URL}/api/tasks/${taskIdToPoll}`, { headers: getApiHeaders() });
       if (!response.ok) {
         throw new Error('Failed to fetch task status');
       }
@@ -258,9 +259,9 @@ export default function PersonaCreationModal({
     setGenerationMessage('Starting persona generation...');
 
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/personas/generate`, {
+      const response = await fetch(`${API_URL}/api/personas/generate`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getApiHeaders(),
         body: JSON.stringify({
           campaign_id: campaignId || null,
           num_personas: aiNumPersonas,
