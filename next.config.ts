@@ -9,6 +9,8 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  // Empty turbopack config to silence Next.js 16 warning about webpack config
+  turbopack: {},
   webpack: (config) => {
     config.module.rules.push({
       test: /\.(mp4|webm|ogg|mp3|wav|flac|aac)$/,

@@ -300,7 +300,7 @@ export default function ChatInterface({
                     <>
                       <div className="text-xs font-semibold text-gray-500 px-2 py-1">CAMPAIGN</div>
                       <button
-                        onClick={() => onMentionSelect(`@Campaign ${campaign.id}`)}
+                        onClick={() => onMentionSelect(`@Campaign[${campaign._id || campaign.id}] ${campaign.name}`)}
                         className="w-full text-left px-3 py-2 hover:bg-green-50 rounded"
                       >
                         <div className="text-green-600 font-semibold">{campaign.name}</div>
@@ -349,10 +349,11 @@ export default function ChatInterface({
 
                           const detailsStr = details.length > 0 ? details.join(', ') : '';
 
+                          const personaId = persona._id || persona.id || `idx-${personas.indexOf(persona)}`;
                           return (
                             <button
-                              key={`persona-${persona._id || persona.id}`}
-                              onClick={() => onMentionSelect(`@Persona ${persona._id || persona.id}`)}
+                              key={`persona-${personaId}`}
+                              onClick={() => onMentionSelect(`@Persona[${personaId}] ${persona.name}`)}
                               className="w-full text-left px-3 py-2 hover:bg-indigo-50 rounded"
                             >
                               <div className="text-indigo-600 font-semibold">{persona.name}</div>
@@ -378,13 +379,12 @@ export default function ChatInterface({
                           return (
                             <button
                               key={video.id}
-                              onClick={() => onMentionSelect(`@Video ${video.id}`)}
+                              onClick={() => onMentionSelect(`@Video[${video.id}] ${video.title}`)}
                               className="w-full text-left px-3 py-2 hover:bg-purple-50 rounded flex flex-col"
                             >
                               <div className="flex items-center space-x-2">
                                 <span className="text-purple-600 font-semibold">{video.title}</span>
                               </div>
-                              <span className="text-gray-500 text-xs font-mono">ID: {video.id}</span>
                             </button>
                           );
                         })}

@@ -115,9 +115,9 @@ export default function PersonasTab({
             </div>
           </div>
 
-          {personas.map((persona) => (
+          {personas.map((persona, index) => (
             <div
-              key={persona.id}
+              key={persona._id || persona.id || `persona-${index}`}
               onClick={() => handlePersonaClick(persona)}
               className="border rounded-lg p-4 hover:shadow-md transition-shadow cursor-pointer"
             >
