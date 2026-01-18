@@ -365,7 +365,7 @@ export default function PersonaCreationModal({
                 onClick={() => setMode('manual')}
                 className={`flex-1 py-3 px-6 rounded-lg font-semibold transition-all ${
                   mode === 'manual'
-                    ? 'bg-indigo-600 text-white shadow-md'
+                    ? 'bg-gray-900 text-white shadow-md'
                     : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                 }`}
               >
@@ -375,7 +375,7 @@ export default function PersonaCreationModal({
                 onClick={() => setMode('ai')}
                 className={`flex-1 py-3 px-6 rounded-lg font-semibold transition-all ${
                   mode === 'ai'
-                    ? 'bg-indigo-600 text-white shadow-md'
+                    ? 'bg-gray-900 text-white shadow-md'
                     : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                 }`}
               >
@@ -396,7 +396,7 @@ export default function PersonaCreationModal({
                   type="text"
                   value={personaName}
                   onChange={(e) => setPersonaName(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-800 focus:border-transparent"
                   placeholder="e.g., Tech-Savvy Millennial"
                 />
               </div>
@@ -409,7 +409,7 @@ export default function PersonaCreationModal({
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   rows={3}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-800 focus:border-transparent"
                   placeholder="Describe this persona's characteristics, lifestyle, and preferences..."
                 />
               </div>
@@ -516,18 +516,18 @@ export default function PersonaCreationModal({
                     value={customFieldKey}
                     onChange={(e) => setCustomFieldKey(e.target.value)}
                     placeholder="Field name (e.g., Income Level)"
-                    className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-800 focus:border-transparent"
                   />
                   <input
                     type="text"
                     value={customFieldValue}
                     onChange={(e) => setCustomFieldValue(e.target.value)}
                     placeholder="Value"
-                    className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-800 focus:border-transparent"
                   />
                   <button
                     onClick={addCustomField}
-                    className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-semibold"
+                    className="px-6 py-2 bg-gray-900 text-white rounded-lg hover:bg-black transition-colors font-semibold"
                   >
                     Add
                   </button>
@@ -562,7 +562,7 @@ export default function PersonaCreationModal({
                 <button
                   onClick={handleManualCreate}
                   disabled={!personaName.trim()}
-                  className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-semibold disabled:bg-gray-300 disabled:cursor-not-allowed"
+                  className="px-6 py-2 bg-gray-900 text-white rounded-lg hover:bg-black transition-colors font-semibold disabled:bg-gray-300 disabled:cursor-not-allowed"
                 >
                   {isEditMode ? 'Update Persona' : 'Create Persona'}
                 </button>
@@ -581,7 +581,7 @@ export default function PersonaCreationModal({
                   value={aiDistributionDescription}
                   onChange={(e) => setAiDistributionDescription(e.target.value)}
                   rows={3}
-                  className="w-full px-4 py-2 border border-blue-200 rounded-lg bg-blue-50 text-blue-900 focus:ring-2 focus:ring-indigo-500 focus:border-transparent placeholder-blue-600"
+                  className="w-full px-4 py-2 border border-gray-400 rounded-lg bg-gray-100 text-blue-900 focus:ring-2 focus:ring-gray-800 focus:border-transparent placeholder-gray-900"
                   placeholder="Generate diverse, realistic personas automatically using AI. The system will create personas with varied demographics based on your campaign details."
                 />
                 <p className="text-sm text-gray-600 mt-2">
@@ -599,7 +599,7 @@ export default function PersonaCreationModal({
                   onChange={(e) => setAiNumPersonas(Number(e.target.value))}
                   min="1"
                   max="100"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-800 focus:border-transparent"
                 />
               </div>
 
@@ -625,7 +625,7 @@ export default function PersonaCreationModal({
                         }}
                         className={`px-4 py-3 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${
                           isSelected
-                            ? 'bg-indigo-600 text-white shadow-md'
+                            ? 'bg-gray-900 text-white shadow-md'
                             : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                         }`}
                       >
@@ -659,7 +659,7 @@ export default function PersonaCreationModal({
                     onClick={() => setAiProvider('openai')}
                     className={`py-3 px-4 rounded-lg font-semibold transition-all ${
                       aiProvider === 'openai'
-                        ? 'bg-green-600 text-white shadow-md'
+                        ? 'bg-gray-700 text-white shadow-md'
                         : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                     }`}
                   >
@@ -679,7 +679,7 @@ export default function PersonaCreationModal({
                     onClick={() => setAiProvider('google')}
                     className={`py-3 px-4 rounded-lg font-semibold transition-all ${
                       aiProvider === 'google'
-                        ? 'bg-blue-600 text-white shadow-md'
+                        ? 'bg-gray-900 text-white shadow-md'
                         : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                     }`}
                   >
@@ -701,11 +701,11 @@ export default function PersonaCreationModal({
                     </div>
 
                     {/* Status Message */}
-                    <p className="text-lg font-semibold text-indigo-700 text-center mb-2">
+                    <p className="text-lg font-semibold text-black text-center mb-2">
                       {generationMessage || 'Generating personas with AI...'}
                     </p>
 
-                    <p className="text-xs text-indigo-500 mt-2">
+                    <p className="text-xs text-gray-800 mt-2">
                       Please wait while AI generates {aiNumPersonas} personas...
                     </p>
                   </div>
@@ -723,7 +723,7 @@ export default function PersonaCreationModal({
                 <button
                   onClick={handleAIGenerate}
                   disabled={isGenerating || aiSelectedDimensions.length === 0}
-                  className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-semibold disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center gap-2"
+                  className="px-6 py-2 bg-gray-900 text-white rounded-lg hover:bg-black transition-colors font-semibold disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center gap-2"
                 >
                   {isGenerating ? (
                     <>
@@ -768,7 +768,7 @@ function DemographicSection({
             onClick={() => onToggle(option)}
             className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
               selected.includes(option)
-                ? 'bg-indigo-600 text-white shadow-sm'
+                ? 'bg-gray-900 text-white shadow-sm'
                 : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
             }`}
           >

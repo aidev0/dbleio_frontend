@@ -371,7 +371,7 @@ export default function VideoUploadModal({
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder="Enter video title"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-800"
                 disabled={uploading || analyzing}
               />
             </div>
@@ -387,8 +387,8 @@ export default function VideoUploadModal({
                 onDragLeave={handleDragLeave}
                 className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
                   dragOver
-                    ? 'border-blue-500 bg-blue-50'
-                    : 'border-gray-300 hover:border-blue-400'
+                    ? 'border-gray-800 bg-gray-100'
+                    : 'border-gray-300 hover:border-gray-700'
                 }`}
               >
                 {!file ? (
@@ -411,7 +411,7 @@ export default function VideoUploadModal({
                     <p className="text-gray-600 mb-2">
                       Drag and drop your video file here, or
                     </p>
-                    <label className="inline-block px-4 py-2 bg-blue-600 text-white rounded-lg cursor-pointer hover:bg-blue-700 transition-colors">
+                    <label className="inline-block px-4 py-2 bg-gray-900 text-white rounded-lg cursor-pointer hover:bg-black transition-colors">
                       Browse Files
                       <input
                         type="file"
@@ -428,9 +428,9 @@ export default function VideoUploadModal({
                 ) : (
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-3">
-                      <div className="w-12 h-12 rounded bg-blue-100 flex items-center justify-center">
+                      <div className="w-12 h-12 rounded bg-gray-200 flex items-center justify-center">
                         <svg
-                          className="w-6 h-6 text-blue-600"
+                          className="w-6 h-6 text-gray-900"
                           fill="none"
                           stroke="currentColor"
                           viewBox="0 0 24 24"
@@ -482,7 +482,7 @@ export default function VideoUploadModal({
                 id="analyzeVideo"
                 checked={analyzeVideo}
                 onChange={(e) => setAnalyzeVideo(e.target.checked)}
-                className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                className="w-4 h-4 text-gray-900 border-gray-300 rounded focus:ring-gray-800"
                 disabled={uploading || analyzing}
               />
               <label htmlFor="analyzeVideo" className="text-sm text-gray-700">
@@ -503,11 +503,11 @@ export default function VideoUploadModal({
                   </div>
 
                   {/* Status Message */}
-                  <p className="text-lg font-semibold text-blue-700 text-center mb-2">
+                  <p className="text-lg font-semibold text-black text-center mb-2">
                     Uploading video...
                   </p>
 
-                  <p className="text-xs text-blue-500">
+                  <p className="text-xs text-gray-800">
                     Please wait while your file uploads
                   </p>
                 </div>
@@ -527,27 +527,27 @@ export default function VideoUploadModal({
                   </div>
 
                   {/* Status Message */}
-                  <p className="text-lg font-semibold text-purple-700 text-center mb-2">
+                  <p className="text-lg font-semibold text-black text-center mb-2">
                     Analyzing video with AI...
                   </p>
 
                   {/* Detailed Steps */}
-                  <div className="space-y-2 text-sm text-purple-600 text-center">
+                  <div className="space-y-2 text-sm text-gray-900 text-center">
                     <div className="flex items-center justify-center space-x-2">
-                      <div className="w-2 h-2 bg-purple-400 rounded-full animate-pulse"></div>
+                      <div className="w-2 h-2 bg-gray-700 rounded-full animate-pulse"></div>
                       <span>Extracting visual elements and objects</span>
                     </div>
                     <div className="flex items-center justify-center space-x-2">
-                      <div className="w-2 h-2 bg-purple-400 rounded-full animate-pulse" style={{ animationDelay: '0.2s' }}></div>
+                      <div className="w-2 h-2 bg-gray-700 rounded-full animate-pulse" style={{ animationDelay: '0.2s' }}></div>
                       <span>Analyzing colors and textures</span>
                     </div>
                     <div className="flex items-center justify-center space-x-2">
-                      <div className="w-2 h-2 bg-purple-400 rounded-full animate-pulse" style={{ animationDelay: '0.4s' }}></div>
+                      <div className="w-2 h-2 bg-gray-700 rounded-full animate-pulse" style={{ animationDelay: '0.4s' }}></div>
                       <span>Creating timeline breakdown</span>
                     </div>
                   </div>
 
-                  <p className="text-xs text-purple-500 mt-4">
+                  <p className="text-xs text-gray-800 mt-4">
                     This may take 30-60 seconds...
                   </p>
                 </div>
@@ -567,7 +567,7 @@ export default function VideoUploadModal({
             <button
               onClick={handleUpload}
               disabled={!file || !title.trim() || uploading || analyzing}
-              className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-6 py-2 bg-gray-900 text-white rounded-lg hover:bg-black transition-colors font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {uploading ? 'Uploading...' : analyzing ? 'Analyzing...' : 'Upload Video'}
             </button>

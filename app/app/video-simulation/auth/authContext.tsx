@@ -25,13 +25,18 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
  */
 function isTokenExpired(token: string): boolean {
   try {
-    const payload = JSON.parse(atob(token.split('.')[1]));
+    // Only check expiration if token looks like a JWT
+    const parts = token.split('.');
+    if (parts.length !== 3) return false; // Not a JWT, assume valid
+
+    const payload = JSON.parse(atob(parts[1]));
     const exp = payload.exp;
     if (!exp) return false;
     // Add 30 second buffer
     return Date.now() >= (exp * 1000) - 30000;
   } catch {
-    return true;
+    // If parsing fails, assume token is valid (let backend validate)
+    return false;
   }
 }
 
@@ -41,8 +46,7 @@ function isTokenExpired(token: string): boolean {
 function hasValidToken(): boolean {
   if (typeof window === 'undefined') return false;
   const token = localStorage.getItem('access_token');
-  if (!token) return false;
-  return !isTokenExpired(token);
+  return !!token; // Just check if token exists, let backend validate
 }
 
 /**
@@ -120,6 +124,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem('user');
     localStorage.removeItem('access_token');
     localStorage.removeItem('refresh_token');
+    window.location.href = '/';
   };
 
   const value = {

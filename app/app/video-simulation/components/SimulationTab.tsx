@@ -329,7 +329,7 @@ export default function SimulationTab({
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="bg-gradient-to-r from-purple-600 to-indigo-600 rounded-lg shadow-lg p-8 text-white">
+      <div className="bg-gradient-to-r from-gray-900 to-gray-900 rounded-lg shadow-lg p-8 text-white">
         <h2 className="text-3xl font-bold mb-3">Simulations</h2>
         <p className="text-lg opacity-90">
           Run AI-powered simulations to test how different personas respond to your videos and predict campaign performance
@@ -347,12 +347,12 @@ export default function SimulationTab({
             </div>
           ) : (
             <div className="space-y-4">
-              <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4">
+              <div className="bg-gray-100 border border-gray-400 rounded-lg p-4">
                 <p className="text-sm text-indigo-900">
                   <span className="font-semibold">Selected Campaign:</span> {campaign?.name || 'Loading...'}
                 </p>
                 {campaign?.platform && (
-                  <p className="text-xs text-indigo-700 mt-1">
+                  <p className="text-xs text-black mt-1">
                     Platform: {campaign.platform}
                   </p>
                 )}
@@ -368,7 +368,7 @@ export default function SimulationTab({
                   value={simulationName}
                   onChange={(e) => setSimulationName(e.target.value)}
                   placeholder="e.g., Q4 Campaign Test, Holiday Season Analysis..."
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-800 focus:border-transparent"
                 />
                 <p className="text-xs text-gray-500 mt-1">
                   Give your simulation a descriptive name to easily identify it later
@@ -381,41 +381,41 @@ export default function SimulationTab({
                   Select AI Models to Run:
                 </label>
                 <div className="space-y-3">
-                  <label className="flex items-center space-x-3 p-3 border-2 border-blue-300 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-all cursor-pointer">
+                  <label className="flex items-center space-x-3 p-3 border-2 border-gray-600 rounded-lg hover:border-gray-800 hover:bg-gray-100 transition-all cursor-pointer">
                     <input
                       type="checkbox"
                       checked={selectedSimulationModels.has('gpt-5')}
                       onChange={() => toggleSimulationModel('gpt-5')}
-                      className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                      className="w-5 h-5 text-gray-900 border-gray-300 rounded focus:ring-gray-800"
                     />
                     <div className="flex-1">
-                      <div className="text-lg font-semibold text-blue-700">🤖 OpenAI GPT-5</div>
+                      <div className="text-lg font-semibold text-black">🤖 OpenAI GPT-5</div>
                       <div className="text-xs text-gray-600 mt-0.5">Latest reasoning model with advanced capabilities</div>
                     </div>
                   </label>
 
-                  <label className="flex items-center space-x-3 p-3 border-2 border-purple-300 rounded-lg hover:border-purple-500 hover:bg-purple-50 transition-all cursor-pointer">
+                  <label className="flex items-center space-x-3 p-3 border-2 border-gray-600 rounded-lg hover:border-gray-800 hover:bg-gray-100 transition-all cursor-pointer">
                     <input
                       type="checkbox"
                       checked={selectedSimulationModels.has('claude-sonnet-4.5')}
                       onChange={() => toggleSimulationModel('claude-sonnet-4.5')}
-                      className="w-5 h-5 text-purple-600 border-gray-300 rounded focus:ring-purple-500"
+                      className="w-5 h-5 text-gray-900 border-gray-300 rounded focus:ring-gray-800"
                     />
                     <div className="flex-1">
-                      <div className="text-lg font-semibold text-purple-700">🧠 Claude Sonnet 4.5</div>
+                      <div className="text-lg font-semibold text-black">🧠 Claude Sonnet 4.5</div>
                       <div className="text-xs text-gray-600 mt-0.5">Advanced analysis and reasoning capabilities</div>
                     </div>
                   </label>
 
-                  <label className="flex items-center space-x-3 p-3 border-2 border-green-300 rounded-lg hover:border-green-500 hover:bg-green-50 transition-all cursor-pointer">
+                  <label className="flex items-center space-x-3 p-3 border-2 border-gray-400 rounded-lg hover:border-gray-600 hover:bg-gray-100 transition-all cursor-pointer">
                     <input
                       type="checkbox"
                       checked={selectedSimulationModels.has('gemini-2.5-pro')}
                       onChange={() => toggleSimulationModel('gemini-2.5-pro')}
-                      className="w-5 h-5 text-green-600 border-gray-300 rounded focus:ring-green-500"
+                      className="w-5 h-5 text-gray-700 border-gray-300 rounded focus:ring-gray-600"
                     />
                     <div className="flex-1">
-                      <div className="text-lg font-semibold text-green-700">🔍 Gemini Pro 2.5</div>
+                      <div className="text-lg font-semibold text-gray-800">🔍 Gemini Pro 2.5</div>
                       <div className="text-xs text-gray-600 mt-0.5">Multimodal understanding and analysis</div>
                     </div>
                   </label>
@@ -428,7 +428,7 @@ export default function SimulationTab({
                   className={`w-full mt-4 px-6 py-3 rounded-lg font-semibold text-white transition-all duration-200 flex items-center justify-center gap-2 ${
                     selectedSimulationModels.size === 0 || runningSimulations.size > 0
                       ? 'bg-gray-400 cursor-not-allowed'
-                      : 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 shadow-lg'
+                      : 'bg-gradient-to-r from-gray-900 to-gray-900 hover:from-black hover:to-black shadow-lg'
                   }`}
                 >
                   <span className="text-xl">🚀</span>
@@ -441,7 +441,7 @@ export default function SimulationTab({
 
               {/* Combined Active Simulations Results */}
               {simulations.length > 0 && (
-                <div className="bg-gradient-to-r from-green-50 to-blue-50 rounded-lg border-2 border-green-200 p-6">
+                <div className="bg-gradient-to-r from-gray-100 to-gray-100 rounded-lg border-2 border-gray-300 p-6">
                   <div className="mb-4">
                     <h3 className="text-xl font-bold text-gray-900 mb-2">📊 Active Simulation Results</h3>
                     <div className="flex items-center justify-between">
@@ -457,8 +457,8 @@ export default function SimulationTab({
                       <div
                         key={sim._id}
                         className={`p-3 rounded-lg border-2 bg-white shadow-sm ${
-                          sim.status === 'completed' ? 'border-green-300' :
-                          sim.status === 'running' ? 'border-blue-300 animate-pulse' :
+                          sim.status === 'completed' ? 'border-gray-400' :
+                          sim.status === 'running' ? 'border-gray-600 animate-pulse' :
                           sim.status === 'failed' ? 'border-red-300' :
                           'border-gray-300'
                         }`}
@@ -470,7 +470,7 @@ export default function SimulationTab({
                               type="checkbox"
                               checked={selectedSimulationIds?.has(sim._id) || false}
                               onChange={() => onToggleSimulationSelection?.(sim._id)}
-                              className="w-4 h-4 text-indigo-600 rounded cursor-pointer"
+                              className="w-4 h-4 text-gray-900 rounded cursor-pointer"
                               title="Include in results filtering"
                             />
                           )}
@@ -487,8 +487,8 @@ export default function SimulationTab({
 
                           <div className="flex items-center gap-2">
                             <div className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                              sim.status === 'completed' ? 'bg-green-200 text-green-800' :
-                              sim.status === 'running' ? 'bg-blue-200 text-blue-800' :
+                              sim.status === 'completed' ? 'bg-gray-300 text-gray-900' :
+                              sim.status === 'running' ? 'bg-gray-400 text-blue-800' :
                               sim.status === 'failed' ? 'bg-red-200 text-red-800' :
                               'bg-gray-200 text-gray-800'
                             }`}>
@@ -532,7 +532,7 @@ export default function SimulationTab({
           const gridClass = numVideos === 2 ? 'grid-cols-2' : numVideos === 3 ? 'grid-cols-3' : numVideos >= 4 ? 'grid-cols-4' : 'grid-cols-1';
 
           return (
-            <div className="mb-8 p-4 bg-blue-50 rounded-lg">
+            <div className="mb-8 p-4 bg-gray-100 rounded-lg">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">
                 Most Preferred Video ({selectedModels.size === 0 ? 'All Models' : `${selectedModels.size} ${selectedModels.size === 1 ? 'Model' : 'Models'}`})
               </h3>
@@ -543,7 +543,7 @@ export default function SimulationTab({
                   const videoTitle = getVideoTitle(video);
                   return (
                     <div key={video} className="bg-white p-4 rounded-lg text-center shadow">
-                      <div className="text-4xl font-bold text-blue-600">{percentage}%</div>
+                      <div className="text-4xl font-bold text-gray-900">{percentage}%</div>
                       <div className="text-sm text-gray-800 font-semibold mt-2">{videoTitle}</div>
                       <div className="text-xs text-gray-500 mt-1">
                         {count} / {filteredTotal} votes
@@ -570,7 +570,7 @@ export default function SimulationTab({
           };
 
           return (
-            <div className="mb-8 p-4 bg-green-50 rounded-lg">
+            <div className="mb-8 p-4 bg-gray-100 rounded-lg">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">
                 Ranking Distribution Across All Videos
               </h3>
@@ -605,7 +605,7 @@ export default function SimulationTab({
 
                             return (
                               <td key={rank} className="px-6 py-4 whitespace-nowrap text-center">
-                                <div className={`text-lg font-bold ${isHighest && rank === 1 ? 'text-green-600' : 'text-gray-900'}`}>
+                                <div className={`text-lg font-bold ${isHighest && rank === 1 ? 'text-gray-700' : 'text-gray-900'}`}>
                                   {percentage.toFixed(1)}%
                                 </div>
                                 <div className="text-xs text-gray-500">
@@ -741,7 +741,7 @@ export default function SimulationTab({
                               <div className="text-xs text-gray-600">{evaluation.model}</div>
                             </div>
                             <div className="text-right">
-                              <div className="text-sm font-bold text-blue-600">
+                              <div className="text-sm font-bold text-gray-900">
                                 {videoTitle}
                               </div>
                               <div className="text-xs text-gray-500">
@@ -752,7 +752,7 @@ export default function SimulationTab({
                           <div className="text-xs text-gray-500 mt-2">
                             Ranking: {preferenceRanking.map((v: string) => getVideoTitle(v)).join(' → ')}
                           </div>
-                          <div className="text-xs text-blue-600 mt-2 font-medium">
+                          <div className="text-xs text-gray-900 mt-2 font-medium">
                             Click for details →
                           </div>
                         </div>
@@ -764,7 +764,7 @@ export default function SimulationTab({
                   <div className="mt-4">
                     <button
                       onClick={() => onTogglePersonaChat(personaId)}
-                      className="w-full text-left px-4 py-2 bg-indigo-50 hover:bg-indigo-100 rounded-lg text-sm font-medium text-indigo-700 transition-colors flex items-center justify-between"
+                      className="w-full text-left px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-medium text-black transition-colors flex items-center justify-between"
                     >
                       <span>💬 Ask questions about this persona&apos;s results</span>
                       <span className="text-xs">
@@ -780,7 +780,7 @@ export default function SimulationTab({
                           <select
                             value={personaChatModels[personaId] || 'anthropic'}
                             onChange={(e) => onPersonaChatModelChange(personaId, e.target.value as 'openai' | 'anthropic' | 'google')}
-                            className="px-2 py-1 border border-gray-300 rounded text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                            className="px-2 py-1 border border-gray-300 rounded text-xs focus:outline-none focus:ring-2 focus:ring-gray-800"
                           >
                             <option value="anthropic">🧠 Claude Sonnet 4.5</option>
                             <option value="openai">🤖 GPT-5</option>
@@ -807,14 +807,14 @@ export default function SimulationTab({
                                   <div
                                     className={`max-w-[85%] rounded-lg px-3 py-2 ${
                                       message.role === 'user'
-                                        ? 'bg-indigo-600 text-white'
+                                        ? 'bg-gray-900 text-white'
                                         : 'bg-gray-100 text-gray-900'
                                     }`}
                                   >
                                     <div className="text-xs prose prose-sm max-w-none prose-p:my-2 prose-headings:my-2">
                                       <ReactMarkdown>{message.content}</ReactMarkdown>
                                     </div>
-                                    <div className={`text-[10px] mt-1 ${message.role === 'user' ? 'text-indigo-100' : 'text-gray-500'}`}>
+                                    <div className={`text-[10px] mt-1 ${message.role === 'user' ? 'text-gray-200' : 'text-gray-500'}`}>
                                       {new Date(message.timestamp).toLocaleTimeString()}
                                     </div>
                                   </div>
@@ -848,7 +848,7 @@ export default function SimulationTab({
                               }
                             }}
                             placeholder="Ask about this persona..."
-                            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-gray-800"
                             disabled={personaChatLoading[personaId]}
                           />
                           <button
@@ -857,7 +857,7 @@ export default function SimulationTab({
                             className={`px-4 py-2 rounded-lg text-xs font-semibold ${
                               personaChatLoading[personaId] || !(personaChatInputs[personaId] || '').trim()
                                 ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                                : 'bg-indigo-600 text-white hover:bg-indigo-700'
+                                : 'bg-gray-900 text-white hover:bg-black'
                             }`}
                           >
                             Send

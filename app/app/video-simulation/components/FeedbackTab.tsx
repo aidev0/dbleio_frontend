@@ -246,7 +246,7 @@ export default function FeedbackTab({
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="bg-gradient-to-r from-purple-600 to-indigo-600 rounded-lg shadow-lg p-8 text-white">
+      <div className="bg-gradient-to-r from-gray-900 to-gray-900 rounded-lg shadow-lg p-8 text-white">
         <div className="flex items-start justify-between gap-6">
           <div className="flex-1">
             <h2 className="text-3xl font-bold mb-3">Video Insights & Recommendations</h2>
@@ -262,7 +262,7 @@ export default function FeedbackTab({
               <select
                 value={selectedSimulation || ''}
                 onChange={(e) => onSimulationChange(e.target.value || null)}
-                className="w-full px-3 py-2 bg-white text-gray-900 rounded-lg focus:ring-2 focus:ring-purple-300 font-medium text-sm"
+                className="w-full px-3 py-2 bg-white text-gray-900 rounded-lg focus:ring-2 focus:ring-gray-600 font-medium text-sm"
               >
                 <option value="">All Evaluations (Overall)</option>
                 {completedSimulations.map((sim) => (
@@ -286,8 +286,8 @@ export default function FeedbackTab({
         <div className="flex items-center justify-between mb-6">
           <h3 className="text-2xl font-bold text-gray-900">Video Performance Overview</h3>
           {selectedSimulation && (
-            <div className="text-sm text-gray-600 bg-purple-50 px-4 py-2 rounded-lg">
-              <span className="font-semibold text-purple-700">Simulation Results</span>
+            <div className="text-sm text-gray-600 bg-gray-100 px-4 py-2 rounded-lg">
+              <span className="font-semibold text-black">Simulation Results</span>
             </div>
           )}
         </div>
@@ -301,7 +301,7 @@ export default function FeedbackTab({
                 <div className="text-center mb-3">
                   <h4 className="text-xl font-bold text-gray-900 mb-1">Video {videoId}</h4>
                   <p className="text-xs text-gray-500 mb-2 truncate">{video.title || 'Untitled'}</p>
-                  <div className="text-4xl font-bold text-blue-600">{percentage}%</div>
+                  <div className="text-4xl font-bold text-gray-900">{percentage}%</div>
                   <div className="text-sm text-gray-500">Most Preferred</div>
                 </div>
                 <div className="border-t pt-3 space-y-1">
@@ -339,7 +339,7 @@ export default function FeedbackTab({
                 value={insightsInput}
                 onChange={(e) => onInsightsInputChange?.(e.target.value)}
                 placeholder="Ask a question or describe what insights you want... (e.g., 'Which video works best for young professionals?' or 'Analyze psychological triggers')"
-                className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-800 focus:border-transparent"
                 disabled={loadingInsights}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && !loadingInsights) {
@@ -354,7 +354,7 @@ export default function FeedbackTab({
                   className={`px-6 py-3 rounded-lg font-semibold shadow-md transition-all flex items-center gap-2 whitespace-nowrap ${
                     loadingInsights
                       ? 'bg-gray-400 cursor-not-allowed text-white'
-                      : 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white'
+                      : 'bg-gradient-to-r from-gray-900 to-gray-900 hover:from-black hover:to-black text-white'
                   }`}
                 >
                   {loadingInsights ? (
@@ -377,19 +377,19 @@ export default function FeedbackTab({
               <span className="text-xs text-gray-500">Try:</span>
               <button
                 onClick={() => onInsightsInputChange?.('Overall performance summary')}
-                className="text-xs px-3 py-1 bg-purple-50 text-purple-700 rounded-full hover:bg-purple-100 transition-colors"
+                className="text-xs px-3 py-1 bg-gray-100 text-black rounded-full hover:bg-gray-200 transition-colors"
               >
                 Overall performance summary
               </button>
               <button
                 onClick={() => onInsightsInputChange?.('Which personas prefer Video 1?')}
-                className="text-xs px-3 py-1 bg-blue-50 text-blue-700 rounded-full hover:bg-blue-100 transition-colors"
+                className="text-xs px-3 py-1 bg-gray-100 text-black rounded-full hover:bg-gray-200 transition-colors"
               >
                 Which personas prefer Video 1?
               </button>
               <button
                 onClick={() => onInsightsInputChange?.('Psychological principles analysis')}
-                className="text-xs px-3 py-1 bg-green-50 text-green-700 rounded-full hover:bg-green-100 transition-colors"
+                className="text-xs px-3 py-1 bg-gray-100 text-gray-800 rounded-full hover:bg-gray-200 transition-colors"
               >
                 Psychological principles analysis
               </button>
@@ -404,12 +404,12 @@ export default function FeedbackTab({
 
           {loadingInsights ? (
             <div className="text-center py-16">
-              <div className="animate-spin inline-block w-12 h-12 border-4 border-purple-500 border-t-transparent rounded-full mb-4"></div>
+              <div className="animate-spin inline-block w-12 h-12 border-4 border-gray-800 border-t-transparent rounded-full mb-4"></div>
               <p className="text-lg text-gray-700 font-medium">Analyzing your campaign data with Gemini 2.5...</p>
               <p className="text-sm text-gray-500 mt-2">This may take 30-60 seconds</p>
             </div>
           ) : !generatedInsights ? (
-            <div className="text-center py-16 bg-gradient-to-br from-purple-50 to-indigo-50 rounded-lg">
+            <div className="text-center py-16 bg-gradient-to-br from-gray-100 to-gray-100 rounded-lg">
               <div className="text-6xl mb-4">🤖</div>
               <p className="text-lg text-gray-700 mb-2">Ready to generate insights!</p>
               <p className="text-sm text-gray-600">
@@ -428,12 +428,12 @@ export default function FeedbackTab({
                 };
 
                 const colorSchemes = [
-                  { gradient: 'from-blue-600 to-indigo-600', bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-600' },
-                  { gradient: 'from-purple-600 to-pink-600', bg: 'bg-purple-50', border: 'border-purple-200', text: 'text-purple-600' },
-                  { gradient: 'from-green-600 to-teal-600', bg: 'bg-green-50', border: 'border-green-200', text: 'text-green-600' },
+                  { gradient: 'from-gray-900 to-gray-900', bg: 'bg-gray-100', border: 'border-gray-400', text: 'text-gray-900' },
+                  { gradient: 'from-gray-900 to-pink-600', bg: 'bg-gray-100', border: 'border-gray-400', text: 'text-gray-900' },
+                  { gradient: 'from-gray-700 to-gray-900', bg: 'bg-gray-100', border: 'border-gray-300', text: 'text-gray-700' },
                   { gradient: 'from-orange-600 to-red-600', bg: 'bg-orange-50', border: 'border-orange-200', text: 'text-orange-600' },
-                  { gradient: 'from-cyan-600 to-blue-600', bg: 'bg-cyan-50', border: 'border-cyan-200', text: 'text-cyan-600' },
-                  { gradient: 'from-violet-600 to-purple-600', bg: 'bg-violet-50', border: 'border-violet-200', text: 'text-violet-600' }
+                  { gradient: 'from-gray-800 to-gray-900', bg: 'bg-gray-100', border: 'border-gray-400', text: 'text-gray-800' },
+                  { gradient: 'from-violet-600 to-gray-900', bg: 'bg-violet-50', border: 'border-violet-200', text: 'text-violet-600' }
                 ];
                 const colors = colorSchemes[index % colorSchemes.length];
 
@@ -442,7 +442,7 @@ export default function FeedbackTab({
                 // Summary section
                 if (key === 'summary' && value.bottom_line) {
                   return (
-                    <div key={key} className="bg-gradient-to-r from-green-600 to-teal-600 rounded-lg shadow-lg p-6 text-white">
+                    <div key={key} className="bg-gradient-to-r from-gray-700 to-gray-900 rounded-lg shadow-lg p-6 text-white">
                       <h4 className="text-2xl font-bold mb-3 flex items-center gap-2">
                         <span>📊</span>
                         <span>Executive Summary</span>
@@ -479,10 +479,10 @@ export default function FeedbackTab({
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                               <div>
-                                <p className="font-semibold text-green-700 mb-2">✓ Strengths:</p>
+                                <p className="font-semibold text-gray-800 mb-2">✓ Strengths:</p>
                                 <ul className="space-y-1">
                                   {analysis.strengths?.map((strength: string, i: number) => (
-                                    <li key={i} className="text-sm text-gray-700 pl-4 border-l-2 border-green-400">{strength}</li>
+                                    <li key={i} className="text-sm text-gray-700 pl-4 border-l-2 border-gray-500">{strength}</li>
                                   ))}
                                 </ul>
                               </div>
@@ -622,16 +622,16 @@ export default function FeedbackTab({
                 // Recommendations section
                 if (key === 'recommendations') {
                   return (
-                    <div key={key} className="bg-white rounded-lg shadow-lg p-6 border-2 border-green-200">
+                    <div key={key} className="bg-white rounded-lg shadow-lg p-6 border-2 border-gray-300">
                       <h4 className="text-2xl font-bold text-gray-900 mb-4">💡 Recommendations</h4>
                       <div className="space-y-4">
                         {value.immediate_actions && Array.isArray(value.immediate_actions) && (
                           <div>
-                            <p className="font-semibold text-green-700 mb-3">Immediate Actions:</p>
+                            <p className="font-semibold text-gray-800 mb-3">Immediate Actions:</p>
                             <ul className="space-y-2">
                               {value.immediate_actions.map((action: string, idx: number) => (
-                                <li key={idx} className="text-sm text-gray-700 flex items-start gap-2 pl-4 border-l-2 border-green-400">
-                                  <span className="text-green-600 font-bold">▸</span>
+                                <li key={idx} className="text-sm text-gray-700 flex items-start gap-2 pl-4 border-l-2 border-gray-500">
+                                  <span className="text-gray-700 font-bold">▸</span>
                                   <span className="leading-relaxed">{action}</span>
                                 </li>
                               ))}
@@ -640,11 +640,11 @@ export default function FeedbackTab({
                         )}
                         {value.optimization_opportunities && Array.isArray(value.optimization_opportunities) && (
                           <div>
-                            <p className="font-semibold text-blue-700 mb-3">Optimization Opportunities:</p>
+                            <p className="font-semibold text-black mb-3">Optimization Opportunities:</p>
                             <ul className="space-y-2">
                               {value.optimization_opportunities.map((opp: string, idx: number) => (
-                                <li key={idx} className="text-sm text-gray-700 flex items-start gap-2 pl-4 border-l-2 border-blue-400">
-                                  <span className="text-blue-600 font-bold">▸</span>
+                                <li key={idx} className="text-sm text-gray-700 flex items-start gap-2 pl-4 border-l-2 border-gray-700">
+                                  <span className="text-gray-900 font-bold">▸</span>
                                   <span className="leading-relaxed">{opp}</span>
                                 </li>
                               ))}
@@ -679,8 +679,8 @@ export default function FeedbackTab({
                       <div className="space-y-3">
                         {content.map((video: any, idx: number) => {
                           const tierColors: any = {
-                            'Top Performer': 'border-green-400 bg-green-50',
-                            'Niche Performer': 'border-blue-400 bg-blue-50',
+                            'Top Performer': 'border-gray-500 bg-gray-100',
+                            'Niche Performer': 'border-gray-700 bg-gray-100',
                             'Mid-Tier Performer': 'border-yellow-400 bg-yellow-50',
                             'Lowest Performer': 'border-red-400 bg-red-50'
                           };
@@ -714,7 +714,7 @@ export default function FeedbackTab({
                           <ul className="space-y-2">
                             {insights.map((insight: string, idx: number) => (
                               <li key={idx} className="flex items-start gap-2 text-sm text-gray-700">
-                                <span className="text-green-600 font-bold mt-0.5">✓</span>
+                                <span className="text-gray-700 font-bold mt-0.5">✓</span>
                                 <span className="leading-relaxed">{insight}</span>
                               </li>
                             ))}
@@ -793,7 +793,7 @@ export default function FeedbackTab({
                           <ul className="space-y-2">
                             {insights.map((insight: string, idx: number) => (
                               <li key={idx} className="flex items-start gap-2 text-sm text-gray-700">
-                                <span className="text-green-600 font-bold mt-0.5">✓</span>
+                                <span className="text-gray-700 font-bold mt-0.5">✓</span>
                                 <span className="leading-relaxed">{insight}</span>
                               </li>
                             ))}
@@ -861,7 +861,7 @@ export default function FeedbackTab({
                         // Summary
                         if (key === 'summary' && value.bottom_line) {
                           return (
-                            <div key={key} className="bg-gradient-to-r from-green-600 to-teal-600 rounded-lg p-4 text-white">
+                            <div key={key} className="bg-gradient-to-r from-gray-700 to-gray-900 rounded-lg p-4 text-white">
                               <h5 className="text-lg font-bold mb-2">📊 Summary</h5>
                               <p className="text-sm leading-relaxed mb-3">{value.bottom_line}</p>
                               <div className="flex gap-3 text-xs flex-wrap">
@@ -893,10 +893,10 @@ export default function FeedbackTab({
                                     </div>
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
                                       <div>
-                                        <p className="font-semibold text-green-700 mb-1">✓ Strengths:</p>
+                                        <p className="font-semibold text-gray-800 mb-1">✓ Strengths:</p>
                                         <ul className="space-y-1 text-xs">
                                           {analysis.strengths?.map((s: string, j: number) => (
-                                            <li key={j} className="pl-3 border-l-2 border-green-400 text-gray-700">{s}</li>
+                                            <li key={j} className="pl-3 border-l-2 border-gray-500 text-gray-700">{s}</li>
                                           ))}
                                         </ul>
                                       </div>
@@ -919,10 +919,10 @@ export default function FeedbackTab({
                         // Performance Insights
                         if (key === 'performance_insights' && value.top_performer) {
                           return (
-                            <div key={key} className="bg-white rounded-lg border border-blue-300 p-4">
+                            <div key={key} className="bg-white rounded-lg border border-gray-600 p-4">
                               <h5 className="text-lg font-bold text-gray-900 mb-3">📊 Performance Insights</h5>
                               {value.top_performer && (
-                                <div className="bg-blue-50 rounded p-3 mb-3">
+                                <div className="bg-gray-100 rounded p-3 mb-3">
                                   <div className="flex items-start gap-2">
                                     <span className="text-2xl">🏆</span>
                                     <div className="flex-1">
@@ -939,7 +939,7 @@ export default function FeedbackTab({
                                   <ul className="space-y-1 text-xs">
                                     {value.key_findings.map((f: string, i: number) => (
                                       <li key={i} className="flex items-start gap-1 text-gray-700">
-                                        <span className="text-blue-600">▸</span>
+                                        <span className="text-gray-900">▸</span>
                                         <span>{f}</span>
                                       </li>
                                     ))}
@@ -953,14 +953,14 @@ export default function FeedbackTab({
                         // Audience Insights
                         if (key === 'audience_insights') {
                           return (
-                            <div key={key} className="bg-white rounded-lg border border-purple-300 p-4">
+                            <div key={key} className="bg-white rounded-lg border border-gray-600 p-4">
                               <h5 className="text-lg font-bold text-gray-900 mb-3">👥 Audience Insights</h5>
                               {value.persona_preferences && Array.isArray(value.persona_preferences) && (
                                 <div className="mb-3">
                                   <p className="font-semibold text-gray-900 mb-2 text-sm">Persona Preferences:</p>
                                   <div className="space-y-2">
                                     {value.persona_preferences.map((p: any, i: number) => (
-                                      <div key={i} className="bg-purple-50 rounded p-2 border border-purple-200">
+                                      <div key={i} className="bg-gray-100 rounded p-2 border border-gray-400">
                                         <p className="font-bold text-gray-900 text-sm">{p.segment}</p>
                                         <p className="text-xs text-gray-600">Prefers: Video {p.preferred_video}</p>
                                         {p.characteristics && (
@@ -981,7 +981,7 @@ export default function FeedbackTab({
                                   <ul className="space-y-1 text-xs text-gray-700">
                                     {value.key_patterns.map((p: string, i: number) => (
                                       <li key={i} className="flex items-start gap-1">
-                                        <span className="text-purple-600">•</span>
+                                        <span className="text-gray-900">•</span>
                                         <span>{p}</span>
                                       </li>
                                     ))}
@@ -999,7 +999,7 @@ export default function FeedbackTab({
                               <h5 className="text-lg font-bold text-gray-900 mb-3">🧠 Psychological Principles</h5>
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                 {Object.entries(value).map(([pKey, principle]: [string, any], i: number) => (
-                                  <div key={pKey} className="border border-indigo-200 bg-indigo-50 rounded p-3">
+                                  <div key={pKey} className="border border-gray-400 bg-gray-100 rounded p-3">
                                     <h6 className="font-bold text-gray-900 text-sm mb-1">{principle.title || formatTitle(pKey)}</h6>
                                     {principle.description && (
                                       <p className="text-xs text-gray-700 mb-2">{principle.description}</p>
@@ -1008,7 +1008,7 @@ export default function FeedbackTab({
                                       <ul className="space-y-0.5 text-xs text-gray-600">
                                         {principle.key_points.map((pt: string, j: number) => (
                                           <li key={j} className="flex items-start gap-1">
-                                            <span className="text-indigo-600">✓</span>
+                                            <span className="text-gray-900">✓</span>
                                             <span>{pt}</span>
                                           </li>
                                         ))}
@@ -1024,25 +1024,25 @@ export default function FeedbackTab({
                         // Recommendations
                         if (key === 'recommendations') {
                           return (
-                            <div key={key} className="bg-white rounded-lg border border-green-300 p-4">
+                            <div key={key} className="bg-white rounded-lg border border-gray-400 p-4">
                               <h5 className="text-lg font-bold text-gray-900 mb-3">💡 Recommendations</h5>
                               <div className="space-y-3">
                                 {value.immediate_actions && Array.isArray(value.immediate_actions) && (
                                   <div>
-                                    <p className="font-semibold text-green-700 mb-2 text-sm">Immediate Actions:</p>
+                                    <p className="font-semibold text-gray-800 mb-2 text-sm">Immediate Actions:</p>
                                     <ul className="space-y-1 text-xs text-gray-700">
                                       {value.immediate_actions.map((a: string, i: number) => (
-                                        <li key={i} className="pl-3 border-l-2 border-green-400">{a}</li>
+                                        <li key={i} className="pl-3 border-l-2 border-gray-500">{a}</li>
                                       ))}
                                     </ul>
                                   </div>
                                 )}
                                 {value.optimization_opportunities && Array.isArray(value.optimization_opportunities) && (
                                   <div>
-                                    <p className="font-semibold text-blue-700 mb-2 text-sm">Optimization Opportunities:</p>
+                                    <p className="font-semibold text-black mb-2 text-sm">Optimization Opportunities:</p>
                                     <ul className="space-y-1 text-xs text-gray-700">
                                       {value.optimization_opportunities.map((o: string, i: number) => (
-                                        <li key={i} className="pl-3 border-l-2 border-blue-400">{o}</li>
+                                        <li key={i} className="pl-3 border-l-2 border-gray-700">{o}</li>
                                       ))}
                                     </ul>
                                   </div>
@@ -1071,8 +1071,8 @@ export default function FeedbackTab({
                               <div className="space-y-2">
                                 {content.map((video: any, i: number) => {
                                   const tierColors: any = {
-                                    'Top Performer': 'border-green-400 bg-green-50',
-                                    'Niche Performer': 'border-blue-400 bg-blue-50',
+                                    'Top Performer': 'border-gray-500 bg-gray-100',
+                                    'Niche Performer': 'border-gray-700 bg-gray-100',
                                     'Mid-Tier Performer': 'border-yellow-400 bg-yellow-50',
                                     'Lowest Performer': 'border-red-400 bg-red-50'
                                   };
@@ -1104,7 +1104,7 @@ export default function FeedbackTab({
                                 <ul className="space-y-1 text-xs text-gray-600 mt-3">
                                   {insights.map((ins: string, i: number) => (
                                     <li key={i} className="flex items-start gap-1">
-                                      <span className="text-green-600">✓</span>
+                                      <span className="text-gray-700">✓</span>
                                       <span>{ins}</span>
                                     </li>
                                   ))}
@@ -1142,7 +1142,7 @@ export default function FeedbackTab({
                               <ul className="space-y-1 text-xs text-gray-600 mt-2">
                                 {insights.map((ins: string, i: number) => (
                                   <li key={i} className="flex items-start gap-1">
-                                    <span className="text-green-600">✓</span>
+                                    <span className="text-gray-700">✓</span>
                                     <span>{ins}</span>
                                   </li>
                                 ))}

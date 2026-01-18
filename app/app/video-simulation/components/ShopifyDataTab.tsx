@@ -188,7 +188,7 @@ export default function ShopifyDataTab({ integration, onBack }: ShopifyDataTabPr
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="bg-gradient-to-r from-green-600 to-emerald-600 rounded-lg shadow-lg p-8 text-white">
+      <div className="bg-gradient-to-r from-gray-700 to-emerald-600 rounded-lg shadow-lg p-8 text-white">
         <button
           onClick={onBack}
           className="flex items-center gap-2 text-white/80 hover:text-white mb-4 transition-colors"
@@ -207,7 +207,7 @@ export default function ShopifyDataTab({ integration, onBack }: ShopifyDataTabPr
           </div>
           <div>
             <h2 className="text-3xl font-bold">{integration.shop_name || 'Shopify Store'}</h2>
-            <p className="text-green-100">{integration.store_url}</p>
+            <p className="text-gray-200">{integration.store_url}</p>
           </div>
         </div>
       </div>
@@ -222,7 +222,7 @@ export default function ShopifyDataTab({ integration, onBack }: ShopifyDataTabPr
                 onClick={() => setActiveTab(tab)}
                 className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors capitalize ${
                   activeTab === tab
-                    ? 'border-green-500 text-green-600'
+                    ? 'border-gray-600 text-gray-700'
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }`}
               >
@@ -238,46 +238,46 @@ export default function ShopifyDataTab({ integration, onBack }: ShopifyDataTabPr
             <div className="space-y-6">
               {loading ? (
                 <div className="flex justify-center py-12">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-700"></div>
                 </div>
               ) : (
                 <>
                   {/* Stats Cards */}
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-6">
+                    <div className="bg-gradient-to-br from-gray-100 to-gray-200 rounded-lg p-6">
                       <div className="flex items-center justify-between">
                         <div>
-                          <p className="text-sm text-blue-600 font-medium">Products</p>
+                          <p className="text-sm text-gray-900 font-medium">Products</p>
                           <p className="text-3xl font-bold text-blue-900">{analytics?.products_count || 0}</p>
                         </div>
-                        <div className="w-12 h-12 bg-blue-200 rounded-lg flex items-center justify-center">
-                          <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <div className="w-12 h-12 bg-gray-400 rounded-lg flex items-center justify-center">
+                          <svg className="w-6 h-6 text-gray-900" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
                           </svg>
                         </div>
                       </div>
                     </div>
-                    <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-lg p-6">
+                    <div className="bg-gradient-to-br from-gray-100 to-gray-200 rounded-lg p-6">
                       <div className="flex items-center justify-between">
                         <div>
-                          <p className="text-sm text-green-600 font-medium">Orders</p>
+                          <p className="text-sm text-gray-700 font-medium">Orders</p>
                           <p className="text-3xl font-bold text-green-900">{analytics?.orders_count || 0}</p>
                         </div>
-                        <div className="w-12 h-12 bg-green-200 rounded-lg flex items-center justify-center">
-                          <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <div className="w-12 h-12 bg-gray-300 rounded-lg flex items-center justify-center">
+                          <svg className="w-6 h-6 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                           </svg>
                         </div>
                       </div>
                     </div>
-                    <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg p-6">
+                    <div className="bg-gradient-to-br from-gray-100 to-gray-200 rounded-lg p-6">
                       <div className="flex items-center justify-between">
                         <div>
-                          <p className="text-sm text-purple-600 font-medium">Customers</p>
+                          <p className="text-sm text-gray-900 font-medium">Customers</p>
                           <p className="text-3xl font-bold text-purple-900">{analytics?.customers_count || 0}</p>
                         </div>
-                        <div className="w-12 h-12 bg-purple-200 rounded-lg flex items-center justify-center">
-                          <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <div className="w-12 h-12 bg-gray-400 rounded-lg flex items-center justify-center">
+                          <svg className="w-6 h-6 text-gray-900" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                           </svg>
                         </div>
@@ -357,11 +357,11 @@ export default function ShopifyDataTab({ integration, onBack }: ShopifyDataTabPr
                           <h4 className="font-semibold text-gray-900 truncate">{product.title}</h4>
                           <p className="text-sm text-gray-500">{product.vendor}</p>
                           <div className="flex items-center justify-between mt-2">
-                            <span className="text-lg font-bold text-green-600">
+                            <span className="text-lg font-bold text-gray-700">
                               ${product.variants[0]?.price || '0.00'}
                             </span>
                             <span className={`px-2 py-1 text-xs rounded-full ${
-                              product.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                              product.status === 'active' ? 'bg-gray-200 text-gray-900' : 'bg-gray-100 text-gray-800'
                             }`}>
                               {product.status}
                             </span>
@@ -375,7 +375,7 @@ export default function ShopifyDataTab({ integration, onBack }: ShopifyDataTabPr
                       <button
                         onClick={() => loadProducts(productsNextPage)}
                         disabled={loadingMore}
-                        className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-300"
+                        className="px-6 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-800 disabled:bg-gray-300"
                       >
                         {loadingMore ? 'Loading...' : 'Load More'}
                       </button>
@@ -427,7 +427,7 @@ export default function ShopifyDataTab({ integration, onBack }: ShopifyDataTabPr
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
                               <span className={`px-2 py-1 text-xs rounded-full ${
-                                order.financial_status === 'paid' ? 'bg-green-100 text-green-800' :
+                                order.financial_status === 'paid' ? 'bg-gray-200 text-gray-900' :
                                 order.financial_status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
                                 'bg-gray-100 text-gray-800'
                               }`}>
@@ -447,7 +447,7 @@ export default function ShopifyDataTab({ integration, onBack }: ShopifyDataTabPr
                       <button
                         onClick={() => loadOrders(ordersNextPage)}
                         disabled={loadingMore}
-                        className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-300"
+                        className="px-6 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-800 disabled:bg-gray-300"
                       >
                         {loadingMore ? 'Loading...' : 'Load More'}
                       </button>
@@ -508,7 +508,7 @@ export default function ShopifyDataTab({ integration, onBack }: ShopifyDataTabPr
                       <button
                         onClick={() => loadCustomers(customersNextPage)}
                         disabled={loadingMore}
-                        className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-300"
+                        className="px-6 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-800 disabled:bg-gray-300"
                       >
                         {loadingMore ? 'Loading...' : 'Load More'}
                       </button>

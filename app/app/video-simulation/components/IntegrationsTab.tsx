@@ -102,7 +102,7 @@ export default function IntegrationsTab({ onShopifyConnected }: IntegrationsTabP
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
       </div>
     );
   }
@@ -110,18 +110,18 @@ export default function IntegrationsTab({ onShopifyConnected }: IntegrationsTabP
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="bg-gradient-to-r from-purple-600 to-indigo-600 rounded-lg shadow-lg p-8 text-white">
+      <div className="bg-gradient-to-r from-gray-900 to-gray-900 rounded-lg shadow-lg p-8 text-white">
         <h2 className="text-3xl font-bold mb-2">Integrations</h2>
-        <p className="text-purple-100 text-lg">Connect your e-commerce platforms and data sources</p>
+        <p className="text-gray-200 text-lg">Connect your e-commerce platforms and data sources</p>
       </div>
 
       {/* Available Integrations */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {/* Shopify Card */}
-        <div className="bg-white rounded-lg shadow-lg p-6 border-2 border-gray-200 hover:border-green-500 transition-all">
+        <div className="bg-white rounded-lg shadow-lg p-6 border-2 border-gray-200 hover:border-gray-600 transition-all">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+              <div className="w-12 h-12 bg-gray-200 rounded-lg flex items-center justify-center">
                 <svg viewBox="0 0 109.5 124.5" className="w-8 h-8" fill="#95BF47">
                   <path d="M74.7,14.8c0,0-1.4,0.4-3.7,1.1c-0.4-1.3-1-2.8-1.8-4.4c-2.6-5-6.5-7.7-11.1-7.7c0,0,0,0,0,0 c-0.3,0-0.6,0-1,0.1c-0.1-0.2-0.3-0.3-0.4-0.5c-2-2.2-4.6-3.2-7.7-3.2c-6,0.2-11.9,4.5-16.7,12.2c-3.4,5.4-6,12.2-6.7,17.5 c-6.9,2.1-11.7,3.6-11.8,3.7c-3.5,1.1-3.6,1.2-4,4.5c-0.3,2.5-9.5,73.1-9.5,73.1l75.6,13.1V14.6C75.5,14.7,75.1,14.7,74.7,14.8z M57.2,20.2c-4,1.2-8.4,2.6-12.7,3.9c1.2-4.7,3.6-9.4,6.4-12.5c1.1-1.1,2.6-2.4,4.3-3.2C56.9,12,57.3,16.9,57.2,20.2z M49.1,4.3 c1.4,0,2.6,0.3,3.6,0.9c-1.6,0.8-3.2,2.1-4.7,3.6c-3.8,4.1-6.7,10.5-7.9,16.6c-3.6,1.1-7.2,2.2-10.5,3.2 C31.7,18.9,39.9,4.6,49.1,4.3z M37.4,59.3c0.4,6.4,17.3,7.8,18.3,22.9c0.7,11.9-6.3,20-16.4,20.6c-12.2,0.8-18.9-6.4-18.9-6.4 l2.6-11c0,0,6.7,5.1,12.1,4.7c3.5-0.2,4.8-3.1,4.7-5.1c-0.5-8.4-14.3-7.9-15.2-21.7C23.8,51.8,31.4,40.1,48.2,39 c6.5-0.4,9.8,1.2,9.8,1.2l-3.6,13.7c0,0-4.3-2-9.4-1.6C37.4,52.8,37.3,57.3,37.4,59.3z M60.1,18.8c0-2.8-0.4-6.8-1.8-10.1 c4.4,0.9,6.5,5.7,7.4,8.6C63.7,18,61.9,18.4,60.1,18.8z"/>
                   <path d="M78.1,123.9l31.4-7.8c0,0-13.5-91.3-13.6-91.9c-0.1-0.6-0.6-1-1.1-1c-0.5,0-9.3-0.2-9.3-0.2s-5.4-5.2-7.4-7.2 V123.9z"/>
@@ -133,7 +133,7 @@ export default function IntegrationsTab({ onShopifyConnected }: IntegrationsTabP
               </div>
             </div>
             {shopifyIntegration && (
-              <span className="px-3 py-1 bg-green-100 text-green-800 text-xs font-semibold rounded-full">
+              <span className="px-3 py-1 bg-gray-200 text-gray-900 text-xs font-semibold rounded-full">
                 Connected
               </span>
             )}
@@ -164,7 +164,7 @@ export default function IntegrationsTab({ onShopifyConnected }: IntegrationsTabP
               <div className="flex gap-2 pt-2">
                 <button
                   onClick={() => onShopifyConnected?.(shopifyIntegration)}
-                  className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-semibold text-sm"
+                  className="flex-1 px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-800 transition-colors font-semibold text-sm"
                 >
                   View Data
                 </button>
@@ -183,7 +183,7 @@ export default function IntegrationsTab({ onShopifyConnected }: IntegrationsTabP
               </p>
               <button
                 onClick={() => setShowShopifyModal(true)}
-                className="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-semibold"
+                className="w-full px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-800 transition-colors font-semibold"
               >
                 Connect Shopify
               </button>
@@ -220,7 +220,7 @@ export default function IntegrationsTab({ onShopifyConnected }: IntegrationsTabP
               >
                 <div className="flex items-center gap-3">
                   <div className={`w-3 h-3 rounded-full ${
-                    integration.status === 'connected' ? 'bg-green-500' :
+                    integration.status === 'connected' ? 'bg-gray-600' :
                     integration.status === 'pending' ? 'bg-yellow-500' : 'bg-red-500'
                   }`} />
                   <div>
@@ -232,7 +232,7 @@ export default function IntegrationsTab({ onShopifyConnected }: IntegrationsTabP
                 </div>
                 <div className="flex items-center gap-2">
                   <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                    integration.status === 'connected' ? 'bg-green-100 text-green-800' :
+                    integration.status === 'connected' ? 'bg-gray-200 text-gray-900' :
                     integration.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'
                   }`}>
                     {integration.status}
@@ -281,7 +281,7 @@ export default function IntegrationsTab({ onShopifyConnected }: IntegrationsTabP
                     value={shopifyUrl}
                     onChange={(e) => setShopifyUrl(e.target.value)}
                     placeholder="mystore"
-                    className="flex-1 px-4 py-2 border border-r-0 border-gray-300 rounded-l-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                    className="flex-1 px-4 py-2 border border-r-0 border-gray-300 rounded-l-lg focus:outline-none focus:ring-2 focus:ring-gray-600"
                   />
                   <span className="px-3 py-2 bg-gray-100 border border-gray-300 rounded-r-lg text-gray-500">
                     .myshopify.com
@@ -315,7 +315,7 @@ export default function IntegrationsTab({ onShopifyConnected }: IntegrationsTabP
                   className={`flex-1 px-4 py-2 rounded-lg font-semibold transition-colors ${
                     connecting
                       ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                      : 'bg-green-600 text-white hover:bg-green-700'
+                      : 'bg-gray-700 text-white hover:bg-gray-800'
                   }`}
                 >
                   {connecting ? 'Connecting...' : 'Connect'}

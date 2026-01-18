@@ -153,9 +153,9 @@ export default function CampaignWizard({ onClose, onSave, existingCampaign, mode
                 <div
                   className={`flex items-center justify-center w-10 h-10 rounded-full font-bold ${
                     step === currentStep
-                      ? 'bg-purple-600 text-white'
+                      ? 'bg-gray-900 text-white'
                       : step < currentStep
-                      ? 'bg-green-500 text-white'
+                      ? 'bg-gray-600 text-white'
                       : 'bg-gray-200 text-gray-600'
                   }`}
                 >
@@ -164,7 +164,7 @@ export default function CampaignWizard({ onClose, onSave, existingCampaign, mode
                 <div className="ml-3 flex-1">
                   <div
                     className={`text-sm font-semibold ${
-                      step === currentStep ? 'text-purple-600' : 'text-gray-600'
+                      step === currentStep ? 'text-gray-900' : 'text-gray-600'
                     }`}
                   >
                     {step === 1 && 'Platforms'}
@@ -176,7 +176,7 @@ export default function CampaignWizard({ onClose, onSave, existingCampaign, mode
                 {step < 4 && (
                   <div
                     className={`h-1 w-full ${
-                      step < currentStep ? 'bg-green-500' : 'bg-gray-200'
+                      step < currentStep ? 'bg-gray-600' : 'bg-gray-200'
                     }`}
                   />
                 )}
@@ -233,7 +233,7 @@ export default function CampaignWizard({ onClose, onSave, existingCampaign, mode
               disabled={!canProceedToNextStep()}
               className={`px-6 py-2 rounded-lg font-semibold ${
                 canProceedToNextStep()
-                  ? 'bg-purple-600 text-white hover:bg-purple-700'
+                  ? 'bg-gray-900 text-white hover:bg-black'
                   : 'bg-gray-300 text-gray-500 cursor-not-allowed'
               }`}
             >
@@ -246,7 +246,7 @@ export default function CampaignWizard({ onClose, onSave, existingCampaign, mode
               className={`px-6 py-2 rounded-lg font-semibold ${
                 isSaving
                   ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                  : 'bg-purple-600 text-white hover:bg-purple-700'
+                  : 'bg-gray-900 text-white hover:bg-black'
               }`}
             >
               {isSaving ? 'Saving...' : mode === 'create' ? 'Create Campaign' : 'Save Changes'}
@@ -301,7 +301,7 @@ function Step1PlatformSelection({
                   <div className="font-bold text-gray-900">{platform.name}</div>
                 </div>
                 {isSelected && (
-                  <div className="text-green-500 text-2xl">✓</div>
+                  <div className="text-gray-600 text-2xl">✓</div>
                 )}
               </div>
             </button>
@@ -357,7 +357,7 @@ function Step2CampaignDetails({
             onChange({ ...campaignData, name: e.target.value })
           }
           placeholder="e.g., Summer Product Launch 2025"
-          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-800 focus:border-transparent"
         />
       </div>
 
@@ -373,7 +373,7 @@ function Step2CampaignDetails({
           }
           placeholder="Describe the purpose and goals of this campaign..."
           rows={3}
-          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none"
+          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-800 focus:border-transparent resize-none"
         />
       </div>
 
@@ -398,7 +398,7 @@ function Step2CampaignDetails({
               })
             }
             placeholder="e.g., Acme Corporation"
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-800 focus:border-transparent"
           />
         </div>
 
@@ -419,7 +419,7 @@ function Step2CampaignDetails({
               })
             }
             placeholder="https://example.com"
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-800 focus:border-transparent"
           />
         </div>
       </div>
@@ -440,7 +440,7 @@ function Step2CampaignDetails({
                 }
                 className={`p-4 rounded-lg border-2 transition-all text-left ${
                   isSelected
-                    ? 'border-purple-500 bg-purple-50'
+                    ? 'border-gray-800 bg-gray-100'
                     : 'border-gray-200 hover:border-gray-300 bg-white'
                 }`}
               >
@@ -458,7 +458,7 @@ function Step2CampaignDetails({
       </div>
 
       {/* Performance Objective */}
-      <div className="bg-blue-50 rounded-lg p-6 space-y-4">
+      <div className="bg-gray-100 rounded-lg p-6 space-y-4">
         <h4 className="font-bold text-gray-900">Performance Objective</h4>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -480,7 +480,7 @@ function Step2CampaignDetails({
                 })
               }
               placeholder="e.g., 50"
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-800 focus:border-transparent"
             />
           </div>
 
@@ -499,7 +499,7 @@ function Step2CampaignDetails({
                   },
                 })
               }
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-800 focus:border-transparent"
             >
               <option value="">Select KPI</option>
               {kpiOptions.map((kpi) => (
@@ -675,7 +675,7 @@ function Step3Strategies({
               <div className="flex space-x-2">
                 <button
                   onClick={() => editStrategy(index)}
-                  className="px-3 py-1 text-sm bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
+                  className="px-3 py-1 text-sm bg-gray-200 text-black rounded hover:bg-gray-400"
                 >
                   Edit
                 </button>
@@ -708,7 +708,7 @@ function Step3Strategies({
               setCurrentStrategy({ ...currentStrategy, name: e.target.value })
             }
             placeholder="e.g., All Apps & Channels - TV - Entire US"
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-800 focus:border-transparent"
           />
         </div>
 
@@ -728,7 +728,7 @@ function Step3Strategies({
                 })
               }
               placeholder="100"
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-800 focus:border-transparent"
             />
           </div>
 
@@ -744,7 +744,7 @@ function Step3Strategies({
                   budget_type: e.target.value as 'daily' | 'weekly' | 'monthly',
                 })
               }
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-800 focus:border-transparent"
             >
               <option value="daily">Daily Budget</option>
               <option value="weekly">Weekly Budget</option>
@@ -769,11 +769,11 @@ function Step3Strategies({
                 onChange={(e) => setLocationInput(e.target.value)}
                 onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addLocation())}
                 placeholder="e.g., United States"
-                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-800 focus:border-transparent"
               />
               <button
                 onClick={addLocation}
-                className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
+                className="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-black"
               >
                 Add
               </button>
@@ -782,12 +782,12 @@ function Step3Strategies({
               {currentStrategy.audience_control.location.map((loc, idx) => (
                 <span
                   key={idx}
-                  className="px-3 py-1 bg-purple-100 text-purple-800 rounded-full text-sm flex items-center space-x-2"
+                  className="px-3 py-1 bg-gray-200 text-purple-800 rounded-full text-sm flex items-center space-x-2"
                 >
                   <span>{loc}</span>
                   <button
                     onClick={() => removeLocation(idx)}
-                    className="text-purple-600 hover:text-purple-800"
+                    className="text-gray-900 hover:text-purple-800"
                   >
                     ×
                   </button>
@@ -808,11 +808,11 @@ function Step3Strategies({
                 onChange={(e) => setZipCodeInput(e.target.value)}
                 onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addZipCode())}
                 placeholder="e.g., 10001"
-                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-800 focus:border-transparent"
               />
               <button
                 onClick={addZipCode}
-                className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
+                className="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-black"
               >
                 Add
               </button>
@@ -821,12 +821,12 @@ function Step3Strategies({
               {currentStrategy.audience_control.zip_codes.map((zip, idx) => (
                 <span
                   key={idx}
-                  className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm flex items-center space-x-2"
+                  className="px-3 py-1 bg-gray-200 text-blue-800 rounded-full text-sm flex items-center space-x-2"
                 >
                   <span>{zip}</span>
                   <button
                     onClick={() => removeZipCode(idx)}
-                    className="text-blue-600 hover:text-blue-800"
+                    className="text-gray-900 hover:text-blue-800"
                   >
                     ×
                   </button>
@@ -847,11 +847,11 @@ function Step3Strategies({
                 onChange={(e) => setInterestInput(e.target.value)}
                 onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addInterest())}
                 placeholder="e.g., Technology, Sports"
-                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-800 focus:border-transparent"
               />
               <button
                 onClick={addInterest}
-                className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
+                className="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-black"
               >
                 Add
               </button>
@@ -860,12 +860,12 @@ function Step3Strategies({
               {currentStrategy.audience_control.in_market_interests.map((interest, idx) => (
                 <span
                   key={idx}
-                  className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm flex items-center space-x-2"
+                  className="px-3 py-1 bg-gray-200 text-gray-900 rounded-full text-sm flex items-center space-x-2"
                 >
                   <span>{interest}</span>
                   <button
                     onClick={() => removeInterest(idx)}
-                    className="text-green-600 hover:text-green-800"
+                    className="text-gray-700 hover:text-gray-900"
                   >
                     ×
                   </button>
@@ -881,7 +881,7 @@ function Step3Strategies({
             disabled={!currentStrategy.name || currentStrategy.budget_amount <= 0}
             className={`px-6 py-2 rounded-lg font-semibold ${
               currentStrategy.name && currentStrategy.budget_amount > 0
-                ? 'bg-purple-600 text-white hover:bg-purple-700'
+                ? 'bg-gray-900 text-white hover:bg-black'
                 : 'bg-gray-300 text-gray-500 cursor-not-allowed'
             }`}
           >
@@ -928,7 +928,7 @@ function Step4Summary({ campaignData }: { campaignData: CampaignData }) {
       {/* Platform */}
       <div className="bg-white border-2 border-gray-200 rounded-lg p-6">
         <h4 className="font-semibold text-gray-700 mb-3">Platform</h4>
-        <span className="px-4 py-2 bg-purple-100 text-purple-800 rounded-full font-semibold inline-block">
+        <span className="px-4 py-2 bg-gray-200 text-purple-800 rounded-full font-semibold inline-block">
           {campaignData.platform}
         </span>
       </div>
@@ -949,7 +949,7 @@ function Step4Summary({ campaignData }: { campaignData: CampaignData }) {
               href={campaignData.advertiser.website_url}
               target="_blank"
               rel="noopener noreferrer"
-              className="font-semibold text-blue-600 hover:underline"
+              className="font-semibold text-gray-900 hover:underline"
             >
               {campaignData.advertiser.website_url}
             </a>

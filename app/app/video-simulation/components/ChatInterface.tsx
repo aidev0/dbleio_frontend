@@ -57,18 +57,18 @@ export default function ChatInterface({
 }: ChatInterfaceProps) {
   const getColorClasses = (colorScheme: ExamplePrompt['colorScheme']) => {
     const colorMap = {
-      indigo: 'from-indigo-50 to-purple-50 hover:from-indigo-100 hover:to-purple-100 border-indigo-200 hover:border-indigo-300',
-      blue: 'from-blue-50 to-cyan-50 hover:from-blue-100 hover:to-cyan-100 border-blue-200 hover:border-blue-300',
-      green: 'from-green-50 to-emerald-50 hover:from-green-100 hover:to-emerald-100 border-green-200 hover:border-green-300',
+      indigo: 'from-gray-100 to-gray-100 hover:from-gray-200 hover:to-gray-200 border-gray-400 hover:border-gray-600',
+      blue: 'from-gray-100 to-gray-100 hover:from-gray-200 hover:to-gray-200 border-gray-400 hover:border-gray-600',
+      green: 'from-gray-100 to-emerald-50 hover:from-gray-200 hover:to-emerald-100 border-gray-300 hover:border-gray-400',
       orange: 'from-orange-50 to-amber-50 hover:from-orange-100 hover:to-amber-100 border-orange-200 hover:border-orange-300',
-      purple: 'from-purple-50 to-pink-50 hover:from-purple-100 hover:to-pink-100 border-purple-200 hover:border-purple-300'
+      purple: 'from-gray-100 to-pink-50 hover:from-gray-200 hover:to-pink-100 border-gray-400 hover:border-gray-600'
     };
     return colorMap[colorScheme];
   };
 
   return (
     <div className="bg-white rounded-lg shadow-lg mt-6">
-      <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-t-lg p-6 text-white">
+      <div className="bg-gradient-to-r from-gray-900 to-gray-900 rounded-t-lg p-6 text-white">
         <div className="flex justify-between items-start mb-3 gap-4">
           <div className="flex-1">
             <h3 className="text-2xl font-bold mb-2">{title}</h3>
@@ -83,12 +83,12 @@ export default function ChatInterface({
               className={`px-4 py-2 rounded-lg font-semibold shadow-md transition-all flex items-center gap-2 ${
                 loadingInsights
                   ? 'bg-white/20 cursor-not-allowed'
-                  : 'bg-white text-purple-600 hover:bg-white/90'
+                  : 'bg-white text-gray-900 hover:bg-white/90'
               }`}
             >
               {loadingInsights ? (
                 <>
-                  <div className="animate-spin h-4 w-4 border-2 border-purple-600 border-t-transparent rounded-full"></div>
+                  <div className="animate-spin h-4 w-4 border-2 border-gray-900 border-t-transparent rounded-full"></div>
                   <span className="text-sm">Generating...</span>
                 </>
               ) : (
@@ -108,7 +108,7 @@ export default function ChatInterface({
                 onClick={() => onModelChange('anthropic')}
                 className={`px-3 py-1 rounded text-sm font-medium transition-all ${
                   selectedModel === 'anthropic'
-                    ? 'bg-white text-indigo-600 shadow-lg'
+                    ? 'bg-white text-gray-900 shadow-lg'
                     : 'bg-white/10 text-white hover:bg-white/30'
                 }`}
               >
@@ -118,7 +118,7 @@ export default function ChatInterface({
                 onClick={() => onModelChange('openai')}
                 className={`px-3 py-1 rounded text-sm font-medium transition-all ${
                   selectedModel === 'openai'
-                    ? 'bg-white text-indigo-600 shadow-lg'
+                    ? 'bg-white text-gray-900 shadow-lg'
                     : 'bg-white/10 text-white hover:bg-white/30'
                 }`}
               >
@@ -128,7 +128,7 @@ export default function ChatInterface({
                 onClick={() => onModelChange('google')}
                 className={`px-3 py-1 rounded text-sm font-medium transition-all ${
                   selectedModel === 'google'
-                    ? 'bg-white text-indigo-600 shadow-lg'
+                    ? 'bg-white text-gray-900 shadow-lg'
                     : 'bg-white/10 text-white hover:bg-white/30'
                 }`}
               >
@@ -164,7 +164,7 @@ export default function ChatInterface({
       <div className="h-[600px] overflow-y-auto p-6 space-y-4">
         {/* Generated Insights Section */}
         {generatedInsights && (
-          <div className="space-y-4 mb-6 pb-6 border-b-2 border-purple-200">
+          <div className="space-y-4 mb-6 pb-6 border-b-2 border-gray-400">
             <div className="flex items-center gap-2 mb-4">
               <span className="text-2xl">✨</span>
               <h4 className="text-lg font-bold text-gray-900">AI-Generated Insights</h4>
@@ -173,7 +173,7 @@ export default function ChatInterface({
 
             {/* Summary Card */}
             {generatedInsights.summary && (
-              <div className="bg-gradient-to-r from-green-600 to-teal-600 rounded-lg shadow p-4 text-white">
+              <div className="bg-gradient-to-r from-gray-700 to-gray-900 rounded-lg shadow p-4 text-white">
                 <h5 className="font-bold mb-2 flex items-center gap-2">
                   <span>📊</span>
                   <span>Executive Summary</span>
@@ -194,7 +194,7 @@ export default function ChatInterface({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Performance Insights */}
               {generatedInsights.performance_insights && (
-                <div className="bg-blue-50 rounded-lg shadow p-4 border border-blue-200">
+                <div className="bg-gray-100 rounded-lg shadow p-4 border border-gray-400">
                   <h5 className="font-bold text-gray-900 mb-2">📊 Performance</h5>
                   {generatedInsights.performance_insights.top_performer && (
                     <div className="text-sm mb-2">
@@ -210,7 +210,7 @@ export default function ChatInterface({
 
               {/* Audience Insights */}
               {generatedInsights.audience_insights && (
-                <div className="bg-purple-50 rounded-lg shadow p-4 border border-purple-200">
+                <div className="bg-gray-100 rounded-lg shadow p-4 border border-gray-400">
                   <h5 className="font-bold text-gray-900 mb-2">👥 Audience</h5>
                   {generatedInsights.audience_insights.key_patterns?.slice(0, 3).map((pattern: string, idx: number) => (
                     <p key={idx} className="text-xs text-gray-700 mt-1">• {pattern}</p>
@@ -221,7 +221,7 @@ export default function ChatInterface({
 
             {/* Recommendations - Compact */}
             {generatedInsights.recommendations && (
-              <div className="bg-green-50 rounded-lg shadow p-4 border border-green-200">
+              <div className="bg-gray-100 rounded-lg shadow p-4 border border-gray-300">
                 <h5 className="font-bold text-gray-900 mb-2">💡 Recommendations</h5>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
                   {generatedInsights.recommendations.immediate_actions?.slice(0, 2).map((action: string, idx: number) => (
@@ -243,14 +243,14 @@ export default function ChatInterface({
               <div
                 className={`max-w-[80%] rounded-lg px-4 py-3 ${
                   message.role === 'user'
-                    ? 'bg-blue-600 text-white'
+                    ? 'bg-gray-900 text-white'
                     : 'bg-gray-100 text-gray-900'
                 }`}
               >
                 <div className="text-sm prose prose-sm max-w-none prose-p:my-2 prose-headings:my-2">
                   <ReactMarkdown>{message.content}</ReactMarkdown>
                 </div>
-                <div className={`text-xs mt-1 ${message.role === 'user' ? 'text-blue-100' : 'text-gray-500'}`}>
+                <div className={`text-xs mt-1 ${message.role === 'user' ? 'text-gray-200' : 'text-gray-500'}`}>
                   {new Date(message.timestamp).toLocaleTimeString()}
                 </div>
               </div>
@@ -288,7 +288,7 @@ export default function ChatInterface({
                 }
               }}
               placeholder="Ask a question... (Type @ to mention personas, videos, or campaign)"
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-800"
               disabled={isLoadingChat}
             />
 
@@ -301,9 +301,9 @@ export default function ChatInterface({
                       <div className="text-xs font-semibold text-gray-500 px-2 py-1">CAMPAIGN</div>
                       <button
                         onClick={() => onMentionSelect(`@Campaign[${campaign._id || campaign.id}] ${campaign.name}`)}
-                        className="w-full text-left px-3 py-2 hover:bg-green-50 rounded"
+                        className="w-full text-left px-3 py-2 hover:bg-gray-100 rounded"
                       >
-                        <div className="text-green-600 font-semibold">{campaign.name}</div>
+                        <div className="text-gray-700 font-semibold">{campaign.name}</div>
                         {campaign.description && (
                           <div className="text-gray-500 text-xs mt-0.5 truncate">{campaign.description}</div>
                         )}
@@ -354,9 +354,9 @@ export default function ChatInterface({
                             <button
                               key={`persona-${personaId}`}
                               onClick={() => onMentionSelect(`@Persona[${personaId}] ${persona.name}`)}
-                              className="w-full text-left px-3 py-2 hover:bg-indigo-50 rounded"
+                              className="w-full text-left px-3 py-2 hover:bg-gray-100 rounded"
                             >
-                              <div className="text-indigo-600 font-semibold">{persona.name}</div>
+                              <div className="text-gray-900 font-semibold">{persona.name}</div>
                               {detailsStr && (
                                 <div className="text-gray-500 text-xs mt-0.5">{detailsStr}</div>
                               )}
@@ -380,10 +380,10 @@ export default function ChatInterface({
                             <button
                               key={video.id}
                               onClick={() => onMentionSelect(`@Video[${video.id}] ${video.title}`)}
-                              className="w-full text-left px-3 py-2 hover:bg-purple-50 rounded flex flex-col"
+                              className="w-full text-left px-3 py-2 hover:bg-gray-100 rounded flex flex-col"
                             >
                               <div className="flex items-center space-x-2">
-                                <span className="text-purple-600 font-semibold">{video.title}</span>
+                                <span className="text-gray-900 font-semibold">{video.title}</span>
                               </div>
                             </button>
                           );
@@ -401,7 +401,7 @@ export default function ChatInterface({
             className={`px-6 py-3 rounded-lg font-semibold ${
               isLoadingChat || !chatInput.trim()
                 ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                : 'bg-blue-600 text-white hover:bg-blue-700'
+                : 'bg-gray-900 text-white hover:bg-black'
             }`}
           >
             Send

@@ -33,7 +33,7 @@ export default function PersonaAITab({
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="bg-gradient-to-r from-purple-600 to-indigo-600 rounded-lg shadow-lg p-8 text-white">
+      <div className="bg-gradient-to-r from-gray-900 to-gray-900 rounded-lg shadow-lg p-8 text-white">
         <h2 className="text-3xl font-bold mb-3">Personas</h2>
         <p className="text-lg opacity-90">
           Create personas you want to reach out to, or ask AI to generate personas for your campaign
@@ -44,14 +44,14 @@ export default function PersonaAITab({
       <div className="bg-white rounded-lg shadow p-6">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {/* Add New Persona Card */}
-          <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 hover:border-indigo-400 hover:shadow-md transition-all cursor-pointer group">
+          <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 hover:border-gray-700 hover:shadow-md transition-all cursor-pointer group">
             <div className="h-full flex flex-col items-center justify-center text-center py-8">
-              <div className="w-16 h-16 mb-3 rounded-full bg-gray-100 group-hover:bg-indigo-100 flex items-center justify-center transition-all">
-                <svg className="w-8 h-8 text-gray-400 group-hover:text-indigo-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="w-16 h-16 mb-3 rounded-full bg-gray-100 group-hover:bg-gray-200 flex items-center justify-center transition-all">
+                <svg className="w-8 h-8 text-gray-400 group-hover:text-gray-800 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                 </svg>
               </div>
-              <h3 className="font-semibold text-gray-600 group-hover:text-indigo-600 transition-colors mb-1">
+              <h3 className="font-semibold text-gray-600 group-hover:text-gray-900 transition-colors mb-1">
                 Add New Persona
               </h3>
               <p className="text-xs text-gray-500">

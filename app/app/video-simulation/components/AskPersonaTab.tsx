@@ -33,7 +33,7 @@ export default function AskPersonaTab({
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="bg-gradient-to-r from-purple-600 to-indigo-600 rounded-lg shadow-lg p-8 text-white">
+      <div className="bg-gradient-to-r from-gray-900 to-gray-900 rounded-lg shadow-lg p-8 text-white">
         <div className="flex justify-between items-start mb-3">
           <div className="flex-1">
             <h2 className="text-3xl font-bold mb-3">Ask Questions</h2>
@@ -50,7 +50,7 @@ export default function AskPersonaTab({
                 onClick={() => onModelChange('anthropic')}
                 className={`px-3 py-1 rounded text-sm font-medium transition-all ${
                   askPersonaModel === 'anthropic'
-                    ? 'bg-white text-indigo-600 shadow-lg'
+                    ? 'bg-white text-gray-900 shadow-lg'
                     : 'bg-white/10 text-white hover:bg-white/30'
                 }`}
               >
@@ -60,7 +60,7 @@ export default function AskPersonaTab({
                 onClick={() => onModelChange('openai')}
                 className={`px-3 py-1 rounded text-sm font-medium transition-all ${
                   askPersonaModel === 'openai'
-                    ? 'bg-white text-indigo-600 shadow-lg'
+                    ? 'bg-white text-gray-900 shadow-lg'
                     : 'bg-white/10 text-white hover:bg-white/30'
                 }`}
               >
@@ -70,7 +70,7 @@ export default function AskPersonaTab({
                 onClick={() => onModelChange('google')}
                 className={`px-3 py-1 rounded text-sm font-medium transition-all ${
                   askPersonaModel === 'google'
-                    ? 'bg-white text-indigo-600 shadow-lg'
+                    ? 'bg-white text-gray-900 shadow-lg'
                     : 'bg-white/10 text-white hover:bg-white/30'
                 }`}
               >
@@ -104,9 +104,9 @@ export default function AskPersonaTab({
                 } as React.ChangeEvent<HTMLInputElement>;
                 onChatInputChange(syntheticEvent);
               }}
-              className="text-left p-4 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-lg hover:shadow-md transition-all border-2 border-transparent hover:border-indigo-300"
+              className="text-left p-4 bg-gradient-to-r from-gray-100 to-gray-100 rounded-lg hover:shadow-md transition-all border-2 border-transparent hover:border-gray-600"
             >
-              <div className="font-semibold text-indigo-700 mb-1">First-person persona</div>
+              <div className="font-semibold text-black mb-1">First-person persona</div>
               <div className="text-sm text-gray-600">Tell me about yourself @Persona 1</div>
             </button>
 
@@ -118,9 +118,9 @@ export default function AskPersonaTab({
                 } as React.ChangeEvent<HTMLInputElement>;
                 onChatInputChange(syntheticEvent);
               }}
-              className="text-left p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg hover:shadow-md transition-all border-2 border-transparent hover:border-blue-300"
+              className="text-left p-4 bg-gradient-to-r from-gray-100 to-gray-100 rounded-lg hover:shadow-md transition-all border-2 border-transparent hover:border-gray-600"
             >
-              <div className="font-semibold text-blue-700 mb-1">Compare personas</div>
+              <div className="font-semibold text-black mb-1">Compare personas</div>
               <div className="text-sm text-gray-600">What are the key differences between @Persona 1 and @Persona 2?</div>
             </button>
 
@@ -132,9 +132,9 @@ export default function AskPersonaTab({
                 } as React.ChangeEvent<HTMLInputElement>;
                 onChatInputChange(syntheticEvent);
               }}
-              className="text-left p-4 bg-gradient-to-r from-green-50 to-teal-50 rounded-lg hover:shadow-md transition-all border-2 border-transparent hover:border-green-300"
+              className="text-left p-4 bg-gradient-to-r from-gray-100 to-gray-100 rounded-lg hover:shadow-md transition-all border-2 border-transparent hover:border-gray-400"
             >
-              <div className="font-semibold text-green-700 mb-1">Persona + video</div>
+              <div className="font-semibold text-gray-800 mb-1">Persona + video</div>
               <div className="text-sm text-gray-600">How does @Persona 1 feel about @Video 2?</div>
             </button>
 
@@ -146,9 +146,9 @@ export default function AskPersonaTab({
                 } as React.ChangeEvent<HTMLInputElement>;
                 onChatInputChange(syntheticEvent);
               }}
-              className="text-left p-4 bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg hover:shadow-md transition-all border-2 border-transparent hover:border-purple-300"
+              className="text-left p-4 bg-gradient-to-r from-gray-100 to-pink-50 rounded-lg hover:shadow-md transition-all border-2 border-transparent hover:border-gray-600"
             >
-              <div className="font-semibold text-purple-700 mb-1">General analysis</div>
+              <div className="font-semibold text-black mb-1">General analysis</div>
               <div className="text-sm text-gray-600">Which video performs best overall?</div>
             </button>
           </div>
@@ -178,14 +178,14 @@ export default function AskPersonaTab({
                 <div
                   className={`max-w-[80%] rounded-lg px-4 py-3 ${
                     message.role === 'user'
-                      ? 'bg-blue-600 text-white'
+                      ? 'bg-gray-900 text-white'
                       : 'bg-gray-100 text-gray-900'
                   }`}
                 >
                   <div className="text-sm prose prose-sm max-w-none prose-p:my-2 prose-headings:my-2">
                     <ReactMarkdown>{message.content}</ReactMarkdown>
                   </div>
-                  <div className={`text-xs mt-1 ${message.role === 'user' ? 'text-blue-100' : 'text-gray-500'}`}>
+                  <div className={`text-xs mt-1 ${message.role === 'user' ? 'text-gray-200' : 'text-gray-500'}`}>
                     {new Date(message.timestamp).toLocaleTimeString()}
                   </div>
                 </div>
@@ -223,7 +223,7 @@ export default function AskPersonaTab({
                   }
                 }}
                 placeholder="Ask a question... (e.g., 'How does @Persona 1 respond to @Video 2?')"
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-800"
                 disabled={isLoadingChat}
               />
 
@@ -242,9 +242,9 @@ export default function AskPersonaTab({
                         <button
                           key={`persona-${persona._id || persona.id}`}
                           onClick={() => onMentionSelect(`@Persona ${persona._id || persona.id}`)}
-                          className="w-full text-left px-3 py-2 hover:bg-indigo-50 rounded flex items-center space-x-2"
+                          className="w-full text-left px-3 py-2 hover:bg-gray-100 rounded flex items-center space-x-2"
                         >
-                          <span className="text-indigo-600 font-semibold">@Persona {persona._id || persona.id}</span>
+                          <span className="text-gray-900 font-semibold">@Persona {persona._id || persona.id}</span>
                           <span className="text-gray-600 text-sm">- {persona.name}</span>
                         </button>
                       ))}
@@ -261,10 +261,10 @@ export default function AskPersonaTab({
                           <button
                             key={video.id}
                             onClick={() => onMentionSelect(`@Video ${video.id}`)}
-                            className="w-full text-left px-3 py-2 hover:bg-purple-50 rounded flex flex-col"
+                            className="w-full text-left px-3 py-2 hover:bg-gray-100 rounded flex flex-col"
                           >
                             <div className="flex items-center space-x-2">
-                              <span className="text-purple-600 font-semibold">{video.title}</span>
+                              <span className="text-gray-900 font-semibold">{video.title}</span>
                             </div>
                             <span className="text-gray-500 text-xs font-mono">ID: {video.id}</span>
                           </button>
@@ -281,7 +281,7 @@ export default function AskPersonaTab({
               className={`px-6 py-3 rounded-lg font-semibold ${
                 isLoadingChat || !chatInput.trim()
                   ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                  : 'bg-blue-600 text-white hover:bg-blue-700'
+                  : 'bg-gray-900 text-white hover:bg-black'
               }`}
             >
               Send

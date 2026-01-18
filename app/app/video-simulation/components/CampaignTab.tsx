@@ -50,10 +50,10 @@ export default function CampaignTab({
   return (
     <div className="space-y-6">
       {/* Campaign Header */}
-      <div className="bg-gradient-to-r from-purple-600 to-indigo-600 rounded-lg shadow-lg p-8 text-white">
+      <div className="bg-gradient-to-r from-gray-900 to-gray-900 rounded-lg shadow-lg p-8 text-white">
         <h2 className="text-3xl font-bold mb-2">{campaign.name || 'Unnamed Campaign'}</h2>
         {campaign.description && (
-          <p className="text-purple-100 text-lg">{campaign.description}</p>
+          <p className="text-gray-200 text-lg">{campaign.description}</p>
         )}
       </div>
 
@@ -64,28 +64,28 @@ export default function CampaignTab({
           <h3 className="text-2xl font-bold text-gray-900 mb-6">Campaign Overview</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             {campaign.platform && (
-              <div className="text-center p-4 bg-blue-50 rounded-lg border border-blue-200">
+              <div className="text-center p-4 bg-gray-100 rounded-lg border border-gray-400">
                 <div className="text-3xl mb-2">📱</div>
                 <div className="text-sm font-semibold text-gray-600 mb-1">Platform</div>
                 <div className="text-lg font-bold text-gray-900 capitalize">{campaign.platform}</div>
               </div>
             )}
             {campaign.campaign_goal && (
-              <div className="text-center p-4 bg-green-50 rounded-lg border border-green-200">
+              <div className="text-center p-4 bg-gray-100 rounded-lg border border-gray-300">
                 <div className="text-3xl mb-2">🎯</div>
                 <div className="text-sm font-semibold text-gray-600 mb-1">Campaign Goal</div>
                 <div className="text-lg font-bold text-gray-900 capitalize">{campaign.campaign_goal.replace('_', ' ')}</div>
               </div>
             )}
             {campaign.performance_objective?.value && (
-              <div className="text-center p-4 bg-purple-50 rounded-lg border border-purple-200">
+              <div className="text-center p-4 bg-gray-100 rounded-lg border border-gray-400">
                 <div className="text-3xl mb-2">📊</div>
                 <div className="text-sm font-semibold text-gray-600 mb-1">Performance Target</div>
                 <div className="text-lg font-bold text-gray-900">{campaign.performance_objective.value} {campaign.performance_objective.kpi}</div>
               </div>
             )}
             {campaign.advertiser?.business_name && (
-              <div className="text-center p-4 bg-indigo-50 rounded-lg border border-indigo-200">
+              <div className="text-center p-4 bg-gray-100 rounded-lg border border-gray-400">
                 <div className="text-3xl mb-2">🏢</div>
                 <div className="text-sm font-semibold text-gray-600 mb-1">Advertiser</div>
                 <div className="text-lg font-bold text-gray-900">{campaign.advertiser.business_name}</div>

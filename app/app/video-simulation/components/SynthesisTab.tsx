@@ -249,7 +249,7 @@ export default function SynthesisTab({
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-lg shadow-lg p-8 text-white">
+      <div className="bg-gradient-to-r from-gray-900 to-gray-900 rounded-lg shadow-lg p-8 text-white">
         <h2 className="text-3xl font-bold mb-3">Video Synthesis</h2>
         <p className="text-lg opacity-90">
           Generate an AI-edited video combining the best moments from your campaign videos powered by Gemini 2.5
@@ -267,7 +267,7 @@ export default function SynthesisTab({
                 value={synthesisInput}
                 onChange={(e) => onSynthesisInputChange(e.target.value)}
                 placeholder="Describe the synthesis you want... (e.g., 'Create a 30-second ad combining the best hooks' or 'Combine top-performing moments')"
-                className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-800 focus:border-transparent"
                 disabled={loadingSynthesis}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && !loadingSynthesis) {
@@ -281,7 +281,7 @@ export default function SynthesisTab({
                 className={`px-6 py-3 rounded-lg font-semibold shadow-md transition-all flex items-center gap-2 whitespace-nowrap ${
                   loadingSynthesis
                     ? 'bg-gray-400 cursor-not-allowed text-white'
-                    : 'bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white'
+                    : 'bg-gradient-to-r from-gray-900 to-gray-900 hover:from-black hover:to-black text-white'
                 }`}
               >
                 {loadingSynthesis ? (
@@ -303,19 +303,19 @@ export default function SynthesisTab({
               <span className="text-xs text-gray-500">Try:</span>
               <button
                 onClick={() => onSynthesisInputChange('Create a 30-second video combining the best hooks from all videos')}
-                className="text-xs px-3 py-1 bg-indigo-50 text-indigo-700 rounded-full hover:bg-indigo-100 transition-colors"
+                className="text-xs px-3 py-1 bg-gray-100 text-black rounded-full hover:bg-gray-200 transition-colors"
               >
                 Best hooks compilation
               </button>
               <button
                 onClick={() => onSynthesisInputChange('Combine top-performing moments into one video')}
-                className="text-xs px-3 py-1 bg-purple-50 text-purple-700 rounded-full hover:bg-purple-100 transition-colors"
+                className="text-xs px-3 py-1 bg-gray-100 text-black rounded-full hover:bg-gray-200 transition-colors"
               >
                 Top moments
               </button>
               <button
                 onClick={() => onSynthesisInputChange('Create an optimized version using highest-rated segments')}
-                className="text-xs px-3 py-1 bg-blue-50 text-blue-700 rounded-full hover:bg-blue-100 transition-colors"
+                className="text-xs px-3 py-1 bg-gray-100 text-black rounded-full hover:bg-gray-200 transition-colors"
               >
                 Optimized version
               </button>
@@ -325,12 +325,12 @@ export default function SynthesisTab({
           {/* Synthesis Results */}
           {loadingSynthesis ? (
             <div className="text-center py-16">
-              <div className="animate-spin inline-block w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full mb-4"></div>
+              <div className="animate-spin inline-block w-12 h-12 border-4 border-gray-800 border-t-transparent rounded-full mb-4"></div>
               <p className="text-lg text-gray-700 font-medium">Analyzing videos and creating edit timeline...</p>
               <p className="text-sm text-gray-500 mt-2">This may take 30-60 seconds</p>
             </div>
           ) : !generatedSynthesisPlan ? (
-            <div className="text-center py-16 bg-gradient-to-br from-indigo-50 to-purple-50 rounded-lg">
+            <div className="text-center py-16 bg-gradient-to-br from-gray-100 to-gray-100 rounded-lg">
               <div className="text-6xl mb-4">🎬</div>
               <p className="text-lg text-gray-700 mb-2">Ready to create a synthesis!</p>
               <p className="text-sm text-gray-600">
@@ -340,7 +340,7 @@ export default function SynthesisTab({
           ) : (
             <div className="space-y-6">
               {/* Synthesis Plan Header */}
-              <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-lg shadow-lg p-6 text-white">
+              <div className="bg-gradient-to-r from-gray-900 to-gray-900 rounded-lg shadow-lg p-6 text-white">
                 <h4 className="text-2xl font-bold mb-3 flex items-center gap-2">
                   <span>🎬</span>
                   <span>Synthesis Plan</span>
@@ -360,7 +360,7 @@ export default function SynthesisTab({
 
               {/* AI Recommendations */}
               {generatedSynthesisPlan.recommendations && generatedSynthesisPlan.recommendations.length > 0 && (
-                <div className="bg-gradient-to-r from-blue-50 to-cyan-50 rounded-lg shadow-lg p-6">
+                <div className="bg-gradient-to-r from-gray-100 to-gray-100 rounded-lg shadow-lg p-6">
                   <h4 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
                     <span>💡</span>
                     <span>AI Recommendations</span>
@@ -368,7 +368,7 @@ export default function SynthesisTab({
                   <ul className="space-y-3">
                     {generatedSynthesisPlan.recommendations.map((rec: string, idx: number) => (
                       <li key={idx} className="flex items-start gap-3">
-                        <span className="text-blue-600 font-bold mt-1">•</span>
+                        <span className="text-gray-900 font-bold mt-1">•</span>
                         <span className="text-gray-800">{rec}</span>
                       </li>
                     ))}
@@ -402,7 +402,7 @@ export default function SynthesisTab({
                           return (
                             <tr key={idx} className="hover:bg-gray-50">
                               <td className="px-4 py-4 whitespace-nowrap">
-                                <div className="text-sm font-mono text-indigo-600">
+                                <div className="text-sm font-mono text-gray-900">
                                   {formatTime(segment.output_start)}-{formatTime(segment.output_end)}
                                 </div>
                               </td>
@@ -417,7 +417,7 @@ export default function SynthesisTab({
                                 </div>
                               </td>
                               <td className="px-4 py-4">
-                                <span className="px-2 py-1 text-xs font-medium rounded-full bg-purple-100 text-purple-800">
+                                <span className="px-2 py-1 text-xs font-medium rounded-full bg-gray-200 text-purple-800">
                                   {segment.purpose || 'segment'}
                                 </span>
                               </td>
@@ -441,7 +441,7 @@ export default function SynthesisTab({
                   className={`px-8 py-4 rounded-lg font-bold shadow-lg transition-all flex items-center gap-3 ${
                     isProducing
                       ? 'bg-gray-400 cursor-not-allowed text-white'
-                      : 'bg-gradient-to-r from-green-600 to-teal-600 hover:from-green-700 hover:to-teal-700 text-white'
+                      : 'bg-gradient-to-r from-gray-700 to-gray-900 hover:from-gray-800 hover:to-black text-white'
                   }`}
                 >
                   {isProducing ? (
@@ -485,7 +485,7 @@ export default function SynthesisTab({
 
             {loadingPlans ? (
               <div className="text-center py-8">
-                <div className="animate-spin inline-block w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full"></div>
+                <div className="animate-spin inline-block w-8 h-8 border-4 border-gray-800 border-t-transparent rounded-full"></div>
                 <p className="text-sm text-gray-500 mt-2">Loading...</p>
               </div>
             ) : synthesisPlans.length > 0 ? (
@@ -511,7 +511,7 @@ export default function SynthesisTab({
                             e.stopPropagation();
                             setSelectedPlan(plan);
                           }}
-                          className="text-sm px-3 py-1 bg-indigo-600 text-white rounded hover:bg-indigo-700"
+                          className="text-sm px-3 py-1 bg-gray-900 text-white rounded hover:bg-black"
                         >
                           View Details
                         </button>
@@ -545,7 +545,7 @@ export default function SynthesisTab({
 
             {loadingPlans ? (
               <div className="text-center py-8">
-                <div className="animate-spin inline-block w-8 h-8 border-4 border-green-500 border-t-transparent rounded-full"></div>
+                <div className="animate-spin inline-block w-8 h-8 border-4 border-gray-600 border-t-transparent rounded-full"></div>
                 <p className="text-sm text-gray-500 mt-2">Loading...</p>
               </div>
             ) : synthesisVideos.length > 0 ? (
@@ -559,8 +559,8 @@ export default function SynthesisTab({
                       </div>
                       <div className="flex items-center gap-2">
                         <span className={`px-3 py-1 text-xs font-semibold rounded-full ${
-                          video.status === 'completed' ? 'bg-green-100 text-green-800' :
-                          video.status === 'processing' ? 'bg-blue-100 text-blue-800 animate-pulse' :
+                          video.status === 'completed' ? 'bg-gray-200 text-gray-900' :
+                          video.status === 'processing' ? 'bg-gray-200 text-blue-800 animate-pulse' :
                           video.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
                           'bg-red-100 text-red-800'
                         }`}>
@@ -591,7 +591,7 @@ export default function SynthesisTab({
                           <a
                             href={video.video_url}
                             download
-                            className="text-sm text-white hover:text-green-400 flex items-center gap-2"
+                            className="text-sm text-white hover:text-gray-500 flex items-center gap-2"
                           >
                             <span>⬇️</span>
                             <span>Download Video</span>
@@ -600,7 +600,7 @@ export default function SynthesisTab({
                             href={video.video_url}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-sm text-white hover:text-blue-400 flex items-center gap-2"
+                            className="text-sm text-white hover:text-gray-700 flex items-center gap-2"
                           >
                             <span>🔗</span>
                             <span>Open in New Tab</span>
@@ -661,7 +661,7 @@ export default function SynthesisTab({
               </div>
 
               {/* Plan Info */}
-              <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-lg shadow-lg p-6 text-white mb-6">
+              <div className="bg-gradient-to-r from-gray-900 to-gray-900 rounded-lg shadow-lg p-6 text-white mb-6">
                 <h4 className="text-xl font-bold mb-3">
                   {selectedPlan.synthesis_plan?.description || 'Synthesis Plan'}
                 </h4>
@@ -683,7 +683,7 @@ export default function SynthesisTab({
 
               {/* AI Recommendations */}
               {selectedPlan.synthesis_plan?.recommendations && selectedPlan.synthesis_plan.recommendations.length > 0 && (
-                <div className="bg-gradient-to-r from-blue-50 to-cyan-50 rounded-lg shadow-lg p-6 mb-6">
+                <div className="bg-gradient-to-r from-gray-100 to-gray-100 rounded-lg shadow-lg p-6 mb-6">
                   <h4 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
                     <span>💡</span>
                     <span>AI Recommendations</span>
@@ -691,7 +691,7 @@ export default function SynthesisTab({
                   <ul className="space-y-3">
                     {selectedPlan.synthesis_plan.recommendations.map((rec: string, idx: number) => (
                       <li key={idx} className="flex items-start gap-3">
-                        <span className="text-blue-600 font-bold mt-1">•</span>
+                        <span className="text-gray-900 font-bold mt-1">•</span>
                         <span className="text-gray-800">{rec}</span>
                       </li>
                     ))}
@@ -708,7 +708,7 @@ export default function SynthesisTab({
                     {editingPlan && editingPlan._id === selectedPlan._id && (
                       <button
                         onClick={addSegment}
-                        className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors font-semibold text-sm flex items-center gap-2"
+                        className="px-4 py-2 bg-gray-700 hover:bg-gray-800 text-white rounded-lg transition-colors font-semibold text-sm flex items-center gap-2"
                       >
                         <span>➕</span>
                         <span>Add Segment</span>
@@ -753,7 +753,7 @@ export default function SynthesisTab({
                                     />
                                   </div>
                                 ) : (
-                                  <div className="text-sm font-mono text-indigo-600">
+                                  <div className="text-sm font-mono text-gray-900">
                                     {Math.floor(segment.output_start / 60)}:{(segment.output_start % 60).toString().padStart(2, '0')}-
                                     {Math.floor(segment.output_end / 60)}:{(segment.output_end % 60).toString().padStart(2, '0')}
                                   </div>
@@ -806,7 +806,7 @@ export default function SynthesisTab({
                                     className="w-full px-2 py-1 text-sm border rounded"
                                   />
                                 ) : (
-                                  <span className="px-2 py-1 text-xs font-medium rounded-full bg-purple-100 text-purple-800">
+                                  <span className="px-2 py-1 text-xs font-medium rounded-full bg-gray-200 text-purple-800">
                                     {segment.purpose || 'segment'}
                                   </span>
                                 )}
@@ -852,7 +852,7 @@ export default function SynthesisTab({
                       startEditing(selectedPlan);
                     }
                   }}
-                  className="px-6 py-2 border border-indigo-600 text-indigo-600 rounded-lg hover:bg-indigo-50 transition-colors font-semibold"
+                  className="px-6 py-2 border border-gray-900 text-gray-900 rounded-lg hover:bg-gray-100 transition-colors font-semibold"
                 >
                   {editingPlan && editingPlan._id === selectedPlan._id ? 'Cancel Edit' : '✏️ Edit Timeline'}
                 </button>
@@ -861,7 +861,7 @@ export default function SynthesisTab({
                     <button
                       onClick={savePlan}
                       disabled={isSaving}
-                      className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors font-semibold flex items-center gap-2"
+                      className="px-6 py-2 bg-gray-900 hover:bg-black text-white rounded-lg transition-colors font-semibold flex items-center gap-2"
                     >
                       {isSaving ? (
                         <>
@@ -889,7 +889,7 @@ export default function SynthesisTab({
                         setSelectedPlan(null);
                         await handleProduceVideo(planId);
                       }}
-                      className="px-6 py-2 bg-gradient-to-r from-green-600 to-teal-600 hover:from-green-700 hover:to-teal-700 text-white rounded-lg transition-colors font-semibold flex items-center gap-2"
+                      className="px-6 py-2 bg-gradient-to-r from-gray-700 to-gray-900 hover:from-gray-800 hover:to-black text-white rounded-lg transition-colors font-semibold flex items-center gap-2"
                     >
                       <span className="text-xl">🎥</span>
                       <span>Produce Video</span>
