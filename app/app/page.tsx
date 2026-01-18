@@ -2,13 +2,15 @@
 
 import { useEffect, useState, Suspense } from 'react';
 import Link from 'next/link';
-import { useSearchParams, useRouter } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { useAuth } from './video-simulation/auth/authContext';
+import { Button } from '@/components/ui/button';
+import { Menu, X, ArrowRight } from 'lucide-react';
+import Image from 'next/image';
 
 function AppHome() {
-  const router = useRouter();
   const searchParams = useSearchParams();
-  const { user, isAuthenticated, logout } = useAuth();
+  const { user, logout } = useAuth();
   const [showRequestForm, setShowRequestForm] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const [formData, setFormData] = useState({
@@ -41,7 +43,6 @@ function AppHome() {
           localStorage.setItem('refresh_token', data.refresh_token);
         }
 
-        // Remove code from URL and reload to show dashboard
         window.location.href = '/app';
       } catch (err) {
         console.error('Authentication error:', err);
@@ -86,70 +87,73 @@ function AppHome() {
 
   if (searchParams.get('code')) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
+      <div className="flex min-h-screen items-center justify-center bg-background">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-black mx-auto mb-4"></div>
-          <div className="text-sm text-gray-500">Completing login...</div>
+          <div className="mx-auto mb-4 h-8 w-8 animate-spin rounded-full border-b-2 border-foreground"></div>
+          <div className="font-mono text-xs uppercase tracking-wider text-muted-foreground">Completing login...</div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="border-b border-gray-200">
-        <div className="max-w-5xl mx-auto py-6 px-6 flex justify-between items-center">
-          <Link href="/" className="text-xl font-semibold text-black hover:opacity-70 transition-opacity">
-            dble.io
+      <header className="border-b border-border">
+        <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
+          <Link href="/" className="flex items-center gap-2 text-2xl font-light italic tracking-tight text-foreground transition-opacity hover:opacity-70">
+            <Image src="/logo.png" alt="dble" width={28} height={28} className="h-7 w-7" />
+            dble
           </Link>
 
           {/* Menu */}
           <div className="relative">
             <button
               onClick={() => setShowMenu(!showMenu)}
-              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              className="rounded-lg p-2 transition-colors hover:bg-secondary"
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-              </svg>
+              {showMenu ? (
+                <X className="h-5 w-5 text-foreground" />
+              ) : (
+                <Menu className="h-5 w-5 text-foreground" />
+              )}
             </button>
 
             {showMenu && (
               <>
                 <div className="fixed inset-0 z-40" onClick={() => setShowMenu(false)} />
-                <div className="absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
+                <div className="absolute right-0 z-50 mt-2 w-48 rounded-lg border border-border bg-background shadow-lg">
                   {user && (
-                    <div className="px-4 py-3 border-b border-gray-100">
-                      <p className="text-sm font-medium text-gray-900 truncate">{user.email}</p>
+                    <div className="border-b border-border px-4 py-3">
+                      <p className="truncate font-mono text-xs text-muted-foreground">{user.email}</p>
                     </div>
                   )}
                   <div className="py-1">
-                    <Link href="/app" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50" onClick={() => setShowMenu(false)}>
+                    <Link href="/app" className="block px-4 py-2 font-mono text-xs uppercase tracking-wider text-muted-foreground hover:bg-secondary hover:text-foreground" onClick={() => setShowMenu(false)}>
                       Dashboard
                     </Link>
-                    <Link href="/app/video-simulation" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50" onClick={() => setShowMenu(false)}>
+                    <Link href="/app/video-simulation" className="block px-4 py-2 font-mono text-xs uppercase tracking-wider text-muted-foreground hover:bg-secondary hover:text-foreground" onClick={() => setShowMenu(false)}>
                       Video Simulation
                     </Link>
                     <button
-                      onClick={() => setShowRequestForm(true)}
-                      className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                      onClick={() => { setShowRequestForm(true); setShowMenu(false); }}
+                      className="block w-full px-4 py-2 text-left font-mono text-xs uppercase tracking-wider text-muted-foreground hover:bg-secondary hover:text-foreground"
                     >
                       Request New App
                     </button>
                   </div>
-                  <div className="border-t border-gray-100 py-1">
-                    <Link href="/" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50" onClick={() => setShowMenu(false)}>
+                  <div className="border-t border-border py-1">
+                    <Link href="/" className="block px-4 py-2 font-mono text-xs uppercase tracking-wider text-muted-foreground hover:bg-secondary hover:text-foreground" onClick={() => setShowMenu(false)}>
                       Home
                     </Link>
-                    <Link href="/#pricing" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50" onClick={() => setShowMenu(false)}>
+                    <Link href="/#pricing" className="block px-4 py-2 font-mono text-xs uppercase tracking-wider text-muted-foreground hover:bg-secondary hover:text-foreground" onClick={() => setShowMenu(false)}>
                       Pricing
                     </Link>
                   </div>
-                  <div className="border-t border-gray-100 py-1">
+                  <div className="border-t border-border py-1">
                     <button
                       onClick={() => { logout(); setShowMenu(false); }}
-                      className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                      className="block w-full px-4 py-2 text-left font-mono text-xs uppercase tracking-wider text-muted-foreground hover:bg-secondary hover:text-foreground"
                     >
                       Logout
                     </button>
@@ -162,66 +166,77 @@ function AppHome() {
       </header>
 
       {/* Main Content */}
-      <main className="max-w-5xl mx-auto py-16 px-6">
-        {/* Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <main className="mx-auto max-w-5xl px-6 py-16">
+        {/* Request New System - Top Card */}
+        <div className="mb-16">
+          <button onClick={() => setShowRequestForm(true)} className="group block w-full border border-border bg-background p-8 text-left transition-colors hover:border-foreground/50">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-light text-foreground">Request New System</h2>
+                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                  Have an idea for automation? Submit a request and we&apos;ll build it.
+                </p>
+              </div>
+              <div className="flex items-center gap-2 font-mono text-xs uppercase tracking-wider text-muted-foreground transition-colors group-hover:text-foreground">
+                Request
+                <ArrowRight className="h-4 w-4" />
+              </div>
+            </div>
+          </button>
+        </div>
+
+        {/* Platform Apps Section */}
+        <div className="mb-8">
+          <div className="mb-6 font-mono text-xs uppercase tracking-widest text-muted-foreground">Platform Apps</div>
+        </div>
+
+        {/* Apps Grid */}
+        <div className="grid gap-px border border-border bg-border md:grid-cols-2">
           {/* Video Simulation */}
-          <Link href="/app/video-simulation" className="block group">
-            <div className="border border-gray-200 rounded-lg p-6 hover:border-black transition-colors">
-              <h2 className="text-lg font-medium text-black mb-2">
-                Video Simulation
-              </h2>
-              <p className="text-sm text-gray-500 mb-4">
-                Test video campaigns with AI persona simulations
-              </p>
-              <span className="text-sm text-gray-400 group-hover:text-black transition-colors">
-                Open →
-              </span>
+          <Link href="/app/video-simulation" className="group block bg-background p-8">
+            <div className="mb-4 font-mono text-xs text-muted-foreground/40">01</div>
+            <h2 className="text-xl font-light text-foreground">Video Simulation</h2>
+            <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
+              Test video campaigns with AI persona simulations before spending on ads.
+            </p>
+            <div className="mt-6 flex items-center gap-2 font-mono text-xs uppercase tracking-wider text-muted-foreground transition-colors group-hover:text-foreground">
+              Open
+              <ArrowRight className="h-3 w-3" />
             </div>
           </Link>
 
-          {/* Request New App */}
-          <button onClick={() => setShowRequestForm(true)} className="block group text-left w-full">
-            <div className="border border-dashed border-gray-300 rounded-lg p-6 hover:border-gray-400 transition-colors">
-              <h2 className="text-lg font-medium text-gray-700 mb-2">
-                Request New App
-              </h2>
-              <p className="text-sm text-gray-500 mb-4">
-                Have an idea? Submit a request
-              </p>
-              <span className="text-sm text-gray-400 group-hover:text-gray-600 transition-colors">
-                Request →
-              </span>
-            </div>
-          </button>
+          {/* Placeholder for future apps */}
+          <div className="flex items-center justify-center bg-background p-8">
+            <p className="font-mono text-xs uppercase tracking-wider text-muted-foreground/40">More coming soon</p>
+          </div>
         </div>
       </main>
 
       {/* Request Form Modal */}
       {showRequestForm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50" onClick={() => setShowRequestForm(false)}>
-          <div className="bg-white rounded-lg max-w-md w-full p-6" onClick={e => e.stopPropagation()}>
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-lg font-semibold">Request a System</h2>
-              <button onClick={() => setShowRequestForm(false)} className="text-gray-400 hover:text-black text-xl">&times;</button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setShowRequestForm(false)}>
+          <div className="w-full max-w-md rounded-lg border border-border bg-background p-6" onClick={e => e.stopPropagation()}>
+            <div className="mb-6 flex items-center justify-between">
+              <h2 className="text-xl font-light italic tracking-tight">Request a System</h2>
+              <button onClick={() => setShowRequestForm(false)} className="text-2xl text-muted-foreground hover:text-foreground">&times;</button>
             </div>
 
             {submitted ? (
-              <div className="text-center py-8">
-                <p className="text-lg font-medium mb-2">Request Submitted</p>
-                <p className="text-gray-600 text-sm mb-4">We'll be in touch within 24 hours.</p>
-                <button onClick={() => { setSubmitted(false); setShowRequestForm(false); }} className="text-sm text-gray-500 hover:text-black">
+              <div className="py-8 text-center">
+                <p className="mb-2 text-lg font-medium">Request Submitted</p>
+                <p className="mb-4 text-sm text-muted-foreground">We&apos;ll be in touch within 24 hours.</p>
+                <button onClick={() => { setSubmitted(false); setShowRequestForm(false); }} className="text-sm text-muted-foreground hover:text-foreground">
                   Close
                 </button>
               </div>
             ) : (
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
-                  <label className="block text-sm mb-1">What do you want to automate?</label>
+                  <label className="mb-1 block font-mono text-xs uppercase tracking-wider text-muted-foreground">What to automate</label>
                   <select
                     value={formData.feature_type}
                     onChange={e => setFormData({...formData, feature_type: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-black"
+                    className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:border-foreground focus:outline-none"
                   >
                     <option value="video_generation">AI Video Ad Generation</option>
                     <option value="image_generation">AI Image Ad Generation</option>
@@ -232,21 +247,17 @@ function AppHome() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm mb-1">Tell us more (optional)</label>
+                  <label className="mb-1 block font-mono text-xs uppercase tracking-wider text-muted-foreground">Additional Details</label>
                   <textarea
                     value={formData.description}
                     onChange={e => setFormData({...formData, description: e.target.value})}
                     rows={3}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-black resize-none"
+                    className="w-full resize-none rounded-md border border-border bg-background px-3 py-2 text-sm focus:border-foreground focus:outline-none"
                   />
                 </div>
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className="w-full py-2 bg-black text-white rounded-lg text-sm hover:bg-gray-800 disabled:bg-gray-400"
-                >
+                <Button type="submit" disabled={submitting} className="w-full font-mono text-xs uppercase tracking-wider">
                   {submitting ? 'Submitting...' : 'Submit Request'}
-                </button>
+                </Button>
               </form>
             )}
           </div>
@@ -259,8 +270,8 @@ function AppHome() {
 export default function Page() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen bg-white flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-black"></div>
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-foreground"></div>
       </div>
     }>
       <AppHome />
