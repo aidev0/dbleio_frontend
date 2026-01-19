@@ -155,8 +155,15 @@ function Home() {
     if (!authLoading && isAuthenticated) {
       loadCampaignData();
     } else if (!authLoading && !isAuthenticated && !processingAuth) {
-      // User is not authenticated, redirect to login page
-      router.push('/');
+      // Double-check localStorage before redirecting
+      const token = localStorage.getItem('access_token');
+      if (!token) {
+        // User is not authenticated, redirect to login page
+        router.push('/');
+      } else {
+        // Token exists but auth state not updated - reload to sync
+        window.location.reload();
+      }
     }
   }, [user, authLoading, isAuthenticated, processingAuth, router]);
 
