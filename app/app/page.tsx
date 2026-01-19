@@ -14,7 +14,7 @@ function AppHome() {
   const [showRequestForm, setShowRequestForm] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const [formData, setFormData] = useState({
-    feature_type: 'video_generation',
+    title: '',
     description: ''
   });
   const [submitting, setSubmitting] = useState(false);
@@ -76,7 +76,7 @@ function AppHome() {
       });
       if (response.ok) {
         setSubmitted(true);
-        setFormData({ feature_type: 'video_generation', description: '' });
+        setFormData({ title: '', description: '' });
       }
     } catch (error) {
       console.error('Error submitting request:', error);
@@ -167,20 +167,17 @@ function AppHome() {
 
       {/* Main Content */}
       <main className="mx-auto max-w-5xl px-6 py-16">
-        {/* Request New System - Top Card */}
-        <div className="mb-16">
-          <button onClick={() => setShowRequestForm(true)} className="group block w-full border border-border bg-background p-8 text-left transition-colors hover:border-foreground/50">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-xl font-light text-foreground">Request New System</h2>
-                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                  Have an idea for automation? Submit a request and we&apos;ll build it.
-                </p>
-              </div>
-              <div className="flex items-center gap-2 font-mono text-xs uppercase tracking-wider text-muted-foreground transition-colors group-hover:text-foreground">
-                Request
-                <ArrowRight className="h-4 w-4" />
-              </div>
+        {/* Request Custom Feature - Top Card */}
+        <div className="mb-12">
+          <button onClick={() => setShowRequestForm(true)} className="group block w-full border border-border bg-background p-8 text-left transition-colors hover:border-foreground/50 md:w-1/2">
+            <div className="mb-4 font-mono text-xs text-muted-foreground/40">+</div>
+            <h2 className="text-xl font-light text-foreground">Request Custom Feature</h2>
+            <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
+              Have an idea for automation? Submit a request and we&apos;ll build it.
+            </p>
+            <div className="mt-6 flex items-center gap-2 font-mono text-xs uppercase tracking-wider text-muted-foreground transition-colors group-hover:text-foreground">
+              Request
+              <ArrowRight className="h-3 w-3" />
             </div>
           </button>
         </div>
@@ -205,7 +202,55 @@ function AppHome() {
             </div>
           </Link>
 
-          {/* Placeholder for future apps */}
+          {/* Creative Generation - Coming Soon */}
+          <div className="bg-background p-8">
+            <div className="mb-4 font-mono text-xs text-muted-foreground/40">02</div>
+            <h2 className="text-xl font-light text-foreground/50">Creative Generation</h2>
+            <p className="mt-4 text-sm leading-relaxed text-muted-foreground/60">
+              AI-powered video and image ad generation across formats and platforms.
+            </p>
+            <div className="mt-6 font-mono text-xs uppercase tracking-wider text-muted-foreground/40">
+              Coming Soon
+            </div>
+          </div>
+
+          {/* Testing & Optimization - Coming Soon */}
+          <div className="bg-background p-8">
+            <div className="mb-4 font-mono text-xs text-muted-foreground/40">03</div>
+            <h2 className="text-xl font-light text-foreground/50">Testing & Optimization</h2>
+            <p className="mt-4 text-sm leading-relaxed text-muted-foreground/60">
+              Pre-launch creative scoring and live campaign optimization with AI.
+            </p>
+            <div className="mt-6 font-mono text-xs uppercase tracking-wider text-muted-foreground/40">
+              Coming Soon
+            </div>
+          </div>
+
+          {/* Campaign Management - Coming Soon */}
+          <div className="bg-background p-8">
+            <div className="mb-4 font-mono text-xs text-muted-foreground/40">04</div>
+            <h2 className="text-xl font-light text-foreground/50">Campaign Management</h2>
+            <p className="mt-4 text-sm leading-relaxed text-muted-foreground/60">
+              Cross-platform campaign launches and automated budget allocation.
+            </p>
+            <div className="mt-6 font-mono text-xs uppercase tracking-wider text-muted-foreground/40">
+              Coming Soon
+            </div>
+          </div>
+
+          {/* Analytics & Reporting - Coming Soon */}
+          <div className="bg-background p-8">
+            <div className="mb-4 font-mono text-xs text-muted-foreground/40">05</div>
+            <h2 className="text-xl font-light text-foreground/50">Analytics & Reporting</h2>
+            <p className="mt-4 text-sm leading-relaxed text-muted-foreground/60">
+              Unified dashboard with real-time performance analytics and custom reports.
+            </p>
+            <div className="mt-6 font-mono text-xs uppercase tracking-wider text-muted-foreground/40">
+              Coming Soon
+            </div>
+          </div>
+
+          {/* More Coming Soon Placeholder */}
           <div className="flex items-center justify-center bg-background p-8">
             <p className="font-mono text-xs uppercase tracking-wider text-muted-foreground/40">More coming soon</p>
           </div>
@@ -232,26 +277,23 @@ function AppHome() {
             ) : (
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
-                  <label className="mb-1 block font-mono text-xs uppercase tracking-wider text-muted-foreground">What to automate</label>
-                  <select
-                    value={formData.feature_type}
-                    onChange={e => setFormData({...formData, feature_type: e.target.value})}
+                  <label className="mb-1 block font-mono text-xs uppercase tracking-wider text-muted-foreground">Title</label>
+                  <input
+                    type="text"
+                    value={formData.title}
+                    onChange={e => setFormData({...formData, title: e.target.value})}
+                    placeholder="What do you want to build?"
                     className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:border-foreground focus:outline-none"
-                  >
-                    <option value="video_generation">AI Video Ad Generation</option>
-                    <option value="image_generation">AI Image Ad Generation</option>
-                    <option value="creative_testing">Pre-Launch Creative Testing</option>
-                    <option value="campaign_optimization">Live Campaign Optimization</option>
-                    <option value="full_stack">Full Stack (All of the above)</option>
-                    <option value="custom">Custom / Other</option>
-                  </select>
+                    required
+                  />
                 </div>
                 <div>
-                  <label className="mb-1 block font-mono text-xs uppercase tracking-wider text-muted-foreground">Additional Details</label>
+                  <label className="mb-1 block font-mono text-xs uppercase tracking-wider text-muted-foreground">Details</label>
                   <textarea
                     value={formData.description}
                     onChange={e => setFormData({...formData, description: e.target.value})}
-                    rows={3}
+                    placeholder="Describe your idea, goals, and any specific requirements..."
+                    rows={4}
                     className="w-full resize-none rounded-md border border-border bg-background px-3 py-2 text-sm focus:border-foreground focus:outline-none"
                   />
                 </div>

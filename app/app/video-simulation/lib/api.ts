@@ -33,16 +33,23 @@ function getRefreshToken(): string | null {
 
 /**
  * Check if a JWT token is expired
+ * Returns false (not expired) if we can't parse the token - let backend validate
  */
 function isTokenExpired(token: string): boolean {
   try {
-    const payload = JSON.parse(atob(token.split('.')[1]));
+    const parts = token.split('.');
+    if (parts.length !== 3) {
+      // Not a JWT format, assume valid and let backend validate
+      return false;
+    }
+    const payload = JSON.parse(atob(parts[1]));
     const exp = payload.exp;
     if (!exp) return false;
     // Add 60 second buffer to refresh before actual expiry
     return Date.now() >= (exp * 1000) - 60000;
   } catch {
-    return true;
+    // Can't parse token, assume valid and let backend validate
+    return false;
   }
 }
 

@@ -6,111 +6,106 @@ const tiers = [
     name: "Platform",
     price: "$3,000",
     period: "/month",
-    bestFor: [
-      "Ideal for teams who want to operate independently",
-    ],
     commitment: "Monthly",
     highlight: false,
+    includes: [
+      "Full platform access",
+      "All integrations (Meta, TikTok, Google, Amazon)",
+      "Video & image generation tools",
+      "Creative testing & scoring",
+      "Campaign analytics dashboard",
+      "SOC 2, GDPR, CCPA compliant",
+    ],
+    excludes: [
+      "No custom builds included",
+      "Self-service only",
+    ],
   },
   {
     name: "Starter",
     price: "$6,000",
     period: "/month",
-    bestFor: [
-      "$250K-$1M annual ad spend",
-      "Have a lean team (1-3 people in marketing)",
-      "Want to prove ROI before going all-in",
-      "Need to solve one major bottleneck",
-    ],
     commitment: "3 months",
     highlight: false,
+    includes: [
+      "Everything in Platform",
+      "1 active custom build",
+      "Dedicated FDE engineer",
+      "Slack/email support",
+      "Weekly sync calls",
+      "Custom integrations",
+    ],
+    excludes: [
+      "Single build at a time",
+    ],
   },
   {
     name: "Team",
     price: "$10,000",
     period: "/month",
-    bestFor: [
-      "$1M+ annual ad spend",
-      "Have a marketing team of 3-8 people",
-      "Sell across multiple platforms (Shopify + Amazon + TikTok Shop)",
-      "Want end-to-end automation from generation to optimization",
-      "Need systems working together, not in isolation",
-    ],
     commitment: "6 months",
     highlight: true,
+    includes: [
+      "Everything in Starter",
+      "2 active custom builds",
+      "Parallel development",
+      "Priority support",
+      "Dedicated FDM manager",
+      "Custom ML models",
+      "Advanced analytics",
+    ],
+    excludes: [],
   },
   {
     name: "Enterprise",
-    price: "Contact Us",
+    price: "Custom",
     period: "",
-    bestFor: [
-      "Operate multiple brands or sub-brands",
-      "Sell across multiple marketplaces (Shopify + Amazon + TikTok Shop + own site)",
-      "Need custom features not in standard platform",
-      "Require faster iteration (multiple builds in parallel)",
-      "Have any compliance/security requirements",
-    ],
-    commitment: "1 year",
+    commitment: "Annual",
     highlight: false,
+    includes: [
+      "Everything in Team",
+      "3+ active custom builds",
+      "Dedicated infrastructure",
+      "Custom SLAs",
+      "On-premise deployment",
+      "Custom security & compliance",
+      "24/7 priority support",
+    ],
+    excludes: [],
   },
 ]
 
-const features = [
+const platformFeatures = [
   {
-    name: "Active Build Requests",
-    platform: "None",
-    starter: "1",
-    team: "2",
-    enterprise: "3+",
+    category: "Creative Generation",
+    features: ["AI video ad generation", "AI image ad generation", "Brand asset management", "Template library"],
   },
   {
-    name: "Parallel Builds",
-    platform: "N/A",
-    starter: "No",
-    team: "Yes",
-    enterprise: "Yes",
+    category: "Testing & Optimization",
+    features: ["Pre-launch creative scoring", "A/B test automation", "ROAS prediction", "Audience insights"],
   },
   {
-    name: "Platform Access",
-    platform: "Full Access",
-    starter: "Full Access",
-    team: "Full Access",
-    enterprise: "Custom Enterprise Solutions",
+    category: "Campaign Management",
+    features: ["Cross-platform campaigns", "Budget optimization", "Real-time bidding", "Performance alerts"],
   },
   {
-    name: "Onboarding and Integration",
-    platform: "Included",
-    starter: "Included",
-    team: "Included",
-    enterprise: "Dedicated enterprise onboarding",
+    category: "Analytics & Reporting",
+    features: ["Unified dashboard", "Attribution modeling", "Custom reports", "API access"],
+  },
+]
+
+const services = [
+  {
+    name: "FDE",
+    title: "Full-stack Development Engineer",
+    price: "$4,000",
+    description: "Dedicated engineer for custom builds, integrations, and technical implementation.",
   },
   {
-    name: "Compliances",
-    platform: "SOC 2, GDPR, CCPA",
-    starter: "SOC 2, GDPR, CCPA",
-    team: "SOC 2, GDPR, CCPA",
-    enterprise: "Custom Enterprise Compliances",
-  },
-  {
-    name: "Security",
-    platform: "Enterprise-grade Encryption, Database, Cloud, PCI-Compliant Payments",
-    starter: "Enterprise-grade Encryption, Database, Cloud, PCI-Compliant Payments",
-    team: "Enterprise-grade Encryption, Database, Cloud, PCI-Compliant Payments, 2FA",
-    enterprise: "Custom Enterprise Security (Custom Database, Dedicated infrastructure, Custom Cloud, Encryption, VPN, 2FA, SAML, etc)",
-  },
-  {
-    name: "FDM (Account Manager)",
-    platform: "None",
-    starter: "+$4,000/month per FDM",
-    team: "+$4,000/month per FDM",
-    enterprise: "Custom Enterprise Dedicated FDMs",
-  },
-  {
-    name: "Additional Build Request (FDE or ML Engineer)",
-    platform: "None",
-    starter: "+$4,000/month per FDE",
-    team: "+$4,000/month per FDE",
-    enterprise: "Custom Enterprise Dedicated FDEs",
+    name: "FDM",
+    title: "Full-stack Delivery Manager",
+    price: "$4,000",
+    description: "Strategic partner for campaign optimization, performance reviews, and growth planning.",
   },
 ]
 
@@ -123,10 +118,10 @@ export function Pricing() {
             Pricing
           </div>
           <h2 className="text-3xl font-light italic tracking-tight text-foreground sm:text-4xl lg:text-5xl">
-            Capacity-based <span className="not-italic">pricing</span>
+            Scale with <span className="not-italic">your growth</span>
           </h2>
           <p className="mt-8 text-lg leading-relaxed text-muted-foreground">
-            All customers access the same platform. Pay based on simultaneous system capacity.
+            All plans include full platform access. Choose based on how much custom development you need.
           </p>
         </div>
 
@@ -143,7 +138,7 @@ export function Pricing() {
                 <div>
                   <h3 className="font-mono text-xs uppercase tracking-wider text-muted-foreground">{tier.name}</h3>
                   <div className="mt-4 flex items-baseline gap-1">
-                    <span className={`font-light tracking-tight text-foreground ${tier.price === "Contact Us" ? "text-2xl" : "text-3xl"}`}>{tier.price}</span>
+                    <span className={`font-light tracking-tight text-foreground ${tier.price === "Custom" ? "text-2xl" : "text-3xl"}`}>{tier.price}</span>
                     <span className="text-sm text-muted-foreground">{tier.period}</span>
                   </div>
                 </div>
@@ -153,13 +148,13 @@ export function Pricing() {
                   </span>
                 )}
               </div>
-              
+
               <div className="mt-2 text-xs text-muted-foreground/60">{tier.commitment} commitment</div>
-              
+
               <div className="mt-6 flex-1">
-                <div className="mb-3 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">Best for</div>
+                <div className="mb-3 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">Includes</div>
                 <ul className="space-y-2">
-                  {tier.bestFor.map((item) => (
+                  {tier.includes.map((item) => (
                     <li key={item} className="flex items-start gap-2 text-sm text-muted-foreground">
                       <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-foreground/50" />
                       {item}
@@ -167,7 +162,7 @@ export function Pricing() {
                   ))}
                 </ul>
               </div>
-              
+
               <Button
                 className={`mt-8 w-full font-mono text-xs uppercase tracking-wider ${
                   tier.highlight
@@ -182,41 +177,59 @@ export function Pricing() {
           ))}
         </div>
 
-        {/* Feature Comparison Table */}
-        <div className="mt-16">
-          <h3 className="mb-8 font-mono text-xs uppercase tracking-widest text-muted-foreground">
-            Feature Comparison
-          </h3>
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse text-sm">
-              <thead>
-                <tr className="border-b border-border">
-                  <th className="py-4 pr-4 text-left font-mono text-xs uppercase tracking-wider text-muted-foreground">Feature</th>
-                  <th className="px-4 py-4 text-center font-mono text-xs uppercase tracking-wider text-muted-foreground">Platform</th>
-                  <th className="px-4 py-4 text-center font-mono text-xs uppercase tracking-wider text-muted-foreground">Starter</th>
-                  <th className="px-4 py-4 text-center font-mono text-xs uppercase tracking-wider text-muted-foreground">Team</th>
-                  <th className="px-4 py-4 text-center font-mono text-xs uppercase tracking-wider text-muted-foreground">Enterprise</th>
-                </tr>
-              </thead>
-              <tbody>
-                {features.map((feature, index) => (
-                  <tr key={feature.name} className={index !== features.length - 1 ? "border-b border-border/50" : ""}>
-                    <td className="py-4 pr-4 font-medium text-foreground">{feature.name}</td>
-                    <td className="px-4 py-4 text-center text-muted-foreground">{feature.platform}</td>
-                    <td className="px-4 py-4 text-center text-muted-foreground">{feature.starter}</td>
-                    <td className="px-4 py-4 text-center text-muted-foreground">{feature.team}</td>
-                    <td className="px-4 py-4 text-center text-muted-foreground">{feature.enterprise}</td>
-                  </tr>
-                ))}
-                <tr className="border-t border-border">
-                  <td className="py-4 pr-4 font-medium text-foreground">Commitment</td>
-                  <td className="px-4 py-4 text-center text-muted-foreground">Monthly</td>
-                  <td className="px-4 py-4 text-center text-muted-foreground">3 months</td>
-                  <td className="px-4 py-4 text-center text-muted-foreground">6 months</td>
-                  <td className="px-4 py-4 text-center text-muted-foreground">1 year</td>
-                </tr>
-              </tbody>
-            </table>
+        {/* Platform Features */}
+        <div className="mt-24">
+          <div className="mb-8">
+            <div className="mb-4 font-mono text-xs uppercase tracking-widest text-muted-foreground">
+              Platform Features
+            </div>
+            <h3 className="text-2xl font-light italic tracking-tight text-foreground">
+              Included in <span className="not-italic">every plan</span>
+            </h3>
+          </div>
+          <div className="grid gap-px border border-border bg-border md:grid-cols-2 lg:grid-cols-4">
+            {platformFeatures.map((category) => (
+              <div key={category.category} className="bg-background p-6">
+                <h4 className="font-mono text-xs uppercase tracking-wider text-muted-foreground">{category.category}</h4>
+                <ul className="mt-4 space-y-2">
+                  {category.features.map((feature) => (
+                    <li key={feature} className="flex items-start gap-2 text-sm text-muted-foreground">
+                      <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-foreground/30" />
+                      {feature}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Services Add-ons */}
+        <div className="mt-24">
+          <div className="mb-8">
+            <div className="mb-4 font-mono text-xs uppercase tracking-widest text-muted-foreground">
+              Add-on Services
+            </div>
+            <h3 className="text-2xl font-light italic tracking-tight text-foreground">
+              Dedicated <span className="not-italic">experts</span>
+            </h3>
+          </div>
+          <div className="grid gap-px border border-border bg-border md:grid-cols-2">
+            {services.map((service) => (
+              <div key={service.name} className="bg-background p-8">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <span className="font-mono text-xs text-muted-foreground/40">{service.name}</span>
+                    <h4 className="mt-2 text-lg font-light text-foreground">{service.title}</h4>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-2xl font-light text-foreground">{service.price}</span>
+                    <span className="text-sm text-muted-foreground">/month</span>
+                  </div>
+                </div>
+                <p className="mt-4 text-sm leading-relaxed text-muted-foreground">{service.description}</p>
+              </div>
+            ))}
           </div>
         </div>
       </div>

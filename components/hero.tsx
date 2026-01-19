@@ -28,34 +28,34 @@ export function Hero({ onStartBuilding }: HeroProps) {
           </div>
 
           <h1 className="text-balance text-5xl font-light italic tracking-tight text-foreground sm:text-6xl lg:text-7xl">
-            The operating system
-            <span className="block not-italic font-normal">for AI marketing</span>
+            The Palantir
+            <span className="block not-italic font-normal">for DTC <span className="whitespace-nowrap">e-commerce</span> marketing</span>
           </h1>
 
           <p className="mt-10 max-w-xl text-pretty text-lg leading-relaxed text-muted-foreground">
-            We build and operate production AI systems that run your marketing 24/7.
-            Video generation. Creative testing. Campaign optimization. All automated,
-            all continuously improved.
+            Custom AI systems, automation, and optimization across every ad platform.
+            We build it, deploy it, and run it—you focus on scaling your brand.
           </p>
 
           <div className="mt-14 flex flex-col gap-4 sm:flex-row sm:items-center">
             <Button size="lg" className="h-14 px-10 font-mono text-sm uppercase tracking-wider" onClick={onStartBuilding}>
-              Start Building
+              Get Started
               <ArrowRight className="ml-2 h-4 w-4" />
             </Button>
             <Button size="lg" variant="ghost" className="h-14 px-10 font-mono text-sm uppercase tracking-wider text-muted-foreground hover:text-foreground" asChild>
-              <a href="#pricing">View Pricing</a>
+              <a href="#pricing">View Plans</a>
             </Button>
           </div>
         </div>
 
         {/* Stats bar */}
-        <div className="mt-24 grid grid-cols-2 gap-px border border-border bg-border md:mt-32 md:grid-cols-4">
+        <div className="mt-24 grid grid-cols-2 gap-px border border-border bg-border md:mt-32 md:grid-cols-5">
           {[
-            { value: "24/7", label: "Autonomous Operation" },
-            { value: "100%", label: "Hands-off Execution" },
-            { value: "<48h", label: "System Deployment" },
-            { value: "SOC 2", label: "Type II Certified" },
+            { value: "Meta", label: "Facebook & Instagram" },
+            { value: "TikTok", label: "Ads & Shop" },
+            { value: "Google", label: "Search & Shopping" },
+            { value: "Amazon", label: "Sponsored Ads" },
+            { value: "Vibe", label: "Streaming TV" },
           ].map((stat) => (
             <div key={stat.label} className="bg-background p-6 md:p-8">
               <div className="font-mono text-2xl tracking-tight text-foreground md:text-3xl">{stat.value}</div>
