@@ -10,15 +10,10 @@ const tiers = [
     highlight: false,
     includes: [
       "Full platform access",
-      "All integrations (Meta, TikTok, Google, Amazon)",
+      "All integrations (Meta, TikTok, Google, Amazon, Vibe)",
       "Video & image generation tools",
       "Creative testing & scoring",
       "Campaign analytics dashboard",
-      "SOC 2, GDPR, CCPA compliant",
-    ],
-    excludes: [
-      "No custom builds included",
-      "Self-service only",
     ],
   },
   {
@@ -28,15 +23,12 @@ const tiers = [
     commitment: "3 months",
     highlight: false,
     includes: [
-      "Everything in Platform",
+      "Full platform access",
+      "1 Dedicated FDE",
       "1 active custom build",
-      "Dedicated FDE engineer",
       "Slack/email support",
       "Weekly sync calls",
       "Custom integrations",
-    ],
-    excludes: [
-      "Single build at a time",
     ],
   },
   {
@@ -46,15 +38,15 @@ const tiers = [
     commitment: "6 months",
     highlight: true,
     includes: [
-      "Everything in Starter",
+      "Full platform access",
+      "1 Dedicated FDE",
+      "1 Dedicated FDM",
       "2 active custom builds",
       "Parallel development",
       "Priority support",
-      "Dedicated FDM manager",
       "Custom ML models",
       "Advanced analytics",
     ],
-    excludes: [],
   },
   {
     name: "Enterprise",
@@ -63,15 +55,16 @@ const tiers = [
     commitment: "Annual",
     highlight: false,
     includes: [
-      "Everything in Team",
+      "Full platform access",
+      "Dedicated FDE team",
+      "Dedicated FDM team",
       "3+ active custom builds",
       "Dedicated infrastructure",
       "Custom SLAs",
-      "On-premise deployment",
+      "On-premise option",
       "Custom security & compliance",
       "24/7 priority support",
     ],
-    excludes: [],
   },
 ]
 
@@ -94,20 +87,6 @@ const platformFeatures = [
   },
 ]
 
-const services = [
-  {
-    name: "FDE",
-    title: "Full-stack Development Engineer",
-    price: "$4,000",
-    description: "Dedicated engineer for custom builds, integrations, and technical implementation.",
-  },
-  {
-    name: "FDM",
-    title: "Full-stack Delivery Manager",
-    price: "$4,000",
-    description: "Strategic partner for campaign optimization, performance reviews, and growth planning.",
-  },
-]
 
 export function Pricing() {
   return (
@@ -204,32 +183,31 @@ export function Pricing() {
           </div>
         </div>
 
-        {/* Services Add-ons */}
+        {/* FDE/FDM Explanation */}
         <div className="mt-24">
           <div className="mb-8">
             <div className="mb-4 font-mono text-xs uppercase tracking-widest text-muted-foreground">
-              Add-on Services
+              Dedicated Experts
             </div>
             <h3 className="text-2xl font-light italic tracking-tight text-foreground">
-              Dedicated <span className="not-italic">experts</span>
+              What is <span className="not-italic">FDE & FDM?</span>
             </h3>
           </div>
           <div className="grid gap-px border border-border bg-border md:grid-cols-2">
-            {services.map((service) => (
-              <div key={service.name} className="bg-background p-8">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <span className="font-mono text-xs text-muted-foreground/40">{service.name}</span>
-                    <h4 className="mt-2 text-lg font-light text-foreground">{service.title}</h4>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-2xl font-light text-foreground">{service.price}</span>
-                    <span className="text-sm text-muted-foreground">/month</span>
-                  </div>
-                </div>
-                <p className="mt-4 text-sm leading-relaxed text-muted-foreground">{service.description}</p>
-              </div>
-            ))}
+            <div className="bg-background p-8">
+              <span className="font-mono text-xs text-muted-foreground/40">FDE</span>
+              <h4 className="mt-2 text-lg font-light text-foreground">Forward Deployed Engineer</h4>
+              <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
+                Dedicated engineer for custom builds, integrations, and technical implementation. Builds and maintains your marketing automation systems.
+              </p>
+            </div>
+            <div className="bg-background p-8">
+              <span className="font-mono text-xs text-muted-foreground/40">FDM</span>
+              <h4 className="mt-2 text-lg font-light text-foreground">Forward Deployed Marketer</h4>
+              <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
+                Strategic partner for campaign optimization, performance reviews, and growth planning. Operates systems and drives marketing outcomes.
+              </p>
+            </div>
           </div>
         </div>
       </div>
