@@ -1,34 +1,40 @@
+import Link from "next/link"
 import Image from "next/image"
 
 export function Footer() {
   return (
     <footer className="border-t border-border py-16">
       <div className="mx-auto max-w-6xl px-6">
-        <div className="grid gap-12 md:grid-cols-4">
+        <div className="grid gap-12 md:grid-cols-5">
           <div className="md:col-span-2">
-            <div className="flex items-center gap-2">
+            <Link href="/" className="flex items-center gap-2">
               <Image src="/logo.png" alt="dble" width={28} height={28} className="h-7 w-7" />
               <span className="text-2xl font-light italic tracking-tight text-foreground">dble</span>
-            </div>
+            </Link>
             <p className="mt-6 max-w-sm text-sm leading-relaxed text-muted-foreground">
-              The operating system for AI marketing. Production systems that run 24/7.
+              The Palantir for DTC e-commerce marketing. Production systems that run 24/7.
             </p>
           </div>
           <div>
             <h4 className="font-mono text-xs uppercase tracking-wider text-muted-foreground">Platform</h4>
             <nav className="mt-6 flex flex-col gap-3">
-              <a href="#platform" className="text-sm text-muted-foreground/60 transition-colors hover:text-foreground">How it works</a>
-              <a href="#capabilities" className="text-sm text-muted-foreground/60 transition-colors hover:text-foreground">Capabilities</a>
-              <a href="#pricing" className="text-sm text-muted-foreground/60 transition-colors hover:text-foreground">Pricing</a>
-              <a href="#security" className="text-sm text-muted-foreground/60 transition-colors hover:text-foreground">Security</a>
+              <a href="/#platform" className="text-sm text-muted-foreground/60 transition-colors hover:text-foreground">How it works</a>
+              <a href="/#capabilities" className="text-sm text-muted-foreground/60 transition-colors hover:text-foreground">Features</a>
+              <a href="/#pricing" className="text-sm text-muted-foreground/60 transition-colors hover:text-foreground">Pricing</a>
+            </nav>
+          </div>
+          <div>
+            <h4 className="font-mono text-xs uppercase tracking-wider text-muted-foreground">Resources</h4>
+            <nav className="mt-6 flex flex-col gap-3">
+              <Link href="/faq" className="text-sm text-muted-foreground/60 transition-colors hover:text-foreground">FAQ</Link>
+              <Link href="/security" className="text-sm text-muted-foreground/60 transition-colors hover:text-foreground">Security</Link>
             </nav>
           </div>
           <div>
             <h4 className="font-mono text-xs uppercase tracking-wider text-muted-foreground">Legal</h4>
             <nav className="mt-6 flex flex-col gap-3">
-              <a href="#" className="text-sm text-muted-foreground/60 transition-colors hover:text-foreground">Privacy</a>
-              <a href="#" className="text-sm text-muted-foreground/60 transition-colors hover:text-foreground">Terms</a>
-              <a href="#" className="text-sm text-muted-foreground/60 transition-colors hover:text-foreground">Security</a>
+              <Link href="/privacy" className="text-sm text-muted-foreground/60 transition-colors hover:text-foreground">Privacy</Link>
+              <Link href="/terms" className="text-sm text-muted-foreground/60 transition-colors hover:text-foreground">Terms</Link>
             </nav>
           </div>
         </div>
