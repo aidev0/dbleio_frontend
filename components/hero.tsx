@@ -39,11 +39,11 @@ export function Hero({ onStartBuilding }: HeroProps) {
 
           <div className="mt-14 flex flex-col gap-4 sm:flex-row sm:items-center">
             <Button size="lg" className="h-14 px-10 font-mono text-sm uppercase tracking-wider" onClick={onStartBuilding}>
-              Get Started
+              REQUEST ACCESS
               <ArrowRight className="ml-2 h-4 w-4" />
             </Button>
             <Button size="lg" variant="ghost" className="h-14 px-10 font-mono text-sm uppercase tracking-wider text-muted-foreground hover:text-foreground" asChild>
-              <a href="#pricing">View Plans</a>
+              <a href="#pricing">GET STARTED</a>
             </Button>
           </div>
         </div>
