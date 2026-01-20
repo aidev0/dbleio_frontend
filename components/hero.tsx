@@ -37,13 +37,13 @@ export function Hero({ onStartBuilding }: HeroProps) {
             We build it, deploy it, and run it—you focus on scaling your brand.
           </p>
 
-          <div className="mt-14 flex flex-col gap-4 sm:flex-row sm:items-center">
-            <Button size="lg" className="h-14 px-10 font-mono text-sm uppercase tracking-wider" onClick={onStartBuilding}>
+          <div className="mt-14 flex flex-col-reverse gap-4 sm:flex-row-reverse sm:items-center sm:justify-end">
+            <Button size="lg" variant="ghost" className="peer h-14 px-10 font-mono text-sm uppercase tracking-wider text-muted-foreground hover:bg-primary hover:text-primary-foreground" asChild>
+              <a href="#pricing">GET STARTED</a>
+            </Button>
+            <Button size="lg" className="h-14 px-10 font-mono text-sm uppercase tracking-wider peer-hover:!bg-transparent peer-hover:!text-foreground peer-hover:!shadow-none peer-hover:!border-transparent peer-hover:!outline-none peer-hover:!ring-0" onClick={onStartBuilding}>
               REQUEST ACCESS
               <ArrowRight className="ml-2 h-4 w-4" />
-            </Button>
-            <Button size="lg" variant="ghost" className="h-14 px-10 font-mono text-sm uppercase tracking-wider text-muted-foreground hover:text-foreground" asChild>
-              <a href="#pricing">GET STARTED</a>
             </Button>
           </div>
         </div>
