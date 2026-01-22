@@ -25,7 +25,7 @@ export function Header({ isAuthenticated, onLogin, onRequestAccess }: HeaderProp
           </Link>
           <nav className="hidden items-center gap-8 md:flex">
             <a href="#platform" className="font-mono text-xs uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground">
-              Platform
+              How it Works
             </a>
             <a href="#capabilities" className="font-mono text-xs uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground">
               Capabilities
@@ -72,7 +72,7 @@ export function Header({ isAuthenticated, onLogin, onRequestAccess }: HeaderProp
       {mobileMenuOpen && (
         <div className="border-t border-border/50 bg-background px-6 py-6 md:hidden">
           <nav className="flex flex-col gap-4">
-            <a href="#platform" className="font-mono text-xs uppercase tracking-wider text-muted-foreground">Platform</a>
+            <a href="#platform" className="font-mono text-xs uppercase tracking-wider text-muted-foreground">How it Works</a>
             <a href="#capabilities" className="font-mono text-xs uppercase tracking-wider text-muted-foreground">Capabilities</a>
             <a href="#pricing" className="font-mono text-xs uppercase tracking-wider text-muted-foreground">Pricing</a>
             <a href="#security" className="font-mono text-xs uppercase tracking-wider text-muted-foreground">Security</a>
