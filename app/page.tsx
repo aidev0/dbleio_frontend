@@ -9,23 +9,21 @@ import { Features } from "@/components/features"
 import { Pricing } from "@/components/pricing"
 import { Security } from "@/components/security"
 import { Footer } from "@/components/footer"
+import { ContactFormModal } from "@/components/contact-form-modal"
 import { useAuth } from "./app/video-simulation/auth/authContext"
 
 export default function Home() {
   const router = useRouter()
   const { login, isAuthenticated } = useAuth()
   const [mounted, setMounted] = useState(false)
+  const [isContactModalOpen, setIsContactModalOpen] = useState(false)
 
   useEffect(() => {
     setMounted(true)
   }, [])
 
-  const handleGetStarted = () => {
-    if (isAuthenticated) {
-      router.push("/app")
-    } else {
-      login()
-    }
+  const handleContactUs = () => {
+    setIsContactModalOpen(true)
   }
 
   return (
@@ -33,16 +31,20 @@ export default function Home() {
       <Header
         isAuthenticated={mounted ? isAuthenticated : false}
         onLogin={login}
-        onRequestAccess={handleGetStarted}
+        onRequestAccess={handleContactUs}
       />
       <main>
-        <Hero onStartBuilding={handleGetStarted} />
+        <Hero onContactUs={handleContactUs} />
         <HowItWorks />
         <Features />
         <Pricing />
         <Security />
       </main>
       <Footer />
+      <ContactFormModal
+        isOpen={isContactModalOpen}
+        onClose={() => setIsContactModalOpen(false)}
+      />
     </div>
   )
 }

@@ -28,7 +28,7 @@ export function HowItWorks() {
   ]
 
   return (
-    <section id="platform" className="border-t border-border py-24 md:py-32">
+    <section id="how-it-works" className="border-t border-border py-24 md:py-32">
       <div className="mx-auto max-w-6xl px-6">
         <div className="grid gap-16 lg:grid-cols-2 lg:gap-24">
           <div>

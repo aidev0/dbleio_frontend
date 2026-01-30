@@ -1,12 +1,17 @@
+"use client"
+
+import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Check } from "lucide-react"
+import { ContactFormModal } from "@/components/contact-form-modal"
 
 const tiers = [
   {
     name: "Platform",
+    id: "platform",
     price: "$3,000",
     period: "/month",
-    commitment: "Monthly",
+    commitment: "Monthly Subscription",
     highlight: false,
     includes: [
       "Full platform access",
@@ -14,51 +19,39 @@ const tiers = [
       "Video & image generation tools",
       "Creative testing & scoring",
       "Campaign analytics dashboard",
+      "$1,000 cloud + LLM usage credits included",
     ],
   },
   {
-    name: "Starter",
+    name: "SCALE",
+    id: "scale",
     price: "$6,000",
     period: "/month",
-    commitment: "3 months",
-    highlight: false,
-    includes: [
-      "Full platform access",
-      "1 Dedicated FDE",
-      "1 active custom build",
-      "Slack/email support",
-      "Weekly sync calls",
-      "Custom integrations",
-    ],
-  },
-  {
-    name: "Team",
-    price: "$10,000",
-    period: "/month",
-    commitment: "6 months",
+    commitment: "Monthly Subscription",
     highlight: true,
     includes: [
       "Full platform access",
       "1 Dedicated FDE",
       "1 Dedicated FDM",
-      "2 active custom builds",
-      "Parallel development",
-      "Priority support",
-      "Custom ML models",
-      "Advanced analytics",
+      "1 active custom build",
+      "Slack/email support",
+      "Weekly sync calls",
+      "Custom integrations",
+      "$1,000 cloud + LLM usage credits included",
     ],
   },
   {
     name: "Enterprise",
+    id: "enterprise",
     price: "Custom",
     period: "",
-    commitment: "Annual",
+    commitment: "Annual Contract",
     highlight: false,
     includes: [
       "Full platform access",
       "Dedicated FDE team",
       "Dedicated FDM team",
-      "3+ active custom builds",
+      "2+ active custom builds",
       "Dedicated infrastructure",
       "Custom SLAs",
       "On-premise option",
@@ -89,6 +82,14 @@ const platformFeatures = [
 
 
 export function Pricing() {
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [selectedPlan, setSelectedPlan] = useState<string>("")
+
+  const handleContactClick = (planId: string) => {
+    setSelectedPlan(planId)
+    setIsModalOpen(true)
+  }
+
   return (
     <section id="pricing" className="border-t border-border py-24 md:py-32">
       <div className="mx-auto max-w-7xl px-6">
@@ -105,7 +106,7 @@ export function Pricing() {
         </div>
 
         {/* Tier Cards */}
-        <div className="grid gap-px border border-border bg-border md:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-px border border-border bg-border md:grid-cols-3">
           {tiers.map((tier) => (
             <div
               key={tier.name}
@@ -128,7 +129,9 @@ export function Pricing() {
                 )}
               </div>
 
-              <div className="mt-2 text-xs text-muted-foreground/60">{tier.commitment} commitment</div>
+              {tier.name === "Enterprise" && (
+                <div className="mt-2 text-xs text-muted-foreground/60">{tier.commitment}</div>
+              )}
 
               <div className="mt-6 flex-1">
                 <div className="mb-3 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">Includes</div>
@@ -143,6 +146,7 @@ export function Pricing() {
               </div>
 
               <Button
+                onClick={() => handleContactClick(tier.id)}
                 className={`mt-8 w-full font-mono text-xs uppercase tracking-wider ${
                   tier.highlight
                     ? ""
@@ -150,7 +154,7 @@ export function Pricing() {
                 }`}
                 variant={tier.highlight ? "default" : "outline"}
               >
-                {tier.name === "Enterprise" ? "Contact Us" : "Get Started"}
+                CONTACT US
               </Button>
             </div>
           ))}
@@ -211,6 +215,12 @@ export function Pricing() {
           </div>
         </div>
       </div>
+
+      <ContactFormModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        selectedPlan={selectedPlan}
+      />
     </section>
   )
 }

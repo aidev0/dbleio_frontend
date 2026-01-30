@@ -2,10 +2,10 @@ import { Button } from "@/components/ui/button"
 import { ArrowRight } from "lucide-react"
 
 interface HeroProps {
-  onStartBuilding?: () => void
+  onContactUs?: () => void
 }
 
-export function Hero({ onStartBuilding }: HeroProps) {
+export function Hero({ onContactUs }: HeroProps) {
   return (
     <section className="relative min-h-screen overflow-hidden">
       {/* Grid overlay */}
@@ -38,11 +38,11 @@ export function Hero({ onStartBuilding }: HeroProps) {
           </p>
 
           <div className="mt-14 flex flex-col gap-4 sm:flex-row sm:items-center">
-            <Button size="lg" className="h-14 px-10 font-mono text-sm uppercase tracking-wider" onClick={onStartBuilding}>
-              Get Started
+            <Button size="lg" className="h-14 px-10 font-mono text-sm uppercase tracking-wider" onClick={onContactUs}>
+              Contact Us
               <ArrowRight className="ml-2 h-4 w-4" />
             </Button>
-            <Button size="lg" variant="ghost" className="h-14 px-10 font-mono text-sm uppercase tracking-wider text-muted-foreground hover:text-foreground" asChild>
+            <Button size="lg" variant="outline" className="h-14 px-10 font-mono text-sm uppercase tracking-wider border-foreground text-foreground hover:bg-foreground hover:text-background" asChild>
               <a href="#pricing">View Plans</a>
             </Button>
           </div>

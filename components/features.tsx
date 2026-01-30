@@ -39,11 +39,11 @@ export function Features() {
   ]
 
   return (
-    <section id="capabilities" className="border-t border-border py-24 md:py-32">
+    <section id="platform" className="border-t border-border py-24 md:py-32">
       <div className="mx-auto max-w-6xl px-6">
         <div className="mb-16 max-w-2xl">
           <div className="mb-6 font-mono text-xs uppercase tracking-widest text-muted-foreground">
-            Capabilities
+            Platform
           </div>
           <h2 className="text-3xl font-light italic tracking-tight text-foreground sm:text-4xl lg:text-5xl">
             Full platform access. <span className="not-italic">No locked features.</span>

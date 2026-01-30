@@ -24,11 +24,11 @@ export function Header({ isAuthenticated, onLogin, onRequestAccess }: HeaderProp
             dble
           </Link>
           <nav className="hidden items-center gap-8 md:flex">
+            <a href="#how-it-works" className="font-mono text-xs uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground">
+              How It Works
+            </a>
             <a href="#platform" className="font-mono text-xs uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground">
               Platform
-            </a>
-            <a href="#capabilities" className="font-mono text-xs uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground">
-              Capabilities
             </a>
             <a href="#pricing" className="font-mono text-xs uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground">
               Pricing
@@ -39,22 +39,12 @@ export function Header({ isAuthenticated, onLogin, onRequestAccess }: HeaderProp
           </nav>
         </div>
         <div className="hidden items-center gap-4 md:flex">
-          {isAuthenticated ? (
-            <Link href="/app">
-              <Button className="font-mono text-xs uppercase tracking-wider">
-                Dashboard
-              </Button>
-            </Link>
-          ) : (
-            <>
-              <Button variant="ghost" className="font-mono text-xs uppercase tracking-wider text-muted-foreground" onClick={onLogin}>
-                Log in
-              </Button>
-              <Button className="font-mono text-xs uppercase tracking-wider" onClick={onRequestAccess}>
-                Request Access
-              </Button>
-            </>
-          )}
+          <Button variant="ghost" className="font-mono text-xs uppercase tracking-wider text-muted-foreground" onClick={onLogin}>
+            LOGIN
+          </Button>
+          <Button className="font-mono text-xs uppercase tracking-wider" onClick={onRequestAccess}>
+            CONTACT US
+          </Button>
         </div>
         <button
           type="button"
@@ -72,21 +62,13 @@ export function Header({ isAuthenticated, onLogin, onRequestAccess }: HeaderProp
       {mobileMenuOpen && (
         <div className="border-t border-border/50 bg-background px-6 py-6 md:hidden">
           <nav className="flex flex-col gap-4">
+            <a href="#how-it-works" className="font-mono text-xs uppercase tracking-wider text-muted-foreground">How It Works</a>
             <a href="#platform" className="font-mono text-xs uppercase tracking-wider text-muted-foreground">Platform</a>
-            <a href="#capabilities" className="font-mono text-xs uppercase tracking-wider text-muted-foreground">Capabilities</a>
             <a href="#pricing" className="font-mono text-xs uppercase tracking-wider text-muted-foreground">Pricing</a>
             <a href="#security" className="font-mono text-xs uppercase tracking-wider text-muted-foreground">Security</a>
             <div className="mt-4 flex flex-col gap-2 border-t border-border pt-4">
-              {isAuthenticated ? (
-                <Link href="/app">
-                  <Button className="w-full font-mono text-xs uppercase tracking-wider">Dashboard</Button>
-                </Link>
-              ) : (
-                <>
-                  <Button variant="ghost" className="w-full justify-center font-mono text-xs uppercase tracking-wider text-muted-foreground" onClick={onLogin}>Log in</Button>
-                  <Button className="w-full font-mono text-xs uppercase tracking-wider" onClick={onRequestAccess}>Request Access</Button>
-                </>
-              )}
+              <Button variant="ghost" className="w-full justify-center font-mono text-xs uppercase tracking-wider text-muted-foreground" onClick={onLogin}>LOGIN</Button>
+              <Button className="w-full font-mono text-xs uppercase tracking-wider" onClick={onRequestAccess}>CONTACT US</Button>
             </div>
           </nav>
         </div>
