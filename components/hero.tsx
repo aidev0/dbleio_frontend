@@ -1,11 +1,15 @@
+"use client"
+
 import { Button } from "@/components/ui/button"
 import { ArrowRight } from "lucide-react"
+import { useState } from "react"
 
 interface HeroProps {
   onContactUs?: () => void
 }
 
 export function Hero({ onContactUs }: HeroProps) {
+  const [hoveredButton, setHoveredButton] = useState<string | null>(null)
   return (
     <section className="relative min-h-screen overflow-hidden">
       {/* Grid overlay */}
@@ -38,11 +42,32 @@ export function Hero({ onContactUs }: HeroProps) {
           </p>
 
           <div className="mt-14 flex flex-col gap-4 sm:flex-row sm:items-center">
-            <Button size="lg" className="h-14 px-10 font-mono text-sm uppercase tracking-wider" onClick={onContactUs}>
+            <Button 
+              size="lg" 
+              className={`h-14 px-10 font-mono text-sm uppercase tracking-wider transition-all ${
+                hoveredButton === 'contact' || (!hoveredButton && true) 
+                  ? 'bg-foreground text-background' 
+                  : 'bg-transparent text-foreground border border-foreground'
+              }`}
+              onClick={onContactUs}
+              onMouseEnter={() => setHoveredButton('contact')}
+              onMouseLeave={() => setHoveredButton(null)}
+            >
               Contact Us
               <ArrowRight className="ml-2 h-4 w-4" />
             </Button>
-            <Button size="lg" variant="outline" className="h-14 px-10 font-mono text-sm uppercase tracking-wider border-foreground text-foreground hover:bg-foreground hover:text-background" asChild>
+            <Button 
+              size="lg" 
+              variant="outline" 
+              className={`h-14 px-10 font-mono text-sm uppercase tracking-wider transition-all ${
+                hoveredButton === 'plans' 
+                  ? 'bg-foreground text-background border-foreground' 
+                  : 'bg-transparent text-foreground border-foreground'
+              }`}
+              asChild
+              onMouseEnter={() => setHoveredButton('plans')}
+              onMouseLeave={() => setHoveredButton(null)}
+            >
               <a href="#pricing">View Plans</a>
             </Button>
           </div>

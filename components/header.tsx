@@ -14,6 +14,8 @@ interface HeaderProps {
 
 export function Header({ isAuthenticated, onLogin, onRequestAccess }: HeaderProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [hoveredButton, setHoveredButton] = useState<string | null>(null)
+  const [mobileHoveredButton, setMobileHoveredButton] = useState<string | null>(null)
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 border-b border-border/50 bg-background/80 backdrop-blur-xl">
@@ -39,10 +41,29 @@ export function Header({ isAuthenticated, onLogin, onRequestAccess }: HeaderProp
           </nav>
         </div>
         <div className="hidden items-center gap-4 md:flex">
-          <Button variant="ghost" className="font-mono text-xs uppercase tracking-wider text-muted-foreground" onClick={onLogin}>
+          <Button 
+            variant="ghost" 
+            className={`font-mono text-xs uppercase tracking-wider transition-all ${
+              hoveredButton === 'login' 
+                ? 'bg-foreground text-background' 
+                : 'bg-transparent text-muted-foreground'
+            }`}
+            onClick={onLogin}
+            onMouseEnter={() => setHoveredButton('login')}
+            onMouseLeave={() => setHoveredButton(null)}
+          >
             LOGIN
           </Button>
-          <Button className="font-mono text-xs uppercase tracking-wider" onClick={onRequestAccess}>
+          <Button 
+            className={`font-mono text-xs uppercase tracking-wider transition-all ${
+              hoveredButton === 'contact' || (!hoveredButton && true) 
+                ? 'bg-foreground text-background' 
+                : 'bg-transparent text-foreground border border-foreground'
+            }`}
+            onClick={onRequestAccess}
+            onMouseEnter={() => setHoveredButton('contact')}
+            onMouseLeave={() => setHoveredButton(null)}
+          >
             CONTACT US
           </Button>
         </div>
@@ -67,8 +88,31 @@ export function Header({ isAuthenticated, onLogin, onRequestAccess }: HeaderProp
             <a href="#pricing" className="font-mono text-xs uppercase tracking-wider text-muted-foreground">Pricing</a>
             <a href="#security" className="font-mono text-xs uppercase tracking-wider text-muted-foreground">Security</a>
             <div className="mt-4 flex flex-col gap-2 border-t border-border pt-4">
-              <Button variant="ghost" className="w-full justify-center font-mono text-xs uppercase tracking-wider text-muted-foreground" onClick={onLogin}>LOGIN</Button>
-              <Button className="w-full font-mono text-xs uppercase tracking-wider" onClick={onRequestAccess}>CONTACT US</Button>
+              <Button 
+                variant="ghost" 
+                className={`w-full justify-center font-mono text-xs uppercase tracking-wider transition-all ${
+                  mobileHoveredButton === 'login' 
+                    ? 'bg-foreground text-background' 
+                    : 'bg-transparent text-muted-foreground'
+                }`}
+                onClick={onLogin}
+                onMouseEnter={() => setMobileHoveredButton('login')}
+                onMouseLeave={() => setMobileHoveredButton(null)}
+              >
+                LOGIN
+              </Button>
+              <Button 
+                className={`w-full font-mono text-xs uppercase tracking-wider transition-all ${
+                  mobileHoveredButton === 'contact' || (!mobileHoveredButton && true) 
+                    ? 'bg-foreground text-background' 
+                    : 'bg-transparent text-foreground border border-foreground'
+                }`}
+                onClick={onRequestAccess}
+                onMouseEnter={() => setMobileHoveredButton('contact')}
+                onMouseLeave={() => setMobileHoveredButton(null)}
+              >
+                CONTACT US
+              </Button>
             </div>
           </nav>
         </div>

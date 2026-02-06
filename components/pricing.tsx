@@ -87,6 +87,7 @@ const platformFeatures = [
 export function Pricing() {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [selectedPlan, setSelectedPlan] = useState<string>("")
+  const [hoveredButton, setHoveredButton] = useState<string | null>(null)
 
   const handleContactClick = (planId: string) => {
     setSelectedPlan(planId)
@@ -150,12 +151,14 @@ export function Pricing() {
 
               <Button
                 onClick={() => handleContactClick(tier.id)}
-                className={`mt-8 w-full font-mono text-xs uppercase tracking-wider ${
-                  tier.highlight
-                    ? ""
-                    : "border-border bg-transparent text-foreground hover:bg-secondary"
+                className={`mt-8 w-full font-mono text-xs uppercase tracking-wider transition-all ${
+                  hoveredButton === tier.id || (!hoveredButton && tier.highlight)
+                    ? "bg-foreground text-background"
+                    : "bg-transparent text-foreground border border-foreground"
                 }`}
                 variant={tier.highlight ? "default" : "outline"}
+                onMouseEnter={() => setHoveredButton(tier.id)}
+                onMouseLeave={() => setHoveredButton(null)}
               >
                 CONTACT US
               </Button>
