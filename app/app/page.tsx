@@ -101,7 +101,7 @@ function AppHome() {
       {/* Header */}
       <header className="border-b border-border">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
-          <Link href="/" className="flex items-center gap-2 text-2xl font-light italic tracking-tight text-foreground transition-opacity hover:opacity-70">
+          <Link href="/" className="flex items-center gap-2 transition-opacity hover:opacity-70 text-2xl font-light italic tracking-tight text-foreground">
             <Image src="/logo.png" alt="dble" width={28} height={28} className="h-7 w-7" />
             dble
           </Link>

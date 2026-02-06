@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 
 export default function CampaignsList() {
   const [campaigns, setCampaigns] = useState<any[]>([]);
@@ -28,9 +29,9 @@ export default function CampaignsList() {
     <div className="min-h-screen bg-gray-100">
       <header className="bg-white shadow">
         <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
-          <Link href="/" className="flex items-center gap-3 mb-2 hover:opacity-80 transition-opacity cursor-pointer">
-            <span className="text-2xl font-bold text-purple-600">db</span>
-            <span className="text-lg text-gray-500">dble.io</span>
+          <Link href="/" className="flex items-center gap-2 mb-2 hover:opacity-80 transition-opacity cursor-pointer text-2xl font-light italic tracking-tight text-foreground">
+            <Image src="/logo.png" alt="dble" width={28} height={28} className="h-7 w-7" />
+            dble
           </Link>
           <h1 className="text-3xl font-bold text-gray-900">
             Video Marketing Simulation AI
