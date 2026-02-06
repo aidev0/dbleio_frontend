@@ -7,7 +7,10 @@ export function Footer() {
       <div className="mx-auto max-w-6xl px-6">
         <div className="grid gap-12 md:grid-cols-5">
           <div className="md:col-span-2">
-            <span className="text-2xl font-light italic tracking-tight text-foreground">dble</span>
+            <Link href="/" className="flex items-center gap-2">
+              <Image src="/logo.png" alt="dble" width={28} height={28} className="h-7 w-7" />
+              <span className="text-2xl font-light italic tracking-tight text-foreground">dble</span>
+            </Link>
             <p className="mt-6 max-w-sm text-sm leading-relaxed text-muted-foreground">
               The Palantir for DTC e-commerce marketing. Production systems that run 24/7.
             </p>
