@@ -123,3 +123,25 @@
     @apply bg-background text-foreground font-sans;
   }
 }
+
+/* Mobile landscape optimizations */
+@media screen and (max-height: 500px) and (orientation: landscape) {
+  .min-h-screen {
+    min-height: auto !important;
+  }
+  
+  /* Reduce hero section height on mobile landscape */
+  .hero-mobile-landscape {
+    padding-top: 4rem !important;
+    padding-bottom: 2rem !important;
+    min-height: auto !important;
+  }
+  
+  /* Adjust button sizes for mobile landscape */
+  .btn-mobile-landscape {
+    height: 2.5rem !important;
+    padding-left: 1.5rem !important;
+    padding-right: 1.5rem !important;
+    font-size: 0.75rem !important;
+  }
+}

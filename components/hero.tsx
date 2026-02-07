@@ -11,7 +11,7 @@ interface HeroProps {
 export function Hero({ onContactUs }: HeroProps) {
   const [hoveredButton, setHoveredButton] = useState<string | null>(null)
   return (
-    <section className="relative min-h-screen overflow-hidden">
+    <section className="relative min-h-screen overflow-hidden hero-mobile-landscape">
       {/* Grid overlay */}
       <div
         className="absolute inset-0 z-0 opacity-[0.04]"
@@ -24,27 +24,27 @@ export function Hero({ onContactUs }: HeroProps) {
         }}
       />
 
-      <div className="relative z-10 mx-auto flex min-h-screen max-w-6xl flex-col justify-center px-6 pt-20">
+      <div className="relative z-10 mx-auto flex min-h-screen max-w-6xl flex-col justify-center px-4 sm:px-6 pt-16 sm:pt-20">
         <div className="max-w-4xl">
           <div className="mb-8 inline-flex items-center gap-3 font-mono text-xs tracking-widest text-muted-foreground">
             <span className="h-px w-12 bg-foreground/30" />
             <span>MARKETING INTELLIGENCE PLATFORM</span>
           </div>
 
-          <h1 className="text-balance text-5xl font-light italic tracking-tight text-foreground sm:text-6xl lg:text-7xl">
+          <h1 className="text-balance text-4xl font-light italic tracking-tight text-foreground sm:text-5xl md:text-6xl lg:text-7xl">
             The Palantir
-            <span className="block not-italic font-normal">for DTC <span className="whitespace-nowrap">e-commerce</span> marketing</span>
+            <span className="block not-italic font-normal">for DTC marketing</span>
           </h1>
 
-          <p className="mt-10 max-w-xl text-pretty text-lg leading-relaxed text-muted-foreground">
+          <p className="mt-8 max-w-xl text-pretty text-base sm:text-lg leading-relaxed text-muted-foreground">
             Custom AI systems, automation, and optimization across every ad platform.
             We build it, deploy it, and run it—you focus on scaling your brand.
           </p>
 
-          <div className="mt-14 flex flex-col gap-4 sm:flex-row sm:items-center">
+          <div className="mt-10 sm:mt-14 flex flex-col gap-3 sm:gap-4 sm:flex-row sm:items-center">
             <Button 
               size="lg" 
-              className={`h-14 px-10 font-mono text-sm uppercase tracking-wider transition-all ${
+              className={`h-12 sm:h-14 px-8 sm:px-10 font-mono text-xs sm:text-sm uppercase tracking-wider transition-all btn-mobile-landscape ${
                 hoveredButton === 'contact' || (!hoveredButton && true) 
                   ? 'bg-foreground text-background' 
                   : 'bg-transparent text-foreground border border-foreground'
@@ -54,12 +54,11 @@ export function Hero({ onContactUs }: HeroProps) {
               onMouseLeave={() => setHoveredButton(null)}
             >
               Contact Us
-              <ArrowRight className="ml-2 h-4 w-4" />
             </Button>
             <Button 
               size="lg" 
               variant="outline" 
-              className={`h-14 px-10 font-mono text-sm uppercase tracking-wider transition-all ${
+              className={`h-12 sm:h-14 px-8 sm:px-10 font-mono text-xs sm:text-sm uppercase tracking-wider transition-all btn-mobile-landscape ${
                 hoveredButton === 'plans' 
                   ? 'bg-foreground text-background border-foreground' 
                   : 'bg-transparent text-foreground border-foreground'
@@ -73,20 +72,63 @@ export function Hero({ onContactUs }: HeroProps) {
           </div>
         </div>
 
-        {/* Stats bar */}
-        <div className="mt-24 grid grid-cols-2 gap-px border border-border bg-border md:mt-32 md:grid-cols-5">
-          {[
-            { value: "Meta", label: "Facebook & Instagram" },
-            { value: "TikTok", label: "Ads & Shop" },
-            { value: "Google", label: "Search & Shopping" },
-            { value: "Amazon", label: "Sponsored Ads" },
-            { value: "Vibe", label: "Streaming TV" },
-          ].map((stat) => (
-            <div key={stat.label} className="bg-background p-6 md:p-8">
-              <div className="font-mono text-2xl tracking-tight text-foreground md:text-3xl">{stat.value}</div>
-              <div className="mt-2 text-xs uppercase tracking-wider text-muted-foreground">{stat.label}</div>
-            </div>
-          ))}
+        {/* Platform Logos */}
+        <div className="mt-16 sm:mt-24 md:mt-32">
+          <div className="text-center mb-8">
+            <h3 className="font-mono text-xs uppercase tracking-wider text-muted-foreground">Supported Ad Platforms</h3>
+          </div>
+          <div className="grid grid-cols-4 gap-px border border-border bg-border sm:grid-cols-8">
+            {[
+              { 
+                name: "Meta",
+                logo: "https://upload.wikimedia.org/wikipedia/commons/thumb/7/7b/Meta_Platforms_Inc._logo.svg/1024px-Meta_Platforms_Inc._logo.svg.png"
+              },
+              { 
+                name: "Instagram",
+                logo: "https://upload.wikimedia.org/wikipedia/commons/9/95/Instagram_logo_2022.svg"
+              },
+              { 
+                name: "Amazon",
+                logo: "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a9/Amazon_logo.svg/1024px-Amazon_logo.svg.png"
+              },
+              { 
+                name: "TikTok",
+                logo: "https://upload.wikimedia.org/wikipedia/commons/3/34/Ionicons_logo-tiktok.svg"
+              },
+              { 
+                name: "Pinterest",
+                logo: "https://upload.wikimedia.org/wikipedia/commons/0/08/Pinterest-logo.png"
+              },
+              { 
+                name: "Vibe",
+                logo: "/vibe-logo.svg"
+              },
+              { 
+                name: "X",
+                logo: "https://upload.wikimedia.org/wikipedia/commons/thumb/c/ce/X_logo_2023.svg/512px-X_logo_2023.svg.png"
+              },
+              { 
+                name: "YouTube",
+                logo: "https://upload.wikimedia.org/wikipedia/commons/thumb/0/09/YouTube_full-color_icon_%282017%29.svg/512px-YouTube_full-color_icon_%282017%29.svg.png"
+              },
+            ].map((platform) => (
+              <div key={platform.name} className="bg-background p-6 sm:p-8 flex items-center justify-center">
+                <img 
+                  src={platform.logo} 
+                  alt={`${platform.name} logo`}
+                  className={`object-contain filter grayscale ${
+                    platform.name === 'Instagram' || platform.name === 'Pinterest' || platform.name === 'TikTok'
+                      ? 'h-16 w-16 sm:h-20 sm:w-20'
+                      : platform.name === 'X'
+                      ? 'h-12 w-12 sm:h-16 sm:w-16'
+                      : platform.name === 'Meta' || platform.name === 'Amazon' || platform.name === 'Vibe'
+                      ? 'h-28 w-28 sm:h-32 sm:w-32'
+                      : 'h-24 w-24 sm:h-28 sm:w-28'
+                  }`}
+                />
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </section>

@@ -3,68 +3,46 @@
 import { Button } from "@/components/ui/button"
 import { useState } from "react"
 import { Menu, X } from "lucide-react"
-import Link from "next/link"
 import Image from "next/image"
 
-interface HeaderProps {
-  isAuthenticated?: boolean
-  onLogin?: () => void
-  onRequestAccess?: () => void
-}
-
-export function Header({ isAuthenticated, onLogin, onRequestAccess }: HeaderProps) {
+export function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [hoveredButton, setHoveredButton] = useState<string | null>(null)
-  const [mobileHoveredButton, setMobileHoveredButton] = useState<string | null>(null)
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 border-b border-border/50 bg-background/80 backdrop-blur-xl">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
         <div className="flex items-center gap-12">
-          <Link href="/" className="flex items-center gap-2 text-2xl font-light italic tracking-tight text-foreground">
-            <Image src="/logo.png" alt="dble" width={28} height={28} className="h-7 w-7" />
+          <a href="#" className="flex items-center gap-2 text-2xl font-light italic tracking-tight text-foreground">
+            <Image src="/logo.png" alt="dble logo" width={28} height={28} className="h-7 w-7" />
             dble
-          </Link>
-          <nav className="hidden items-center gap-8 md:flex">
-            <a href="#how-it-works" className="font-mono text-xs uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground">
-              How It Works
-            </a>
-            <a href="#platform" className="font-mono text-xs uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground">
-              Platform
-            </a>
-            <a href="#pricing" className="font-mono text-xs uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground">
-              Pricing
-            </a>
-            <a href="#security" className="font-mono text-xs uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground">
-              Security
-            </a>
-          </nav>
+          </a>
+          <nav className="hidden items-center gap-8 md:flex" />
+
         </div>
         <div className="hidden items-center gap-4 md:flex">
           <Button 
             variant="ghost" 
             className={`font-mono text-xs uppercase tracking-wider transition-all ${
-              hoveredButton === 'login' 
-                ? 'bg-foreground text-background' 
-                : 'bg-transparent text-muted-foreground'
+              hoveredButton === 'login' || (!hoveredButton)
+                ? 'text-muted-foreground' 
+                : 'text-muted-foreground/40'
             }`}
-            onClick={onLogin}
             onMouseEnter={() => setHoveredButton('login')}
             onMouseLeave={() => setHoveredButton(null)}
           >
-            LOGIN
+            Login
           </Button>
           <Button 
             className={`font-mono text-xs uppercase tracking-wider transition-all ${
-              hoveredButton === 'contact' || (!hoveredButton && true) 
+              hoveredButton === 'contact' || (!hoveredButton)
                 ? 'bg-foreground text-background' 
-                : 'bg-transparent text-foreground border border-foreground'
+                : 'bg-muted text-muted-foreground'
             }`}
-            onClick={onRequestAccess}
             onMouseEnter={() => setHoveredButton('contact')}
             onMouseLeave={() => setHoveredButton(null)}
           >
-            CONTACT US
+            Contact Us
           </Button>
         </div>
         <button
@@ -82,39 +60,10 @@ export function Header({ isAuthenticated, onLogin, onRequestAccess }: HeaderProp
       </div>
       {mobileMenuOpen && (
         <div className="border-t border-border/50 bg-background px-6 py-6 md:hidden">
-          <nav className="flex flex-col gap-4">
-            <a href="#how-it-works" className="font-mono text-xs uppercase tracking-wider text-muted-foreground">How It Works</a>
-            <a href="#platform" className="font-mono text-xs uppercase tracking-wider text-muted-foreground">Platform</a>
-            <a href="#pricing" className="font-mono text-xs uppercase tracking-wider text-muted-foreground">Pricing</a>
-            <a href="#security" className="font-mono text-xs uppercase tracking-wider text-muted-foreground">Security</a>
-            <div className="mt-4 flex flex-col gap-2 border-t border-border pt-4">
-              <Button 
-                variant="ghost" 
-                className={`w-full justify-center font-mono text-xs uppercase tracking-wider transition-all ${
-                  mobileHoveredButton === 'login' 
-                    ? 'bg-foreground text-background' 
-                    : 'bg-transparent text-muted-foreground'
-                }`}
-                onClick={onLogin}
-                onMouseEnter={() => setMobileHoveredButton('login')}
-                onMouseLeave={() => setMobileHoveredButton(null)}
-              >
-                LOGIN
-              </Button>
-              <Button 
-                className={`w-full font-mono text-xs uppercase tracking-wider transition-all ${
-                  mobileHoveredButton === 'contact' || (!mobileHoveredButton && true) 
-                    ? 'bg-foreground text-background' 
-                    : 'bg-transparent text-foreground border border-foreground'
-                }`}
-                onClick={onRequestAccess}
-                onMouseEnter={() => setMobileHoveredButton('contact')}
-                onMouseLeave={() => setMobileHoveredButton(null)}
-              >
-                CONTACT US
-              </Button>
-            </div>
-          </nav>
+          <div className="flex flex-col gap-2">
+            <Button variant="ghost" className="w-full justify-center font-mono text-xs uppercase tracking-wider text-muted-foreground">Login</Button>
+            <Button className="w-full font-mono text-xs uppercase tracking-wider">Contact Us</Button>
+          </div>
         </div>
       )}
     </header>
