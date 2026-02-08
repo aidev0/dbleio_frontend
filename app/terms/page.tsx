@@ -3,15 +3,11 @@
 import { Header } from "@/components/header"
 import { Footer } from "@/components/footer"
 import { useAuth } from "../app/video-simulation/auth/authContext"
-import { useState, useEffect } from "react"
+import { useSyncExternalStore } from "react"
 
 export default function TermsPage() {
   const { login, isAuthenticated } = useAuth()
-  const [mounted, setMounted] = useState(false)
-
-  useEffect(() => {
-    setMounted(true)
-  }, [])
+  const mounted = useSyncExternalStore(() => () => {}, () => true, () => false)
 
   const handleGetStarted = () => {
     if (isAuthenticated) {
@@ -45,7 +41,7 @@ export default function TermsPage() {
           <section>
             <h2 className="mb-4 text-xl font-light text-foreground">1. Agreement to Terms</h2>
             <p>
-              By accessing or using dble's platform and services, you agree to be bound by these Terms of Service. If you do not agree to these terms, do not use our services.
+              By accessing or using dble&apos;s platform and services, you agree to be bound by these Terms of Service. If you do not agree to these terms, do not use our services.
             </p>
           </section>
 

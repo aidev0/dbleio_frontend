@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import Image from 'next/image';
 import { API_URL, getApiHeaders } from '../lib/api';
 
 interface Integration {
@@ -85,21 +86,7 @@ export default function ShopifyDataTab({ integration, onBack }: ShopifyDataTabPr
   const [customersNextPage, setCustomersNextPage] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
 
-  useEffect(() => {
-    loadAnalytics();
-  }, [integration._id]);
-
-  useEffect(() => {
-    if (activeTab === 'products' && products.length === 0) {
-      loadProducts();
-    } else if (activeTab === 'orders' && orders.length === 0) {
-      loadOrders();
-    } else if (activeTab === 'customers' && customers.length === 0) {
-      loadCustomers();
-    }
-  }, [activeTab]);
-
-  const loadAnalytics = async () => {
+  const loadAnalytics = useCallback(async () => {
     try {
       const response = await fetch(`${API_URL}/api/integrations/shopify/${integration._id}/analytics`, { headers: getApiHeaders() });
       if (response.ok) {
@@ -111,9 +98,9 @@ export default function ShopifyDataTab({ integration, onBack }: ShopifyDataTabPr
     } finally {
       setLoading(false);
     }
-  };
+  }, [integration._id]);
 
-  const loadProducts = async (pageInfo?: string) => {
+  const loadProducts = useCallback(async (pageInfo?: string) => {
     try {
       setLoadingMore(!!pageInfo);
       const url = pageInfo
@@ -135,9 +122,9 @@ export default function ShopifyDataTab({ integration, onBack }: ShopifyDataTabPr
     } finally {
       setLoadingMore(false);
     }
-  };
+  }, [integration._id]);
 
-  const loadOrders = async (pageInfo?: string) => {
+  const loadOrders = useCallback(async (pageInfo?: string) => {
     try {
       setLoadingMore(!!pageInfo);
       const url = pageInfo
@@ -159,9 +146,9 @@ export default function ShopifyDataTab({ integration, onBack }: ShopifyDataTabPr
     } finally {
       setLoadingMore(false);
     }
-  };
+  }, [integration._id]);
 
-  const loadCustomers = async (pageInfo?: string) => {
+  const loadCustomers = useCallback(async (pageInfo?: string) => {
     try {
       setLoadingMore(!!pageInfo);
       const url = pageInfo
@@ -183,7 +170,22 @@ export default function ShopifyDataTab({ integration, onBack }: ShopifyDataTabPr
     } finally {
       setLoadingMore(false);
     }
-  };
+  }, [integration._id]);
+
+  useEffect(() => {
+    loadAnalytics();
+  }, [loadAnalytics]);
+
+  useEffect(() => {
+    if (activeTab === 'products' && products.length === 0) {
+      loadProducts();
+    } else if (activeTab === 'orders' && orders.length === 0) {
+      loadOrders();
+    } else if (activeTab === 'customers' && customers.length === 0) {
+      loadCustomers();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
 
   return (
     <div className="space-y-6">
@@ -347,10 +349,13 @@ export default function ShopifyDataTab({ integration, onBack }: ShopifyDataTabPr
                     {products.map((product) => (
                       <div key={product.id} className="bg-white border rounded-lg overflow-hidden hover:shadow-lg transition-shadow">
                         {product.images[0] && (
-                          <img
+                          <Image
                             src={product.images[0].src}
                             alt={product.title}
                             className="w-full h-48 object-cover"
+                            width={400}
+                            height={192}
+                            unoptimized
                           />
                         )}
                         <div className="p-4">

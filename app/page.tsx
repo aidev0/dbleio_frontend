@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useSyncExternalStore } from "react"
 import { useRouter } from "next/navigation"
 import { Header } from "@/components/header"
 import { Hero } from "@/components/hero"
@@ -15,12 +15,8 @@ import { useAuth } from "./app/video-simulation/auth/authContext"
 export default function Home() {
   const router = useRouter()
   const { login, isAuthenticated } = useAuth()
-  const [mounted, setMounted] = useState(false)
+  const mounted = useSyncExternalStore(() => () => {}, () => true, () => false)
   const [isContactModalOpen, setIsContactModalOpen] = useState(false)
-
-  useEffect(() => {
-    setMounted(true)
-  }, [])
 
   const handleContactUs = () => {
     setIsContactModalOpen(true)

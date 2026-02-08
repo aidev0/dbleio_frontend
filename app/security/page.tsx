@@ -3,7 +3,7 @@
 import { Header } from "@/components/header"
 import { Footer } from "@/components/footer"
 import { useAuth } from "../app/video-simulation/auth/authContext"
-import { useState, useEffect } from "react"
+import { useSyncExternalStore } from "react"
 import { Shield, Lock, Server, Eye, FileCheck, Users } from "lucide-react"
 
 const securityFeatures = [
@@ -41,11 +41,7 @@ const securityFeatures = [
 
 export default function SecurityPage() {
   const { login, isAuthenticated } = useAuth()
-  const [mounted, setMounted] = useState(false)
-
-  useEffect(() => {
-    setMounted(true)
-  }, [])
+  const mounted = useSyncExternalStore(() => () => {}, () => true, () => false)
 
   const handleGetStarted = () => {
     if (isAuthenticated) {

@@ -37,6 +37,7 @@ export default function SynthesisTab({
     if (selectedCampaignId) {
       loadSynthesisData();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedCampaignId]);
 
   // Auto-refresh every 5 seconds if there are processing videos
@@ -55,6 +56,7 @@ export default function SynthesisTab({
 
       return () => clearInterval(interval);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedCampaignId, synthesisVideos]);
 
   const loadSynthesisData = async (silent = false) => {

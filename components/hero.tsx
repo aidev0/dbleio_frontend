@@ -3,6 +3,7 @@
 import { Button } from "@/components/ui/button"
 import { ArrowRight } from "lucide-react"
 import { useState } from "react"
+import Image from "next/image"
 
 interface HeroProps {
   onContactUs?: () => void
@@ -113,8 +114,8 @@ export function Hero({ onContactUs }: HeroProps) {
               },
             ].map((platform) => (
               <div key={platform.name} className="bg-background p-6 sm:p-8 flex items-center justify-center">
-                <img 
-                  src={platform.logo} 
+                <Image
+                  src={platform.logo}
                   alt={`${platform.name} logo`}
                   className={`object-contain filter grayscale ${
                     platform.name === 'Instagram' || platform.name === 'Pinterest' || platform.name === 'TikTok'
@@ -125,6 +126,9 @@ export function Hero({ onContactUs }: HeroProps) {
                       ? 'h-28 w-28 sm:h-32 sm:w-32'
                       : 'h-24 w-24 sm:h-28 sm:w-28'
                   }`}
+                  width={128}
+                  height={128}
+                  unoptimized
                 />
               </div>
             ))}

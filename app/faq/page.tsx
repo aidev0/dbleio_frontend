@@ -5,7 +5,7 @@ import Image from "next/image"
 import { Header } from "@/components/header"
 import { Footer } from "@/components/footer"
 import { useAuth } from "../app/video-simulation/auth/authContext"
-import { useState, useEffect } from "react"
+import { useState, useSyncExternalStore } from "react"
 
 const faqs = [
   {
@@ -279,12 +279,8 @@ You request what to automate. dble builds and runs it. Pricing is based on how m
 
 export default function FAQPage() {
   const { login, isAuthenticated } = useAuth()
-  const [mounted, setMounted] = useState(false)
+  const mounted = useSyncExternalStore(() => () => {}, () => true, () => false)
   const [openIndex, setOpenIndex] = useState<number | null>(null)
-
-  useEffect(() => {
-    setMounted(true)
-  }, [])
 
   const handleGetStarted = () => {
     if (isAuthenticated) {

@@ -3,15 +3,11 @@
 import { Header } from "@/components/header"
 import { Footer } from "@/components/footer"
 import { useAuth } from "../app/video-simulation/auth/authContext"
-import { useState, useEffect } from "react"
+import { useSyncExternalStore } from "react"
 
 export default function PrivacyPage() {
   const { login, isAuthenticated } = useAuth()
-  const [mounted, setMounted] = useState(false)
-
-  useEffect(() => {
-    setMounted(true)
-  }, [])
+  const mounted = useSyncExternalStore(() => () => {}, () => true, () => false)
 
   const handleGetStarted = () => {
     if (isAuthenticated) {
@@ -45,7 +41,7 @@ export default function PrivacyPage() {
           <section>
             <h2 className="mb-4 text-xl font-light text-foreground">Introduction</h2>
             <p>
-              dble ("we," "our," or "us") is committed to protecting your privacy. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our platform and services.
+              dble (&ldquo;we,&rdquo; &ldquo;our,&rdquo; or &ldquo;us&rdquo;) is committed to protecting your privacy. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our platform and services.
             </p>
           </section>
 
@@ -134,7 +130,7 @@ export default function PrivacyPage() {
           <section>
             <h2 className="mb-4 text-xl font-light text-foreground">Changes to This Policy</h2>
             <p>
-              We may update this Privacy Policy from time to time. We will notify you of any changes by posting the new policy on this page and updating the "Last updated" date.
+              We may update this Privacy Policy from time to time. We will notify you of any changes by posting the new policy on this page and updating the &ldquo;Last updated&rdquo; date.
             </p>
           </section>
         </div>

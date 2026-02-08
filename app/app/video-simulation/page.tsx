@@ -166,6 +166,7 @@ function Home() {
         window.location.reload();
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, authLoading, isAuthenticated, processingAuth, router]);
 
   // Load videos when navigating to videos tab
@@ -435,6 +436,7 @@ function Home() {
     if (selectedCampaign && activeTab === 'insights') {
       loadInsightsHistory();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedCampaign, activeTab]);
 
   // Get unique models from evaluations
