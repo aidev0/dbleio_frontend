@@ -1,3 +1,5 @@
+import Image from "next/image"
+
 export function Footer() {
   return (
     <footer className="py-6 sm:py-12">
@@ -5,7 +7,10 @@ export function Footer() {
         {/* Desktop footer */}
         <div className="hidden sm:grid gap-12 md:grid-cols-4">
           <div className="md:col-span-2">
-            <span className="text-2xl font-light italic tracking-tight text-foreground">dble</span>
+            <span className="flex items-center gap-2 text-2xl font-light italic tracking-tight text-foreground">
+              <Image src="/logo.png" alt="dble logo" width={28} height={28} className="h-7 w-7" />
+              dble
+            </span>
             <p className="mt-6 max-w-sm text-base leading-relaxed text-muted-foreground">
               The Palantir for DTC e-commerce marketing. Custom AI systems that run 24/7.
             </p>
@@ -30,7 +35,10 @@ export function Footer() {
         </div>
         {/* Mobile footer - minimal */}
         <div className="sm:hidden text-center">
-          <span className="text-lg font-light italic tracking-tight text-foreground">dble</span>
+          <span className="flex items-center justify-center gap-2 text-lg font-light italic tracking-tight text-foreground">
+            <Image src="/logo.png" alt="dble logo" width={22} height={22} className="h-[22px] w-[22px]" />
+            dble
+          </span>
           <div className="mt-3 flex justify-center gap-4 text-xs text-muted-foreground/60">
             <a href="#">Privacy</a>
             <a href="#">Terms</a>
@@ -40,9 +48,6 @@ export function Footer() {
         <div className="mt-6 sm:mt-12 flex flex-col items-center justify-between gap-2 sm:gap-4 pt-4 sm:pt-8 md:flex-row">
           <p className="font-mono text-[10px] sm:text-xs text-muted-foreground/50">
             &copy; {new Date().getFullYear()} dble. All rights reserved.
-          </p>
-          <p className="font-mono text-[10px] sm:text-xs text-muted-foreground/50">
-            SOC 2 Type II Certified
           </p>
         </div>
       </div>
