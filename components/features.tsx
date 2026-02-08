@@ -39,16 +39,16 @@ export function Features() {
   ]
 
   return (
-    <section id="platform" className="border-t border-border py-24 md:py-32">
+    <section id="platform" className="py-16 md:py-20">
       <div className="mx-auto max-w-6xl px-6">
-        <div className="mb-16 max-w-2xl">
+        <div className="mb-10 max-w-2xl">
           <div className="mb-6 font-mono text-xs uppercase tracking-widest text-muted-foreground">
             Platform
           </div>
-          <h2 className="text-3xl font-light italic tracking-tight text-foreground sm:text-4xl lg:text-5xl">
+          <h2 className="text-4xl font-light italic tracking-tight text-foreground sm:text-5xl lg:text-6xl">
             Full platform access. <span className="not-italic">No locked features.</span>
           </h2>
-          <p className="mt-8 text-lg leading-relaxed text-muted-foreground">
+          <p className="mt-6 text-xl leading-relaxed text-muted-foreground">
             The only difference between plans is how many systems run simultaneously.
           </p>
         </div>
@@ -57,8 +57,8 @@ export function Features() {
           {capabilities.map((cap) => (
             <div key={cap.id} className="flex flex-col bg-background p-8">
               <div className="font-mono text-xs text-muted-foreground/40">{cap.id}</div>
-              <h3 className="mt-4 text-xl font-light text-foreground">{cap.title}</h3>
-              <p className="mt-4 flex-1 text-sm leading-relaxed text-muted-foreground">{cap.description}</p>
+              <h3 className="mt-4 text-2xl font-light text-foreground">{cap.title}</h3>
+              <p className="mt-4 flex-1 text-base leading-relaxed text-muted-foreground">{cap.description}</p>
               <div className="mt-6 flex flex-wrap gap-2">
                 {cap.specs.map((spec) => (
                   <span 

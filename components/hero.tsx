@@ -32,12 +32,12 @@ export function Hero({ onContactUs }: HeroProps) {
             <span>MARKETING INTELLIGENCE PLATFORM</span>
           </div>
 
-          <h1 className="text-balance text-4xl font-light italic tracking-tight text-foreground sm:text-5xl md:text-6xl lg:text-7xl">
+          <h1 className="text-balance text-5xl font-light italic tracking-tight text-foreground sm:text-6xl md:text-7xl lg:text-8xl">
             The Palantir
             <span className="block not-italic font-normal">for DTC marketing</span>
           </h1>
 
-          <p className="mt-8 max-w-xl text-pretty text-base sm:text-lg leading-relaxed text-muted-foreground">
+          <p className="mt-8 max-w-xl text-pretty text-lg sm:text-xl leading-relaxed text-muted-foreground">
             Custom AI systems, automation, and optimization across every ad platform.
             We build it, deploy it, and run it—you focus on scaling your brand.
           </p>
@@ -74,7 +74,7 @@ export function Hero({ onContactUs }: HeroProps) {
         </div>
 
         {/* Platform Logos */}
-        <div className="mt-16 sm:mt-24 md:mt-32">
+        <div className="mt-12 sm:mt-16 md:mt-20">
           <div className="text-center mb-8">
             <h3 className="font-mono text-xs uppercase tracking-wider text-muted-foreground">Supported Ad Platforms</h3>
           </div>

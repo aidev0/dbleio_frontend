@@ -28,33 +28,31 @@ export function HowItWorks() {
   ]
 
   return (
-    <section id="how-it-works" className="border-t border-border py-24 md:py-32">
+    <section id="how-it-works" className="py-16 md:py-20">
       <div className="mx-auto max-w-6xl px-6">
-        <div className="grid gap-16 lg:grid-cols-2 lg:gap-24">
+        <div className="grid gap-12 lg:grid-cols-2 lg:gap-16">
           <div>
             <div className="mb-6 font-mono text-xs uppercase tracking-widest text-muted-foreground">
               How it works
             </div>
-            <h2 className="text-3xl font-light italic tracking-tight text-foreground sm:text-4xl lg:text-5xl">
+            <h2 className="text-4xl font-light italic tracking-tight text-foreground sm:text-5xl lg:text-6xl">
               Your AI marketing <span className="not-italic">engineering team</span>
             </h2>
-            <p className="mt-8 text-lg leading-relaxed text-muted-foreground">
+            <p className="mt-6 text-xl leading-relaxed text-muted-foreground">
               Instead of buying tools and hiring people to use them, 
               you get automated systems that do the work.
             </p>
           </div>
-          <div className="space-y-0">
-            {steps.map((step, index) => (
-              <div 
-                key={step.number} 
-                className={`flex gap-6 border-l border-border py-6 pl-8 ${
-                  index === 0 ? "border-t" : ""
-                } ${index === steps.length - 1 ? "border-b" : ""}`}
+          <div className="border border-border">
+            {steps.map((step) => (
+              <div
+                key={step.number}
+                className="flex gap-6 py-6 pl-8 pr-8"
               >
                 <div className="font-mono text-xs text-muted-foreground/40">{step.number}</div>
                 <div>
-                  <h3 className="font-medium text-foreground">{step.title}</h3>
-                  <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{step.description}</p>
+                  <h3 className="text-lg font-medium text-foreground">{step.title}</h3>
+                  <p className="mt-2 text-base leading-relaxed text-muted-foreground">{step.description}</p>
                 </div>
               </div>
             ))}

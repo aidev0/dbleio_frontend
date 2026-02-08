@@ -95,16 +95,16 @@ export function Pricing() {
   }
 
   return (
-    <section id="pricing" className="border-t border-border py-24 md:py-32">
+    <section id="pricing" className="py-16 md:py-20">
       <div className="mx-auto max-w-7xl px-6">
-        <div className="mb-16 max-w-2xl">
+        <div className="mb-10 max-w-2xl">
           <div className="mb-6 font-mono text-xs uppercase tracking-widest text-muted-foreground">
             Pricing
           </div>
-          <h2 className="text-3xl font-light italic tracking-tight text-foreground sm:text-4xl lg:text-5xl">
+          <h2 className="text-4xl font-light italic tracking-tight text-foreground sm:text-5xl lg:text-6xl">
             Scale with <span className="not-italic">your growth</span>
           </h2>
-          <p className="mt-8 text-lg leading-relaxed text-muted-foreground">
+          <p className="mt-6 text-xl leading-relaxed text-muted-foreground">
             All plans include full platform access. Choose based on how much custom development you need.
           </p>
         </div>
@@ -122,7 +122,7 @@ export function Pricing() {
                 <div>
                   <h3 className="font-mono text-xs uppercase tracking-wider text-muted-foreground">{tier.name}</h3>
                   <div className="mt-4 flex items-baseline gap-1">
-                    <span className={`font-light tracking-tight text-foreground ${tier.price === "Custom" ? "text-2xl" : "text-3xl"}`}>{tier.price}</span>
+                    <span className={`font-light tracking-tight text-foreground ${tier.price === "Custom" ? "text-3xl" : "text-4xl"}`}>{tier.price}</span>
                     <span className="text-sm text-muted-foreground">{tier.period}</span>
                   </div>
                 </div>
@@ -141,8 +141,8 @@ export function Pricing() {
                 <div className="mb-3 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">Includes</div>
                 <ul className="space-y-2">
                   {tier.includes.map((item) => (
-                    <li key={item} className="flex items-start gap-2 text-sm text-muted-foreground">
-                      <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-foreground/50" />
+                    <li key={item} className="flex items-start gap-2 text-base text-muted-foreground">
+                      <Check className="mt-0.5 h-4 w-4 shrink-0 text-foreground/50" />
                       {item}
                     </li>
                   ))}
@@ -167,12 +167,12 @@ export function Pricing() {
         </div>
 
         {/* Platform Features */}
-        <div className="mt-24">
+        <div className="mt-16">
           <div className="mb-8">
             <div className="mb-4 font-mono text-xs uppercase tracking-widest text-muted-foreground">
               Platform Features
             </div>
-            <h3 className="text-2xl font-light italic tracking-tight text-foreground">
+            <h3 className="text-3xl font-light italic tracking-tight text-foreground">
               Included in <span className="not-italic">every plan</span>
             </h3>
           </div>
@@ -182,8 +182,8 @@ export function Pricing() {
                 <h4 className="font-mono text-xs uppercase tracking-wider text-muted-foreground">{category.category}</h4>
                 <ul className="mt-4 space-y-2">
                   {category.features.map((feature) => (
-                    <li key={feature} className="flex items-start gap-2 text-sm text-muted-foreground">
-                      <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-foreground/30" />
+                    <li key={feature} className="flex items-start gap-2 text-base text-muted-foreground">
+                      <Check className="mt-0.5 h-4 w-4 shrink-0 text-foreground/30" />
                       {feature}
                     </li>
                   ))}
@@ -194,27 +194,27 @@ export function Pricing() {
         </div>
 
         {/* FDE/FDM Explanation */}
-        <div className="mt-24">
+        <div className="mt-16">
           <div className="mb-8">
             <div className="mb-4 font-mono text-xs uppercase tracking-widest text-muted-foreground">
               Dedicated Experts
             </div>
-            <h3 className="text-2xl font-light italic tracking-tight text-foreground">
+            <h3 className="text-3xl font-light italic tracking-tight text-foreground">
               What is <span className="not-italic">FDE & FDM?</span>
             </h3>
           </div>
           <div className="grid gap-px border border-border bg-border md:grid-cols-2">
             <div className="bg-background p-8">
               <span className="font-mono text-xs text-muted-foreground/40">FDE</span>
-              <h4 className="mt-2 text-lg font-light text-foreground">Forward Deployed Engineer</h4>
-              <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
+              <h4 className="mt-2 text-xl font-light text-foreground">Forward Deployed Engineer</h4>
+              <p className="mt-4 text-base leading-relaxed text-muted-foreground">
                 Dedicated engineer for custom builds, integrations, and technical implementation. Builds and maintains your marketing automation systems.
               </p>
             </div>
             <div className="bg-background p-8">
               <span className="font-mono text-xs text-muted-foreground/40">FDM</span>
-              <h4 className="mt-2 text-lg font-light text-foreground">Forward Deployed Marketer</h4>
-              <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
+              <h4 className="mt-2 text-xl font-light text-foreground">Forward Deployed Marketer</h4>
+              <p className="mt-4 text-base leading-relaxed text-muted-foreground">
                 Strategic partner for campaign optimization, performance reviews, and growth planning. Operates systems and drives marketing outcomes.
               </p>
             </div>

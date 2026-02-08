@@ -1,11 +1,11 @@
 export function Footer() {
   return (
-    <footer className="border-t border-border py-16">
+    <footer className="py-12">
       <div className="mx-auto max-w-6xl px-6">
         <div className="grid gap-12 md:grid-cols-4">
           <div className="md:col-span-2">
             <span className="text-2xl font-light italic tracking-tight text-foreground">dble</span>
-            <p className="mt-6 max-w-sm text-sm leading-relaxed text-muted-foreground">
+            <p className="mt-6 max-w-sm text-base leading-relaxed text-muted-foreground">
               The Palantir for DTC e-commerce marketing. Custom AI systems that run 24/7.
             </p>
           </div>
@@ -27,7 +27,7 @@ export function Footer() {
             </nav>
           </div>
         </div>
-        <div className="mt-16 flex flex-col items-center justify-between gap-4 border-t border-border pt-8 md:flex-row">
+        <div className="mt-12 flex flex-col items-center justify-between gap-4 pt-8 md:flex-row">
           <p className="font-mono text-xs text-muted-foreground/50">
             &copy; {new Date().getFullYear()} dble. All rights reserved.
           </p>

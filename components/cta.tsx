@@ -7,7 +7,7 @@ import { useState } from "react"
 export function CTA() {
   const [hoveredButton, setHoveredButton] = useState<string | null>(null)
   return (
-    <section className="border-t border-border py-24 md:py-32">
+    <section className="py-24 md:py-32">
       <div className="mx-auto max-w-6xl px-6">
         <div className="grid gap-8 lg:grid-cols-2 lg:items-center lg:gap-16">
           <div>
