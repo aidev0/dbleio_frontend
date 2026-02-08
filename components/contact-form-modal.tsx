@@ -97,7 +97,7 @@ export function ContactFormModal({ isOpen, onClose, selectedPlan }: ContactFormM
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent showCloseButton={false} aria-describedby={undefined} className="max-w-lg max-h-[90vh] overflow-y-auto border-border bg-background p-0">
+      <DialogContent showCloseButton={false} aria-describedby={undefined} className="sm:max-w-lg h-[100dvh] sm:h-auto sm:max-h-[90vh] overflow-y-auto border-0 sm:border border-border bg-background p-0 rounded-none sm:rounded-lg w-full max-w-full sm:w-auto">
         <div className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-background px-6 py-4">
           <div>
             <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
