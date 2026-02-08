@@ -5,7 +5,13 @@ import { useState } from "react"
 import { Menu, X } from "lucide-react"
 import Image from "next/image"
 
-export function Header() {
+interface HeaderProps {
+  isAuthenticated?: boolean
+  onLogin?: () => void
+  onRequestAccess?: () => void
+}
+
+export function Header({ isAuthenticated, onLogin, onRequestAccess }: HeaderProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [hoveredButton, setHoveredButton] = useState<string | null>(null)
 
@@ -26,26 +32,38 @@ export function Header() {
           </nav>
         </div>
         <div className="hidden items-center gap-4 md:flex">
-          <Button 
-            variant="ghost" 
-            className={`font-mono text-xs uppercase tracking-wider transition-all ${
-              hoveredButton === 'login' || (!hoveredButton)
-                ? 'text-muted-foreground' 
-                : 'text-muted-foreground/40'
-            }`}
-            onMouseEnter={() => setHoveredButton('login')}
-            onMouseLeave={() => setHoveredButton(null)}
-          >
-            Login
-          </Button>
-          <Button 
+          {isAuthenticated ? (
+            <Button
+              variant="ghost"
+              className="font-mono text-xs uppercase tracking-wider text-muted-foreground"
+              asChild
+            >
+              <a href="/app">Dashboard</a>
+            </Button>
+          ) : (
+            <Button
+              variant="ghost"
+              className={`font-mono text-xs uppercase tracking-wider transition-all ${
+                hoveredButton === 'login' || (!hoveredButton)
+                  ? 'text-muted-foreground'
+                  : 'text-muted-foreground/40'
+              }`}
+              onMouseEnter={() => setHoveredButton('login')}
+              onMouseLeave={() => setHoveredButton(null)}
+              onClick={onLogin}
+            >
+              Login
+            </Button>
+          )}
+          <Button
             className={`font-mono text-xs uppercase tracking-wider transition-all ${
               hoveredButton === 'contact' || (!hoveredButton)
-                ? 'bg-foreground text-background' 
+                ? 'bg-foreground text-background'
                 : 'bg-muted text-muted-foreground'
             }`}
             onMouseEnter={() => setHoveredButton('contact')}
             onMouseLeave={() => setHoveredButton(null)}
+            onClick={onRequestAccess}
           >
             Contact Us
           </Button>
@@ -72,8 +90,14 @@ export function Header() {
             <a href="#security" className="py-2 font-mono text-xs uppercase tracking-wider text-muted-foreground">Security</a>
             <a href="/faq" className="py-2 font-mono text-xs uppercase tracking-wider text-muted-foreground">FAQ</a>
             <div className="mt-2 flex flex-col gap-2">
-              <Button variant="ghost" className="w-full justify-center font-mono text-xs uppercase tracking-wider text-muted-foreground">Login</Button>
-              <Button className="w-full font-mono text-xs uppercase tracking-wider">Contact Us</Button>
+              {isAuthenticated ? (
+                <Button variant="ghost" className="w-full justify-center font-mono text-xs uppercase tracking-wider text-muted-foreground" asChild>
+                  <a href="/app">Dashboard</a>
+                </Button>
+              ) : (
+                <Button variant="ghost" className="w-full justify-center font-mono text-xs uppercase tracking-wider text-muted-foreground" onClick={onLogin}>Login</Button>
+              )}
+              <Button className="w-full font-mono text-xs uppercase tracking-wider" onClick={onRequestAccess}>Contact Us</Button>
             </div>
           </div>
         </div>
