@@ -1,8 +1,9 @@
 export function Footer() {
   return (
-    <footer className="py-12">
-      <div className="mx-auto max-w-6xl px-6">
-        <div className="grid gap-12 md:grid-cols-4">
+    <footer className="py-6 sm:py-12">
+      <div className="mx-auto max-w-6xl px-4 sm:px-6">
+        {/* Desktop footer */}
+        <div className="hidden sm:grid gap-12 md:grid-cols-4">
           <div className="md:col-span-2">
             <span className="text-2xl font-light italic tracking-tight text-foreground">dble</span>
             <p className="mt-6 max-w-sm text-base leading-relaxed text-muted-foreground">
@@ -27,11 +28,20 @@ export function Footer() {
             </nav>
           </div>
         </div>
-        <div className="mt-12 flex flex-col items-center justify-between gap-4 pt-8 md:flex-row">
-          <p className="font-mono text-xs text-muted-foreground/50">
+        {/* Mobile footer - minimal */}
+        <div className="sm:hidden text-center">
+          <span className="text-lg font-light italic tracking-tight text-foreground">dble</span>
+          <div className="mt-3 flex justify-center gap-4 text-xs text-muted-foreground/60">
+            <a href="#">Privacy</a>
+            <a href="#">Terms</a>
+            <a href="#">Security</a>
+          </div>
+        </div>
+        <div className="mt-6 sm:mt-12 flex flex-col items-center justify-between gap-2 sm:gap-4 pt-4 sm:pt-8 md:flex-row">
+          <p className="font-mono text-[10px] sm:text-xs text-muted-foreground/50">
             &copy; {new Date().getFullYear()} dble. All rights reserved.
           </p>
-          <p className="font-mono text-xs text-muted-foreground/50">
+          <p className="font-mono text-[10px] sm:text-xs text-muted-foreground/50">
             SOC 2 Type II Certified
           </p>
         </div>

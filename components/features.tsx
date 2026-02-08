@@ -39,30 +39,30 @@ export function Features() {
   ]
 
   return (
-    <section id="platform" className="py-16 md:py-20">
-      <div className="mx-auto max-w-6xl px-6">
-        <div className="mb-10 max-w-2xl">
-          <div className="mb-6 font-mono text-xs uppercase tracking-widest text-muted-foreground">
+    <section id="platform" className="py-8 sm:py-16 md:py-20">
+      <div className="mx-auto max-w-6xl px-4 sm:px-6">
+        <div className="mb-5 sm:mb-10 max-w-2xl">
+          <div className="mb-3 sm:mb-6 font-mono text-[10px] sm:text-xs uppercase tracking-widest text-muted-foreground">
             Platform
           </div>
-          <h2 className="text-4xl font-light italic tracking-tight text-foreground sm:text-5xl lg:text-6xl">
-            Full platform access. <span className="not-italic">No locked features.</span>
+          <h2 className="text-2xl font-light italic tracking-tight text-foreground sm:text-5xl lg:text-6xl">
+            Full access. <span className="not-italic">No locked features.</span>
           </h2>
-          <p className="mt-6 text-xl leading-relaxed text-muted-foreground">
-            The only difference between plans is how many systems run simultaneously.
+          <p className="hidden sm:block mt-6 text-xl leading-relaxed text-muted-foreground">
+            Every plan gets the same tools. Only difference is scale.
           </p>
         </div>
-        
-        <div className="grid gap-px border border-border bg-border md:grid-cols-2 lg:grid-cols-3">
+
+        <div className="grid grid-cols-2 gap-px border border-border bg-border sm:grid-cols-2 lg:grid-cols-3">
           {capabilities.map((cap) => (
-            <div key={cap.id} className="flex flex-col bg-background p-8">
-              <div className="font-mono text-xs text-muted-foreground/40">{cap.id}</div>
-              <h3 className="mt-4 text-2xl font-light text-foreground">{cap.title}</h3>
-              <p className="mt-4 flex-1 text-base leading-relaxed text-muted-foreground">{cap.description}</p>
-              <div className="mt-6 flex flex-wrap gap-2">
+            <div key={cap.id} className="flex flex-col bg-background p-3 sm:p-8">
+              <div className="font-mono text-[10px] sm:text-xs text-muted-foreground/40">{cap.id}</div>
+              <h3 className="mt-2 sm:mt-4 text-sm sm:text-2xl font-light text-foreground">{cap.title}</h3>
+              <p className="hidden sm:block mt-4 flex-1 text-base leading-relaxed text-muted-foreground">{cap.description}</p>
+              <div className="hidden sm:flex mt-6 flex-wrap gap-2">
                 {cap.specs.map((spec) => (
-                  <span 
-                    key={spec} 
+                  <span
+                    key={spec}
                     className="border border-border px-2 py-1 font-mono text-[10px] uppercase tracking-wider text-muted-foreground"
                   >
                     {spec}
