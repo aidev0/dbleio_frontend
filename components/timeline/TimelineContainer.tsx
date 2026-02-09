@@ -34,7 +34,8 @@ export default function TimelineContainer({
   return (
     <div className="relative mx-auto w-full max-w-3xl py-8 md:py-12">
       {/* The vertical timeline line */}
-      <div className="absolute left-[calc(1.5rem+0.3125rem)] md:left-[calc(2rem+0.3125rem)] top-0 bottom-0 w-px bg-border" />
+      {/* Vertical line centered on dot: left + dot-half = 1.5rem+0.375rem / 2rem+0.375rem */}
+      <div className="absolute left-[1.875rem] md:left-[2.375rem] top-0 bottom-0 w-px bg-border" />
 
       {/* Loading state */}
       {loading && entries.length === 0 && (

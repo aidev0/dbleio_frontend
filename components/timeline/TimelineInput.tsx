@@ -53,7 +53,8 @@ export default function TimelineInput({ onSubmit, placeholder = "Type a message.
   if (!expanded) {
     return (
       <div className={`relative flex items-center ${className}`}>
-        <div className="absolute left-6 md:left-8 z-10">
+        {/* Center the 2rem button on the timeline axis (1.875rem / 2.375rem) */}
+        <div className="absolute left-[0.875rem] md:left-[1.375rem] z-10">
           <button
             onClick={() => setExpanded(true)}
             className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-border bg-background transition-all hover:border-foreground hover:scale-110"

@@ -212,4 +212,5 @@ export const STAGE_LABELS: Record<string, string> = {
   deployer: 'Deploy',
   qa_review: 'QA Review',
   client_review: 'Client Review',
+  done: 'Approved & Completed',
 };

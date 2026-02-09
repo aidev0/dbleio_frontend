@@ -37,7 +37,8 @@ const CARD_BG: Record<string, string> = {
 };
 
 function formatRelativeTime(dateStr: string): string {
-  const date = new Date(dateStr);
+  const utcStr = dateStr.endsWith('Z') ? dateStr : dateStr + 'Z';
+  const date = new Date(utcStr);
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
   const diffMin = Math.floor(diffMs / 60000);
@@ -86,6 +87,7 @@ export default function TimelineCard({
           <TimelineCardStatus
             content={entry.content}
             statusData={entry.status_data}
+            createdAt={entry.created_at}
             onViewGraph={onViewGraph}
           />
         ) : (

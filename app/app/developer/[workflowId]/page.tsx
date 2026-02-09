@@ -101,7 +101,7 @@ export default function WorkflowDetailPage() {
   // Lazy load graph component
   useEffect(() => {
     if (contentMode === 'graph' && !GraphComponent) {
-      import('../components/WorkflowGraphRadical').then((mod) => {
+      import('../components/DevelopmentWorkflowGraph').then((mod) => {
         setGraphComponent(() => mod.default);
       });
     }
