@@ -1,8 +1,6 @@
 "use client";
 
 import { useState, useEffect, Suspense } from 'react';
-import Link from 'next/link';
-import Image from 'next/image';
 import ReactMarkdown from 'react-markdown';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useAuth } from './auth/authContext';
@@ -1180,16 +1178,10 @@ function Home() {
   return (
     <div className="min-h-screen bg-gray-100">
       <header className="bg-white shadow">
-        <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between mb-6">
-            <Link href="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity cursor-pointer text-2xl font-light italic tracking-tight text-foreground">
-              <Image src="/logo.png" alt="dble" width={28} height={28} className="h-7 w-7" />
-              dble
-            </Link>
-
-            {/* User info and campaign selector */}
+        <div className="max-w-7xl mx-auto py-4 px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between mb-4">
+            {/* Campaign Selector */}
             <div className="flex items-center gap-4">
-              {/* Campaign Selector */}
               {isAuthenticated && campaigns.length > 0 && (
                 <select
                   value={selectedCampaign || ''}
@@ -1210,30 +1202,19 @@ function Home() {
                   ))}
                 </select>
               )}
-
-              {/* User Email and Logout */}
-              {isAuthenticated && user ? (
-                <div className="flex items-center gap-3">
-                  <span className="text-sm text-gray-700 font-medium">{user.email}</span>
-                  <button
-                    onClick={logout}
-                    className="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-black transition-colors font-semibold text-sm"
-                  >
-                    Logout
-                  </button>
-                </div>
-              ) : !authLoading && (
-                <button
-                  onClick={login}
-                  className="px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition-colors font-semibold text-sm"
-                >
-                  Login / Sign Up
-                </button>
-              )}
             </div>
+
+            {!isAuthenticated && !authLoading && (
+              <button
+                onClick={login}
+                className="px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition-colors font-semibold text-sm"
+              >
+                Login / Sign Up
+              </button>
+            )}
           </div>
 
-          <nav className="mt-4 flex space-x-4">
+          <nav className="flex space-x-4">
             <button
               onClick={() => {
                 setActiveTab('campaign');

@@ -8,6 +8,10 @@ interface User {
   email: string;
   first_name?: string;
   last_name?: string;
+  roles?: string[];
+  platform_access?: boolean;
+  active_subscription?: boolean;
+  subscription_tier?: 'scale' | 'platform' | 'custom' | 'dble_team' | null;
 }
 
 interface AuthContextType {
