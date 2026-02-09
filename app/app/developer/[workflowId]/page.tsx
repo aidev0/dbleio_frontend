@@ -10,15 +10,52 @@ import WorkflowStatusBadge from '../components/WorkflowStatusBadge';
 import {
   getWorkflow,
   getWorkflowNodes,
+  getSpecification,
   approveWorkflowPlan,
   approveWorkflowQA,
   approveWorkflowClient,
   retryWorkflow,
   getUserMe,
 } from '../lib/api';
-import type { Workflow, WorkflowNode, TimelineEntry } from '../lib/types';
+import type { Workflow, WorkflowNode, Specification, TimelineEntry } from '../lib/types';
 
 type ContentMode = 'timeline' | 'graph';
+
+function RequestCard({ spec, creatorName, createdAt }: { spec: Specification; creatorName: string; createdAt?: string }) {
+  const formattedDate = createdAt
+    ? new Date(createdAt.endsWith('Z') ? createdAt : createdAt + 'Z').toLocaleDateString(undefined, {
+        month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit',
+      })
+    : '';
+
+  return (
+    <div className="rounded-lg border border-border bg-background p-5">
+      <div className="flex items-center gap-2.5 mb-3">
+        <div className="flex h-7 w-7 items-center justify-center rounded-full bg-foreground text-background text-[10px] font-semibold">
+          {creatorName.trim().split(/\s+/).length >= 2
+            ? (creatorName.trim().split(/\s+/)[0].charAt(0) + creatorName.trim().split(/\s+/).slice(-1)[0].charAt(0)).toUpperCase()
+            : creatorName.charAt(0).toUpperCase()}
+        </div>
+        <div>
+          <div className="text-sm font-medium">{creatorName}</div>
+          {formattedDate && (
+            <div className="font-mono text-[9px] text-muted-foreground">{formattedDate}</div>
+          )}
+        </div>
+      </div>
+      <h4 className="text-sm font-semibold mb-1">{spec.title}</h4>
+      {spec.spec_text && (
+        <p className="text-sm leading-relaxed text-muted-foreground">{spec.spec_text}</p>
+      )}
+      {spec.acceptance_criteria && (
+        <div className="mt-3 rounded border border-border bg-muted/30 px-3 py-2">
+          <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground mb-1">Acceptance Criteria</div>
+          <p className="text-xs text-muted-foreground leading-relaxed">{spec.acceptance_criteria}</p>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function WorkflowDetailPage() {
   const params = useParams();
@@ -33,6 +70,8 @@ export default function WorkflowDetailPage() {
   const [roleLoaded, setRoleLoaded] = useState(false);
   const [editingEntry, setEditingEntry] = useState<TimelineEntry | null>(null);
   const [editContent, setEditContent] = useState('');
+  const [spec, setSpec] = useState<Specification | null>(null);
+  const [creatorName, setCreatorName] = useState<string>('');
 
   const [GraphComponent, setGraphComponent] = useState<React.ComponentType<{ nodes: WorkflowNode[]; onNodeClick?: (node: WorkflowNode) => void }> | null>(null);
 
@@ -57,19 +96,18 @@ export default function WorkflowDetailPage() {
   // Detect user role
   useEffect(() => {
     (async () => {
-      const me = await getUserMe();
-      if (me?.roles) {
-        const team = me.roles.some((r: string) => ['admin', 'fde', 'fdm', 'qa'].includes(r));
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const me: any = await getUserMe();
+      if (me) {
+        const fullName = [me.first_name || '', me.last_name || ''].filter(Boolean).join(' ') || me.email || '';
+        setCreatorName(fullName);
+        const roles: string[] = me.roles || [];
+        const team = roles.some((r) => ['admin', 'fde', 'fdm', 'qa'].includes(r));
         setIsTeamMember(team);
-        if (me.roles.includes('admin')) {
-          setUserRole('admin');
-        } else if (me.roles.includes('fde')) {
-          setUserRole('fde');
-        } else if (me.roles.includes('qa')) {
-          setUserRole('qa');
-        } else {
-          setUserRole('client');
-        }
+        if (roles.includes('admin')) setUserRole('admin');
+        else if (roles.includes('fde')) setUserRole('fde');
+        else if (roles.includes('qa')) setUserRole('qa');
+        else setUserRole('client');
       }
       setRoleLoaded(true);
     })();
@@ -91,6 +129,14 @@ export default function WorkflowDetailPage() {
   useEffect(() => {
     loadWorkflow();
   }, [loadWorkflow]);
+
+  // Fetch spec once workflow is loaded
+  useEffect(() => {
+    if (!workflow?.specification_id) return;
+    getSpecification(workflow.specification_id).then((s) => {
+      if (s) setSpec(s);
+    });
+  }, [workflow?.specification_id]);
 
   useEffect(() => {
     if (!isActive) return;
@@ -217,7 +263,7 @@ export default function WorkflowDetailPage() {
                   : 'text-muted-foreground hover:text-foreground'
               }`}
             >
-              Graph
+              Workflow
             </button>
           </div>
 
@@ -249,6 +295,12 @@ export default function WorkflowDetailPage() {
           </div>
         ) : (
           <div className="px-4 md:px-6">
+            {/* Request card showing spec details */}
+            {spec && (
+              <div className="mx-auto w-full max-w-3xl pt-8">
+                <RequestCard spec={spec} creatorName={creatorName || 'Unknown'} createdAt={workflow.created_at} />
+              </div>
+            )}
             <TimelineContainer
               entries={entries}
               isFDE={isFDE}
@@ -258,7 +310,6 @@ export default function WorkflowDetailPage() {
               onPublish={isFDE ? handlePublish : undefined}
               onToggleTodo={handleToggleTodo}
               onApprove={handleApprove}
-              onViewGraph={() => setContentMode('graph')}
               inputPlaceholder={isFDE ? "Add a message..." : "Describe what you need..."}
               loading={timelineLoading}
             />

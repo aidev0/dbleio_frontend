@@ -13,7 +13,6 @@ interface TimelineContainerProps {
   onPublish?: (entryId: string) => void;
   onToggleTodo?: (entryId: string, todoId: string, completed: boolean) => void;
   onApprove?: (entryId: string, approved: boolean, note: string) => void;
-  onViewGraph?: () => void;
   inputPlaceholder?: string;
   loading?: boolean;
 }
@@ -27,7 +26,6 @@ export default function TimelineContainer({
   onPublish,
   onToggleTodo,
   onApprove,
-  onViewGraph,
   inputPlaceholder = "Type a message...",
   loading = false,
 }: TimelineContainerProps) {
@@ -66,7 +64,6 @@ export default function TimelineContainer({
           onPublish={onPublish}
           onToggleTodo={onToggleTodo}
           onApprove={onApprove}
-          onViewGraph={onViewGraph}
         />
       ))}
 

@@ -7,6 +7,8 @@ import { useAuth } from './video-simulation/auth/authContext';
 import { ArrowRight } from 'lucide-react';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
+import { getCustomWorkflows } from './workflows/lib/api';
+import type { CustomWorkflow } from './workflows/lib/types';
 
 function ContactForm({ user, logout }: { user: { email: string }; logout: () => void }) {
   const [name, setName] = useState('');
@@ -95,6 +97,8 @@ function ContactForm({ user, logout }: { user: { email: string }; logout: () => 
 function AppHome() {
   const searchParams = useSearchParams();
   const { user, logout } = useAuth();
+  const [customWorkflows, setCustomWorkflows] = useState<CustomWorkflow[]>([]);
+  const [cwLoading, setCwLoading] = useState(true);
 
   useEffect(() => {
     const handleAuthCallback = async () => {
@@ -132,6 +136,19 @@ function AppHome() {
     handleAuthCallback();
   }, [searchParams]);
 
+  useEffect(() => {
+    (async () => {
+      try {
+        const wfs = await getCustomWorkflows();
+        setCustomWorkflows(wfs);
+      } catch {
+        // silently fail — user may not be authenticated yet
+      } finally {
+        setCwLoading(false);
+      }
+    })();
+  }, []);
+
   if (searchParams.get('code')) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
@@ -152,7 +169,7 @@ function AppHome() {
     <div className="min-h-screen bg-background">
       <main className="mx-auto max-w-5xl px-6 py-16">
         <div className="mb-8">
-          <div className="mb-6 font-mono text-xs uppercase tracking-widest text-muted-foreground">Workflows</div>
+          <div className="mb-6 font-mono text-xs uppercase tracking-widest text-muted-foreground">DBLE Platform Workflows</div>
         </div>
 
         {/* Apps Grid — 2 cards */}
@@ -181,6 +198,60 @@ function AppHome() {
               Coming Soon
             </div>
           </div>
+        </div>
+
+        {/* Your Custom Workflows */}
+        <div className="mt-16">
+          <div className="mb-6 flex items-center justify-between">
+            <div className="font-mono text-xs uppercase tracking-widest text-muted-foreground">Your Custom Workflows</div>
+            {customWorkflows.length > 0 && (
+              <Link
+                href="/app/workflows"
+                className="flex items-center gap-1 font-mono text-xs uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors"
+              >
+                View all
+                <ArrowRight className="h-3 w-3" />
+              </Link>
+            )}
+          </div>
+
+          {cwLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="mx-auto h-6 w-6 animate-spin rounded-full border-b-2 border-foreground" />
+            </div>
+          ) : customWorkflows.length === 0 ? (
+            <div className="rounded-lg border border-border bg-background p-8 text-center">
+              <p className="text-sm text-muted-foreground">
+                No custom workflows yet. Workflows built through the Developer pipeline will appear here.
+              </p>
+            </div>
+          ) : (
+            <div className="grid gap-px border border-border bg-border md:grid-cols-2">
+              {customWorkflows.slice(0, 4).map((wf) => (
+                <Link
+                  key={wf._id}
+                  href={`/app/workflows/${wf._id}`}
+                  className="group block bg-background p-6"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <h3 className="text-base font-medium">{wf.title}</h3>
+                    <span className="inline-flex shrink-0 items-center rounded-full border border-border px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider text-muted-foreground">
+                      {wf.status === 'active' ? 'Under Development' : wf.status}
+                    </span>
+                  </div>
+                  {wf.description && (
+                    <p className="mt-2 text-sm leading-relaxed text-muted-foreground line-clamp-2">
+                      {wf.description}
+                    </p>
+                  )}
+                  <div className="mt-4 flex items-center gap-2 font-mono text-xs uppercase tracking-wider text-muted-foreground transition-colors group-hover:text-foreground">
+                    Open
+                    <ArrowRight className="h-3 w-3" />
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
         </div>
       </main>
     </div>

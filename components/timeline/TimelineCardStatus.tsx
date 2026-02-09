@@ -5,8 +5,6 @@ import { STAGE_LABELS } from '@/app/app/developer/lib/types';
 interface TimelineCardStatusProps {
   content: string;
   statusData?: { stage: string; status: string; message: string };
-  createdAt?: string;
-  onViewGraph?: () => void;
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -17,16 +15,7 @@ const STATUS_COLORS: Record<string, string> = {
   pending: 'bg-muted text-muted-foreground border-border',
 };
 
-function formatDateTime(dateStr: string): string {
-  // Backend stores UTC via datetime.utcnow() but without 'Z' suffix — append it so
-  // the browser correctly interprets as UTC and converts to client's local timezone.
-  const utcStr = dateStr.endsWith('Z') ? dateStr : dateStr + 'Z';
-  const d = new Date(utcStr);
-  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
-    + ' ' + d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', timeZoneName: 'short' });
-}
-
-export default function TimelineCardStatus({ content, statusData, createdAt, onViewGraph }: TimelineCardStatusProps) {
+export default function TimelineCardStatus({ content, statusData }: TimelineCardStatusProps) {
   const stage = statusData?.stage || '';
   const status = statusData?.status || '';
   const label = STAGE_LABELS[stage] || stage;
@@ -38,17 +27,6 @@ export default function TimelineCardStatus({ content, statusData, createdAt, onV
         {label}
       </span>
       <span className="font-sans text-xs text-muted-foreground">{content}</span>
-      {createdAt && (
-        <span className="font-mono text-[10px] text-muted-foreground/50 whitespace-nowrap">{formatDateTime(createdAt)}</span>
-      )}
-      {onViewGraph && (
-        <button
-          onClick={onViewGraph}
-          className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors whitespace-nowrap"
-        >
-          View Graph
-        </button>
-      )}
     </div>
   );
 }
