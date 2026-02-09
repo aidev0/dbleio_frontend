@@ -353,7 +353,7 @@ export default function CustomWorkflowDetailPage() {
                   : 'text-muted-foreground hover:text-foreground'
               }`}
             >
-              {workflow.status === 'active' ? 'Plan' : 'Workflow'}
+              Design
             </button>
           </div>
 

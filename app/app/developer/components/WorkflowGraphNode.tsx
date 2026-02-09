@@ -1,12 +1,12 @@
 "use client";
 
 import { Handle, Position } from '@xyflow/react';
-import { Cog, Bot, User } from 'lucide-react';
+import { Bot, User } from 'lucide-react';
 import type { NodeStatus, NodeType } from '../lib/types';
 import { STAGE_LABELS } from '../lib/types';
 
-const NODE_TYPE_ICON: Record<string, typeof Cog> = {
-  auto: Cog,
+const NODE_TYPE_ICON: Record<string, typeof Bot> = {
+  auto: Bot,
   agent: Bot,
   human: User,
 };
@@ -25,7 +25,7 @@ export default function WorkflowGraphNode({ data }: { data: WorkflowGraphNodeDat
   const { stageName, status, nodeType, stepNumber, isCurrent, onClick } = data;
   const isUpcoming = data.isUpcoming as boolean;
   const label = STAGE_LABELS[stageName] || stageName;
-  const Icon = NODE_TYPE_ICON[nodeType] || Cog;
+  const Icon = NODE_TYPE_ICON[nodeType] || Bot;
 
   let borderColor = 'var(--muted-foreground)';
   let bgClass = 'bg-background';

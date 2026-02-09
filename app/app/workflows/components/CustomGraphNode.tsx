@@ -1,11 +1,11 @@
 "use client";
 
 import { Handle, Position } from '@xyflow/react';
-import { Cog, Bot, User } from 'lucide-react';
+import { Bot, User } from 'lucide-react';
 import type { CustomNodeStatus } from '../lib/types';
 
-const EXECUTOR_ICON: Record<string, typeof Cog> = {
-  auto: Cog,
+const EXECUTOR_ICON: Record<string, typeof Bot> = {
+  auto: Bot,
   agent: Bot,
   human: User,
 };

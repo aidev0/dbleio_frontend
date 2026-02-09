@@ -198,6 +198,13 @@ export interface TimelineEntry {
   updated_at: string;
 }
 
+// Canonical 13-stage pipeline order (source of truth for frontend + backend)
+export const PIPELINE_STAGES = [
+  'spec_intake', 'setup', 'planner', 'plan_reviewer', 'plan_approval',
+  'developer', 'code_reviewer', 'validator', 'commit_pr', 'deployer',
+  'qa_review', 'client_review', 'done',
+] as const;
+
 // Stage display metadata
 export const STAGE_LABELS: Record<string, string> = {
   spec_intake: 'Spec Intake',

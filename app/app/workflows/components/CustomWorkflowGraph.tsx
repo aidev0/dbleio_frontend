@@ -4,8 +4,8 @@ import { useMemo } from 'react';
 import {
   ReactFlow,
   Background,
-  MarkerType,
   EdgeLabelRenderer,
+  MarkerType,
   type Node,
   type Edge,
   type EdgeProps,
@@ -13,6 +13,40 @@ import {
 import '@xyflow/react/dist/style.css';
 import CustomGraphNode from './CustomGraphNode';
 import type { CustomGraphNode as DBNode, CustomGraphEdge as DBEdge } from '../lib/types';
+
+// ─── Long feedback edge (routes far left to avoid bundles) ──────────
+function LongFeedbackEdge({ id, sourceX, sourceY, targetX, targetY, label, markerEnd, style }: EdgeProps) {
+  const farLeft = 20;
+  const r = 10;
+  const path = [
+    `M ${sourceX},${sourceY}`,
+    `H ${farLeft + r}`,
+    `Q ${farLeft},${sourceY} ${farLeft},${sourceY - r}`,
+    `V ${targetY + r}`,
+    `Q ${farLeft},${targetY} ${farLeft + r},${targetY}`,
+    `H ${targetX}`,
+  ].join(' ');
+
+  const midY = (sourceY + targetY) / 2;
+
+  return (
+    <>
+      <path id={id} d={path} fill="none" style={style} markerEnd={markerEnd as string} />
+      {label && (
+        <EdgeLabelRenderer>
+          <div
+            className="nodrag nopan pointer-events-none absolute"
+            style={{ transform: `translate(-50%, -50%) translate(${farLeft}px,${midY}px)` }}
+          >
+            <span className="rounded-full border border-border bg-background px-2 py-0.5 font-mono text-[9px] text-muted-foreground">
+              {label}
+            </span>
+          </div>
+        </EdgeLabelRenderer>
+      )}
+    </>
+  );
+}
 
 // ─── Bundle background node ─────────────────────────────────────────
 function BundleNode({ data }: { data: { label: string; width: number; height: number; [key: string]: unknown } }) {
@@ -34,6 +68,10 @@ const nodeTypes = {
   bundle: BundleNode,
 };
 
+const edgeTypes = {
+  longFeedback: LongFeedbackEdge,
+};
+
 // ─── Layout constants (same as developer graph) ─────────────────────
 const NODE_W = 180;
 const NODE_H = 52;
@@ -53,9 +91,10 @@ interface BundleConfig {
 interface CustomWorkflowGraphProps {
   nodes: DBNode[];
   edges: DBEdge[];
+  hideProgressBar?: boolean;
 }
 
-export default function CustomWorkflowGraph({ nodes: dbNodes, edges: dbEdges }: CustomWorkflowGraphProps) {
+export default function CustomWorkflowGraph({ nodes: dbNodes, edges: dbEdges, hideProgressBar }: CustomWorkflowGraphProps) {
 
   // ─── Derive bundles from DB node config.bundle field ─────────────
   // Nodes store their bundle in config.bundle (string) and config.bundle_order (number)
@@ -100,22 +139,8 @@ export default function CustomWorkflowGraph({ nodes: dbNodes, edges: dbEdges }: 
     const nodePositions: Record<string, { x: number; y: number }> = {};
     const bundleRects: { id: string; label: string; x: number; y: number; w: number; h: number }[] = [];
 
-    // Group bundles into rows (bundles sharing similar position_y)
-    const bundleRows: BundleConfig[][] = [];
-    let currentRowBundles: BundleConfig[] = [];
-    let lastRowY = -Infinity;
-
-    for (const bundle of sortedBundles) {
-      const bundleNodes = bundleMap.get(bundle.label)!;
-      const avgY = bundleNodes.reduce((s, n) => s + n.position_y, 0) / bundleNodes.length;
-      if (Math.abs(avgY - lastRowY) > 100 && currentRowBundles.length > 0) {
-        bundleRows.push(currentRowBundles);
-        currentRowBundles = [];
-      }
-      currentRowBundles.push(bundle);
-      lastRowY = avgY;
-    }
-    if (currentRowBundles.length > 0) bundleRows.push(currentRowBundles);
+    // Each bundle gets its own row
+    const bundleRows: BundleConfig[][] = sortedBundles.map((b) => [b]);
 
     // Lay out bundles in rows
     let rowY = TOP_OFFSET;
@@ -207,41 +232,107 @@ export default function CustomWorkflowGraph({ nodes: dbNodes, edges: dbEdges }: 
       });
     }
 
-    // ─── Build ReactFlow edges ──────────────────────────────────
+    // ─── Build ReactFlow edges (matches dev workflow exactly) ───
+    // Same approach as DevelopmentWorkflowGraph:
+    //   1. Intra-bundle: sequential left-to-right within each bundle
+    //   2. Cross-bundle: last node of bundle[i] → first node of bundle[i+1]
+    //   3. Conditional/feedback DB edges: rendered with dashed style
     const arrow = { type: MarkerType.ArrowClosed as const, width: 16, height: 16 };
-    const flowEdges: Edge[] = dbEdges.map((e) => {
-      const isConditional = e.edge_type === 'conditional';
+    const flowEdges: Edge[] = [];
+
+    // Build node→bundle lookup
+    const nodeBundleMap = new Map<string, string>();
+    for (const bundle of sortedBundles) {
+      for (const nid of bundle.nodeIds) {
+        nodeBundleMap.set(nid, bundle.id);
+      }
+    }
+
+    // 1. Intra-bundle forward edges (sequential left-to-right)
+    for (const bundle of sortedBundles) {
+      for (let i = 0; i < bundle.nodeIds.length - 1; i++) {
+        const src = bundle.nodeIds[i];
+        const tgt = bundle.nodeIds[i + 1];
+        flowEdges.push({
+          id: `intra-${src}-${tgt}`,
+          source: src,
+          target: tgt,
+          sourceHandle: 'source-right',
+          targetHandle: 'target-left',
+          type: 'smoothstep',
+          style: { stroke: 'var(--foreground)', strokeWidth: 2 },
+          markerEnd: { ...arrow, color: 'var(--foreground)' },
+        });
+      }
+    }
+
+    // 2. Cross-bundle forward edges (last node → first node of next bundle)
+    for (let i = 0; i < sortedBundles.length - 1; i++) {
+      const srcBundle = sortedBundles[i];
+      const tgtBundle = sortedBundles[i + 1];
+      const src = srcBundle.nodeIds[srcBundle.nodeIds.length - 1];
+      const tgt = tgtBundle.nodeIds[0];
+
+      // Find the DB edge for this cross-bundle connection (if any) to get label
+      const dbEdge = dbEdges.find((e) =>
+        e.edge_type !== 'conditional' &&
+        nodeBundleMap.get(e.source_node_id) === srcBundle.id &&
+        nodeBundleMap.get(e.target_node_id) === tgtBundle.id
+      );
+
+      flowEdges.push({
+        id: `cross-${src}-${tgt}`,
+        source: src,
+        target: tgt,
+        sourceHandle: 'source-bottom',
+        targetHandle: 'target-top',
+        type: 'smoothstep',
+        label: dbEdge?.label || undefined,
+        style: { stroke: 'var(--foreground)', strokeWidth: 2 },
+        markerEnd: { ...arrow, color: 'var(--foreground)' },
+      });
+    }
+
+    // 3. Conditional / feedback DB edges (dashed)
+    for (const e of dbEdges) {
+      if (e.edge_type !== 'conditional') continue;
+
       const srcPos = nodePositions[e.source_node_id];
       const tgtPos = nodePositions[e.target_node_id];
       const sameRow = srcPos && tgtPos && Math.abs(srcPos.y - tgtPos.y) < 10;
       const isBackward = srcPos && tgtPos && tgtPos.x < srcPos.x;
 
-      let sourceHandle = sameRow ? 'source-right' : 'source-bottom';
-      let targetHandle = sameRow ? 'target-left' : 'target-top';
+      let sourceHandle: string;
+      let targetHandle: string;
+      let edgeType = 'smoothstep';
 
-      if (isConditional && isBackward) {
+      if (isBackward && sameRow) {
+        // Short feedback loops (same row) — top handles
         sourceHandle = 'loop-source';
         targetHandle = 'loop-target';
+      } else if (isBackward && !sameRow) {
+        // Long feedback loops (cross-row) — route far left
+        sourceHandle = 'source-left';
+        targetHandle = 'target-left';
+        edgeType = 'longFeedback';
+      } else {
+        sourceHandle = 'source-right';
+        targetHandle = 'target-left';
       }
 
-      return {
+      flowEdges.push({
         id: e._id,
         source: e.source_node_id,
         target: e.target_node_id,
         sourceHandle,
         targetHandle,
-        type: 'smoothstep',
+        type: edgeType,
         label: e.label || undefined,
-        style: isConditional
-          ? { stroke: 'var(--muted-foreground)', strokeWidth: 1.5, strokeDasharray: '6,3', opacity: 0.7 }
-          : { stroke: 'var(--foreground)', strokeWidth: 2 },
-        markerEnd: {
-          ...arrow,
-          color: isConditional ? 'var(--muted-foreground)' : 'var(--foreground)',
-        },
-        labelStyle: isConditional ? { fontSize: 9, fill: 'var(--muted-foreground)' } : undefined,
-      };
-    });
+        style: { stroke: 'var(--muted-foreground)', strokeWidth: 1.5, strokeDasharray: '6,3', opacity: 0.7 },
+        markerEnd: { ...arrow, color: 'var(--muted-foreground)' },
+        labelStyle: { fontSize: 9, fill: 'var(--muted-foreground)' },
+      });
+    }
 
     return { flowNodes: result, flowEdges, completedCount, totalCount: orderedNodes.length };
   }, [dbNodes, dbEdges]);
@@ -257,22 +348,25 @@ export default function CustomWorkflowGraph({ nodes: dbNodes, edges: dbEdges }: 
   return (
     <div className="relative h-full w-full">
       {/* Progress header */}
-      <div className="absolute top-0 left-0 right-0 z-10 px-4 py-2 bg-background/80 backdrop-blur-sm border-b border-border">
-        <div className="flex items-center justify-between mb-1">
-          <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">Pipeline</span>
-          <span className="font-mono text-[10px] text-muted-foreground">
-            {completedCount}/{totalCount}
-          </span>
+      {!hideProgressBar && (
+        <div className="absolute top-0 left-0 right-0 z-10 px-4 py-2 bg-background/80 backdrop-blur-sm border-b border-border">
+          <div className="flex items-center justify-between mb-1">
+            <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">Pipeline</span>
+            <span className="font-mono text-[10px] text-muted-foreground">
+              {completedCount}/{totalCount}
+            </span>
+          </div>
+          <div className="h-[2px] w-full rounded-full bg-border overflow-hidden">
+            <div className="h-full rounded-full bg-foreground transition-all duration-500" style={{ width: `${totalCount > 0 ? (completedCount / totalCount) * 100 : 0}%` }} />
+          </div>
         </div>
-        <div className="h-[2px] w-full rounded-full bg-border overflow-hidden">
-          <div className="h-full rounded-full bg-foreground transition-all duration-500" style={{ width: `${totalCount > 0 ? (completedCount / totalCount) * 100 : 0}%` }} />
-        </div>
-      </div>
+      )}
 
       <ReactFlow
         nodes={flowNodes}
         edges={flowEdges}
         nodeTypes={nodeTypes}
+        edgeTypes={edgeTypes}
         fitView
         fitViewOptions={{ padding: 0.3 }}
         proOptions={{ hideAttribution: true }}

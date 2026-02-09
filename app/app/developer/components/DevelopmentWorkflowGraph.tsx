@@ -216,12 +216,6 @@ export default function DevelopmentWorkflowGraph({ nodes, onNodeClick }: Develop
     [nodeMap, onNodeClick],
   );
 
-  // ─── Progress ─────────────────────────────────────────────────
-  const completedCount = useMemo(
-    () => DEV_STAGE_ORDER.filter((s) => nodeMap[s]?.status === 'completed').length,
-    [nodeMap],
-  );
-
   // ─── Flow nodes ───────────────────────────────────────────────
   const flowNodes: Node[] = useMemo(() => {
     const result: Node[] = [];
@@ -337,20 +331,6 @@ export default function DevelopmentWorkflowGraph({ nodes, onNodeClick }: Develop
 
   return (
     <div className="relative h-full w-full">
-      {/* Progress header */}
-      <div className="absolute top-0 left-0 right-0 z-10 px-4 py-2 bg-background/80 backdrop-blur-sm border-b border-border">
-        <div className="flex items-center justify-between mb-1">
-          <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">Pipeline</span>
-          <span className="font-mono text-[10px] text-muted-foreground">
-            {completedCount}/{DEV_STAGE_ORDER.length}
-            {currentStage && <> &middot; {STAGE_LABELS[currentStage]}</>}
-          </span>
-        </div>
-        <div className="h-[2px] w-full rounded-full bg-border overflow-hidden">
-          <div className="h-full rounded-full bg-foreground transition-all duration-500" style={{ width: `${(completedCount / DEV_STAGE_ORDER.length) * 100}%` }} />
-        </div>
-      </div>
-
       <ReactFlow
         nodes={flowNodes}
         edges={flowEdges}

@@ -2,11 +2,12 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { ArrowLeft, Play } from 'lucide-react';
+import { ArrowLeft, Play, CheckCircle2, Circle, Loader2, XCircle, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import TimelineContainer from '@/components/timeline/TimelineContainer';
 import { useTimeline } from '@/components/timeline/useTimeline';
 import WorkflowStatusBadge from '../components/WorkflowStatusBadge';
+import ReactMarkdown from 'react-markdown';
 import {
   getWorkflow,
   getWorkflowNodes,
@@ -17,9 +18,12 @@ import {
   retryWorkflow,
   getUserMe,
 } from '../lib/api';
+import { getCustomWorkflows, getCustomWorkflowGraph } from '../../workflows/lib/api';
 import type { Workflow, WorkflowNode, Specification, TimelineEntry } from '../lib/types';
+import { STAGE_LABELS, PIPELINE_STAGES } from '../lib/types';
+import type { CustomGraphNode, CustomGraphEdge } from '../../workflows/lib/types';
 
-type ContentMode = 'timeline' | 'graph';
+type ContentMode = 'timeline' | 'dev_plan' | 'design' | 'dev_workflow';
 
 function RequestCard({ spec, creatorName, createdAt }: { spec: Specification; creatorName: string; createdAt?: string }) {
   const formattedDate = createdAt
@@ -57,6 +61,29 @@ function RequestCard({ spec, creatorName, createdAt }: { spec: Specification; cr
   );
 }
 
+function PipelineProgressBar({ workflow, nodes }: { workflow: Workflow; nodes: WorkflowNode[] }) {
+  const nodeMap = new Map(nodes.map((n) => [n.stage_name, n]));
+  const total = PIPELINE_STAGES.length;
+  const completed = PIPELINE_STAGES.filter((s) => nodeMap.get(s)?.status === 'completed').length;
+  const pct = Math.round((completed / total) * 100);
+  const currentLabel = STAGE_LABELS[workflow.current_stage] || workflow.current_stage;
+
+  return (
+    <div className="border-b border-border px-4 md:px-6 py-1.5">
+      <div className="flex items-center justify-between mb-1">
+        <span className="font-mono text-[9px] text-muted-foreground">{currentLabel}</span>
+        <span className="font-mono text-[9px] text-muted-foreground">{completed}/{total} stages &middot; {pct}%</span>
+      </div>
+      <div className="h-1 w-full rounded-full bg-border overflow-hidden">
+        <div
+          className="h-full rounded-full bg-foreground transition-all duration-500"
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
 export default function WorkflowDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -73,7 +100,13 @@ export default function WorkflowDetailPage() {
   const [spec, setSpec] = useState<Specification | null>(null);
   const [creatorName, setCreatorName] = useState<string>('');
 
-  const [GraphComponent, setGraphComponent] = useState<React.ComponentType<{ nodes: WorkflowNode[]; onNodeClick?: (node: WorkflowNode) => void }> | null>(null);
+  // Design graph (custom workflow)
+  const [customGraphNodes, setCustomGraphNodes] = useState<CustomGraphNode[]>([]);
+  const [customGraphEdges, setCustomGraphEdges] = useState<CustomGraphEdge[]>([]);
+
+  // Lazy-loaded graph components
+  const [DevGraphComponent, setDevGraphComponent] = useState<React.ComponentType<{ nodes: WorkflowNode[]; onNodeClick?: (node: WorkflowNode) => void }> | null>(null);
+  const [DesignGraphComponent, setDesignGraphComponent] = useState<React.ComponentType<{ nodes: CustomGraphNode[]; edges: CustomGraphEdge[]; hideProgressBar?: boolean }> | null>(null);
 
   const isFDE = isTeamMember;
   const isActive = workflow && ['running', 'waiting_approval', 'pending'].includes(workflow.status);
@@ -138,20 +171,43 @@ export default function WorkflowDetailPage() {
     });
   }, [workflow?.specification_id]);
 
+  // Fetch linked custom workflow for design graph
+  useEffect(() => {
+    if (!workflowId) return;
+    getCustomWorkflows().then((workflows) => {
+      const linked = workflows.find((w) => w.source_dev_workflow_id === workflowId);
+      if (linked) {
+        getCustomWorkflowGraph(linked._id).then((graph) => {
+          setCustomGraphNodes(graph.nodes);
+          setCustomGraphEdges(graph.edges);
+        });
+      }
+    });
+  }, [workflowId]);
+
   useEffect(() => {
     if (!isActive) return;
     const interval = setInterval(loadWorkflow, 5000);
     return () => clearInterval(interval);
   }, [isActive, loadWorkflow]);
 
-  // Lazy load graph component
+  // Lazy load dev workflow graph
   useEffect(() => {
-    if (contentMode === 'graph' && !GraphComponent) {
+    if (contentMode === 'dev_workflow' && !DevGraphComponent) {
       import('../components/DevelopmentWorkflowGraph').then((mod) => {
-        setGraphComponent(() => mod.default);
+        setDevGraphComponent(() => mod.default);
       });
     }
-  }, [contentMode, GraphComponent]);
+  }, [contentMode, DevGraphComponent]);
+
+  // Lazy load design graph
+  useEffect(() => {
+    if (contentMode === 'design' && !DesignGraphComponent) {
+      import('../../workflows/components/CustomWorkflowGraph').then((mod) => {
+        setDesignGraphComponent(() => mod.default);
+      });
+    }
+  }, [contentMode, DesignGraphComponent]);
 
   const handleAddMessage = async (content: string) => {
     if (isFDE) {
@@ -214,6 +270,12 @@ export default function WorkflowDetailPage() {
     }
   };
 
+  // Extract plan data from pipeline nodes
+  const plannerNode = nodes.find((n) => n.stage_name === 'planner');
+  const planReviewerNode = nodes.find((n) => n.stage_name === 'plan_reviewer');
+  const planText = plannerNode?.output_data?.plan as string | undefined;
+  const reviewFeedback = planReviewerNode?.output_data?.feedback as string | undefined;
+
   if (!roleLoaded || !workflow) {
     return (
       <div className="flex items-center justify-center py-24">
@@ -224,6 +286,13 @@ export default function WorkflowDetailPage() {
       </div>
     );
   }
+
+  const TAB_CONFIG: { mode: ContentMode; label: string }[] = [
+    { mode: 'timeline', label: 'Timeline' },
+    { mode: 'dev_plan', label: 'Dev Plan' },
+    { mode: 'dev_workflow', label: 'Dev Workflow' },
+    { mode: 'design', label: 'Design' },
+  ];
 
   return (
     <div className="flex h-screen flex-col">
@@ -243,28 +312,20 @@ export default function WorkflowDetailPage() {
         </div>
 
         <div className="flex items-center gap-2">
-          {/* Timeline/Graph toggle — everyone can see */}
           <div className="flex rounded-full border border-border p-0.5">
-            <button
-              onClick={() => setContentMode('timeline')}
-              className={`rounded-full px-3 py-1 font-mono text-[10px] uppercase tracking-wider transition-colors ${
-                contentMode === 'timeline'
-                  ? 'bg-foreground text-background'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              Timeline
-            </button>
-            <button
-              onClick={() => setContentMode('graph')}
-              className={`rounded-full px-3 py-1 font-mono text-[10px] uppercase tracking-wider transition-colors ${
-                contentMode === 'graph'
-                  ? 'bg-foreground text-background'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              Workflow
-            </button>
+            {TAB_CONFIG.map(({ mode, label }) => (
+              <button
+                key={mode}
+                onClick={() => setContentMode(mode)}
+                className={`rounded-full px-3 py-1 font-mono text-[10px] uppercase tracking-wider transition-colors ${
+                  contentMode === mode
+                    ? 'bg-foreground text-background'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
           </div>
 
           {/* Run button — team members only */}
@@ -281,21 +342,17 @@ export default function WorkflowDetailPage() {
         </div>
       </div>
 
+      {/* Progress bar — hidden on design tab */}
+      {contentMode !== 'design' && (
+        <PipelineProgressBar workflow={workflow} nodes={nodes} />
+      )}
+
       {/* Content area */}
       <div className="flex-1 overflow-auto">
-        {contentMode === 'graph' ? (
-          <div className="h-full">
-            {GraphComponent ? (
-              <GraphComponent nodes={nodes} />
-            ) : (
-              <div className="flex items-center justify-center h-full">
-                <div className="mx-auto h-6 w-6 animate-spin rounded-full border-b-2 border-foreground" />
-              </div>
-            )}
-          </div>
-        ) : (
+        {/* ── Timeline tab ── */}
+        {contentMode === 'timeline' && (
           <div className="px-4 md:px-6">
-            {/* Request card showing spec details */}
+            {/* Request card on top of timeline */}
             {spec && (
               <div className="mx-auto w-full max-w-3xl pt-8">
                 <RequestCard spec={spec} creatorName={creatorName || 'Unknown'} createdAt={workflow.created_at} />
@@ -313,6 +370,99 @@ export default function WorkflowDetailPage() {
               inputPlaceholder={isFDE ? "Add a message..." : "Describe what you need..."}
               loading={timelineLoading}
             />
+          </div>
+        )}
+
+        {/* ── Dev Plan tab ── */}
+        {contentMode === 'dev_plan' && (
+          <div className="px-4 md:px-6">
+            <div className="mx-auto w-full max-w-3xl pt-8 space-y-6 pb-12">
+              {/* Request / spec card */}
+              {spec && (
+                <RequestCard spec={spec} creatorName={creatorName || 'Unknown'} createdAt={workflow.created_at} />
+              )}
+
+              {/* Generated plan from planner stage */}
+              {planText && (
+                <div className="rounded-lg border border-border bg-background p-5">
+                  <div className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground mb-3">Generated Plan</div>
+                  <div className="prose prose-sm max-w-none text-sm">
+                    <ReactMarkdown>{planText}</ReactMarkdown>
+                  </div>
+                </div>
+              )}
+
+              {/* Plan review feedback */}
+              {reviewFeedback && (
+                <div className="rounded-lg border border-border bg-background p-5">
+                  <div className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground mb-3">Plan Review</div>
+                  <div className="prose prose-sm max-w-none text-sm">
+                    <ReactMarkdown>{reviewFeedback}</ReactMarkdown>
+                  </div>
+                </div>
+              )}
+
+              {/* Pipeline stages checklist */}
+              <div className="rounded-lg border border-border bg-background p-5">
+                <div className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground mb-3">Pipeline Stages</div>
+                <div className="space-y-1">
+                  {PIPELINE_STAGES.map((stageName) => {
+                    const node = nodes.find((n) => n.stage_name === stageName);
+                    const status = node?.status || 'pending';
+                    const isCurrent = workflow.current_stage === stageName;
+                    const Icon = status === 'completed' ? CheckCircle2
+                      : status === 'running' ? Loader2
+                      : status === 'failed' ? XCircle
+                      : status === 'waiting_approval' ? Clock
+                      : Circle;
+                    return (
+                      <div
+                        key={stageName}
+                        className={`flex items-center gap-2 py-0.5 ${isCurrent ? 'text-foreground' : 'text-muted-foreground'}`}
+                      >
+                        <Icon className={`h-3 w-3 shrink-0 ${status === 'running' ? 'animate-spin' : ''} ${status === 'completed' ? 'text-foreground' : ''} ${status === 'failed' ? 'text-destructive' : ''}`} />
+                        <span className={`font-mono text-[10px] ${isCurrent ? 'font-semibold' : ''}`}>
+                          {STAGE_LABELS[stageName] || stageName}
+                        </span>
+                        {isCurrent && (
+                          <span className="ml-auto font-mono text-[9px] uppercase tracking-wider text-foreground/60">Current</span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+            </div>
+          </div>
+        )}
+
+        {/* ── Design tab (custom workflow graph) ── */}
+        {contentMode === 'design' && (
+          <div className="h-full">
+            {DesignGraphComponent && customGraphNodes.length > 0 ? (
+              <DesignGraphComponent nodes={customGraphNodes} edges={customGraphEdges} hideProgressBar />
+            ) : (
+              <div className="flex items-center justify-center h-full">
+                <div className="text-center">
+                  <Circle className="mx-auto h-8 w-8 text-muted-foreground/30 mb-3" />
+                  <p className="font-mono text-xs text-muted-foreground">Design will appear here once the workflow plan is generated</p>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Dev Workflow tab (pipeline graph) ── */}
+        {contentMode === 'dev_workflow' && (
+          <div className="h-full">
+            {DevGraphComponent ? (
+              <DevGraphComponent nodes={nodes} />
+            ) : (
+              <div className="flex items-center justify-center h-full">
+                <div className="mx-auto h-6 w-6 animate-spin rounded-full border-b-2 border-foreground" />
+              </div>
+            )}
           </div>
         )}
       </div>
