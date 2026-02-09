@@ -16,10 +16,12 @@ import {
   getUserMe,
 } from './lib/api';
 import type { Workflow, Organization, Project } from './lib/types';
+import { STAGE_LABELS } from './lib/types';
 
 function formatRelativeTime(dateStr?: string): string {
   if (!dateStr) return '';
-  const date = new Date(dateStr);
+  const utcStr = dateStr.endsWith('Z') ? dateStr : dateStr + 'Z';
+  const date = new Date(utcStr);
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
   const diffMin = Math.floor(diffMs / 60000);
@@ -29,6 +31,14 @@ function formatRelativeTime(dateStr?: string): string {
   if (diffHr < 24) return `${diffHr}h ago`;
   const diffDays = Math.floor(diffHr / 24);
   return `${diffDays}d ago`;
+}
+
+function formatShortDate(dateStr?: string): string {
+  if (!dateStr) return '';
+  const utcStr = dateStr.endsWith('Z') ? dateStr : dateStr + 'Z';
+  const d = new Date(utcStr);
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+    + ' ' + d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
 }
 
 export default function DeveloperPage() {
@@ -44,6 +54,7 @@ export default function DeveloperPage() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState('');
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   // Detect user's org IDs and roles
   useEffect(() => {
@@ -181,12 +192,11 @@ export default function DeveloperPage() {
   return (
     <div className="mx-auto max-w-3xl px-4 md:px-6">
       <div className="relative py-8 md:py-12">
-        {/* Vertical timeline line */}
-        <div className="absolute left-10 md:left-12 top-0 bottom-0 w-px bg-border" />
+        {/* Vertical timeline line — aligned with TimelineContainer axis */}
+        <div className="absolute left-[1.875rem] md:left-[2.375rem] top-0 bottom-0 w-px bg-border" />
 
         {/* Workflows section */}
         <div className="relative">
-          <div className="absolute left-10 md:left-12 top-0 bottom-0 w-px bg-border" />
 
           {/* Section label */}
           {selectedOrg && (
@@ -238,7 +248,7 @@ export default function DeveloperPage() {
               }}
               onClick={() => router.push(`/app/developer/${wf._id}`)}
             >
-              <div className="absolute left-[2.125rem] md:left-[2.625rem] top-4 z-10">
+              <div className="absolute left-6 md:left-8 top-4 z-10">
                 <div
                   className="h-3 w-3 rounded-full bg-foreground"
                   style={{ animation: 'dot-appear 0.3s ease-out' }}
@@ -298,13 +308,36 @@ export default function DeveloperPage() {
                       <WorkflowStatusBadge status={wf.status} />
                     </div>
                   </div>
-                  {wf.description && wf.description !== wf.title && (
-                    <p className="mt-2 text-sm text-muted-foreground leading-relaxed line-clamp-3">
-                      {wf.description}
-                    </p>
+                  {/* Current stage */}
+                  {wf.current_stage && (
+                    <div className="mt-2">
+                      <span className="inline-flex items-center rounded-full border border-border px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider text-muted-foreground">
+                        {STAGE_LABELS[wf.current_stage] || wf.current_stage}
+                      </span>
+                    </div>
                   )}
-                  <div className="mt-3 font-mono text-[11px] text-muted-foreground/60">
-                    {formatRelativeTime(wf.updated_at || wf.created_at)}
+                  {/* Description — 3 lines with expand */}
+                  {wf.description && wf.description !== wf.title && (
+                    <div className="mt-2">
+                      <p className={`text-sm text-muted-foreground leading-relaxed ${expandedId === wf._id ? '' : 'line-clamp-3'}`}>
+                        {wf.description}
+                      </p>
+                      {wf.description.length > 200 && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setExpandedId(expandedId === wf._id ? null : wf._id); }}
+                          className="mt-1 font-mono text-[10px] text-muted-foreground/60 hover:text-foreground transition-colors"
+                        >
+                          {expandedId === wf._id ? 'Show less' : 'Show more...'}
+                        </button>
+                      )}
+                    </div>
+                  )}
+                  {/* Timestamps */}
+                  <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 font-mono text-[10px] text-muted-foreground/50">
+                    <span>Requested {formatShortDate(wf.created_at)}</span>
+                    {wf.updated_at && wf.updated_at !== wf.created_at && (
+                      <span>Updated {formatShortDate(wf.updated_at)}</span>
+                    )}
                   </div>
                 </div>
               </div>
