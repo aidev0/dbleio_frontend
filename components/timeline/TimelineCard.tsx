@@ -1,6 +1,7 @@
 "use client";
 
 import type { TimelineEntry } from '@/app/app/developer/lib/types';
+import { Pencil, Trash2 } from 'lucide-react';
 import VisibilityBadge from './VisibilityBadge';
 import TimelineCardUserMessage from './TimelineCardUserMessage';
 import TimelineCardAIMessage from './TimelineCardAIMessage';
@@ -31,10 +32,17 @@ const DOT_COLORS: Record<string, string> = {
 };
 
 const CARD_BG: Record<string, string> = {
-  ai_message: 'bg-secondary/30',
-  fde_message: 'bg-secondary/50',
+  ai_message: 'bg-secondary/20',
   status_update: '',
 };
+
+function displayName(authorName: string): string {
+  if (authorName.includes('@')) {
+    const local = authorName.split('@')[0];
+    return local.replace(/[._-]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+  }
+  return authorName;
+}
 
 function formatRelativeTime(dateStr: string): string {
   const utcStr = dateStr.endsWith('Z') ? dateStr : dateStr + 'Z';
@@ -91,18 +99,33 @@ export default function TimelineCard({
             onViewGraph={onViewGraph}
           />
         ) : (
-          <div className={`rounded-lg ${cardBg} ${cardBg ? 'px-4 py-3' : ''}`}>
+          <div className={`group rounded-lg border border-border px-4 py-3 ${cardBg}`}>
             {/* Header */}
-            <div className="mb-2 flex items-center gap-2">
-              <span className="font-mono text-[10px] font-medium uppercase tracking-wider text-foreground/70">
-                {entry.author_name}
+            <div className="mb-1.5 flex items-center gap-2">
+              <span className="font-mono text-[10px] font-medium tracking-wider text-foreground/70">
+                {displayName(entry.author_name)}
               </span>
-              <span className="font-mono text-[10px] text-muted-foreground/50">
+              <span className="font-mono text-[10px] text-muted-foreground/40">
                 {formatRelativeTime(entry.created_at)}
               </span>
               {isFDE && entry.visibility === 'internal' && <VisibilityBadge />}
               {entry.edited_by && (
                 <span className="font-mono text-[9px] text-muted-foreground/40">(edited)</span>
+              )}
+              {/* Edit/Delete — show on hover for editable messages */}
+              {(onEdit || onDelete) && (entry.card_type === 'fde_message' || entry.card_type === 'user_message') && (
+                <div className="ml-auto flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  {onEdit && (
+                    <button onClick={() => onEdit(entry)} className="rounded p-1 text-muted-foreground/40 hover:text-foreground transition-colors">
+                      <Pencil className="h-3 w-3" />
+                    </button>
+                  )}
+                  {onDelete && (
+                    <button onClick={() => onDelete(entry._id)} className="rounded p-1 text-muted-foreground/40 hover:text-foreground transition-colors">
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  )}
+                </div>
               )}
             </div>
 
