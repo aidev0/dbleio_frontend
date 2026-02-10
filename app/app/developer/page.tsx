@@ -192,8 +192,8 @@ export default function DeveloperPage() {
   return (
     <div className="mx-auto max-w-3xl px-4 md:px-6">
       <div className="relative py-8 md:py-12">
-        {/* Vertical timeline line — aligned with TimelineContainer axis */}
-        <div className="absolute left-[1.875rem] md:left-[2.375rem] top-0 bottom-0 w-px bg-border" />
+        {/* Vertical timeline line */}
+        <div className="absolute left-3 md:left-4 top-0 bottom-0 w-px bg-border" />
 
         {/* Workflows section */}
         <div className="relative">
@@ -222,7 +222,7 @@ export default function DeveloperPage() {
           />
 
           {createError && (
-            <div className="my-3 ml-[calc(1.5rem+1.5rem)] md:ml-[calc(2rem+1.5rem)] rounded-lg border border-border bg-muted px-4 py-3 text-sm text-muted-foreground">
+            <div className="my-3 ml-8 md:ml-10 rounded-lg border border-border bg-muted px-4 py-3 text-sm text-muted-foreground">
               {createError}
             </div>
           )}
@@ -248,13 +248,13 @@ export default function DeveloperPage() {
               }}
               onClick={() => router.push(`/app/developer/${wf._id}`)}
             >
-              <div className="absolute left-6 md:left-8 top-4 z-10">
+              <div className="absolute left-[0.4375rem] md:left-[0.6875rem] top-4 z-10">
                 <div
                   className="h-3 w-3 rounded-full bg-foreground"
                   style={{ animation: 'dot-appear 0.3s ease-out' }}
                 />
               </div>
-              <div className="ml-[calc(1.5rem+1.5rem)] md:ml-[calc(2rem+1.5rem)] w-[calc(100%-4.5rem)] md:w-[90%] py-3">
+              <div className="ml-8 md:ml-10 w-[calc(100%-2.5rem)] md:w-[90%] py-3">
                 <div className="group rounded-lg border border-border bg-background p-5 transition-all hover:border-foreground/20 hover:shadow-sm">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1 min-w-0">

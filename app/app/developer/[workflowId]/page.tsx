@@ -342,11 +342,6 @@ export default function WorkflowDetailPage() {
         </div>
       </div>
 
-      {/* Progress bar — hidden on design tab */}
-      {contentMode !== 'design' && (
-        <PipelineProgressBar workflow={workflow} nodes={nodes} />
-      )}
-
       {/* Content area */}
       <div className="flex-1 overflow-auto">
         {/* ── Timeline tab ── */}
