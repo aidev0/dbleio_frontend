@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { Code2, Video, Building2, LogOut } from "lucide-react";
+import { Code2, Video, Building2, Workflow, LogOut } from "lucide-react";
 import { useAuth } from "./video-simulation/auth/authContext";
 import {
   Sidebar,
@@ -25,6 +25,12 @@ const navItems = [
     label: "Developer",
     icon: Code2,
     href: "/app/developer",
+    disabled: false,
+  },
+  {
+    label: "Workflows",
+    icon: Workflow,
+    href: "/app/workflows",
     disabled: false,
   },
   {
