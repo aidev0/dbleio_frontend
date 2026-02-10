@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
@@ -42,7 +43,28 @@ const navItems = [
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const { user, logout } = useAuth();
+  const { user, loading, login, logout } = useAuth();
+  const redirected = useRef(false);
+
+  // Check for auth callback code in URL (without useSearchParams to avoid Suspense requirement)
+  const isAuthCallback = typeof window !== 'undefined' && window.location.search.includes('code=');
+
+  // Redirect to login if not authenticated
+  useEffect(() => {
+    if (!loading && !user && !isAuthCallback && !redirected.current) {
+      redirected.current = true;
+      login();
+    }
+  }, [loading, user, isAuthCallback, login]);
+
+  // Show loading spinner while checking auth or redirecting
+  if (loading || (!user && !isAuthCallback)) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <div className="h-6 w-6 animate-spin rounded-full border-b-2 border-foreground" />
+      </div>
+    );
+  }
 
   return (
     <SidebarProvider defaultOpen={false}>
