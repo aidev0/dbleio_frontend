@@ -32,9 +32,9 @@ export default function TimelineContainer({
   header,
 }: TimelineContainerProps) {
   return (
-    <div className="relative w-full py-8 md:py-12">
+    <div className="relative w-full py-4 md:py-12">
       {/* Vertical timeline line at 1/4 */}
-      <div className="absolute left-[25%] top-0 bottom-0 w-px bg-border" />
+      <div className="hidden md:block absolute left-[25%] top-0 bottom-0 w-px bg-border" />
 
       {/* Optional header (e.g. RequestCard) within the timeline context */}
       {header}
@@ -49,11 +49,9 @@ export default function TimelineContainer({
         </div>
       )}
 
-      {/* Empty state */}
+      {/* Empty state — just whitespace so timeline still feels connected */}
       {!loading && entries.length === 0 && (
-        <div className="flex items-center justify-center py-16">
-          <p className="font-mono text-xs text-muted-foreground">No entries yet</p>
-        </div>
+        <div className="py-8" />
       )}
 
       {/* Timeline cards */}

@@ -8,6 +8,7 @@ import TimelineContainer from '@/components/timeline/TimelineContainer';
 import { useTimeline } from '@/components/timeline/useTimeline';
 import WorkflowStatusBadge from '../components/WorkflowStatusBadge';
 import ReactMarkdown from 'react-markdown';
+import NavMenu from '@/components/NavMenu';
 import {
   getWorkflow,
   getWorkflowNodes,
@@ -69,7 +70,7 @@ function PipelineProgressBar({ workflow, nodes }: { workflow: Workflow; nodes: W
   const currentLabel = STAGE_LABELS[workflow.current_stage] || workflow.current_stage;
 
   return (
-    <div className="border-b border-border px-4 md:px-6 py-1.5">
+    <div className="border-b border-border px-3 md:px-6 py-1.5">
       <div className="flex items-center justify-between mb-1">
         <span className="font-mono text-[9px] text-muted-foreground">{currentLabel}</span>
         <span className="font-mono text-[9px] text-muted-foreground">{completed}/{total} stages &middot; {pct}%</span>
@@ -297,27 +298,63 @@ export default function WorkflowDetailPage() {
   return (
     <div className="flex h-screen flex-col">
       {/* Sub-header */}
-      <div className="flex items-center justify-between border-b border-border px-4 md:px-6 py-2">
-        <div className="flex items-center gap-3">
+      <div className="border-b border-border px-3 md:px-6 py-2">
+        {/* Row 1: Back + Title + Badge */}
+        <div className="flex items-center gap-2">
           <button
             onClick={() => router.push('/app/developer')}
-            className="rounded p-1 text-muted-foreground hover:text-foreground transition-colors"
+            className="shrink-0 rounded p-1 text-muted-foreground hover:text-foreground transition-colors"
           >
             <ArrowLeft className="h-4 w-4" />
           </button>
-          <h2 className="text-sm font-medium truncate max-w-[200px] md:max-w-none">
+          <h2 className="text-sm font-medium truncate min-w-0 flex-1">
             {workflow.title}
           </h2>
-          <WorkflowStatusBadge status={workflow.status} />
+          <div className="shrink-0">
+            <WorkflowStatusBadge status={workflow.status} />
+          </div>
+
+          {/* Desktop: tabs + run + nav */}
+          <div className="hidden md:flex items-center gap-2 shrink-0">
+            <div className="flex rounded-full border border-border p-0.5">
+              {TAB_CONFIG.map(({ mode, label }) => (
+                <button
+                  key={mode}
+                  onClick={() => setContentMode(mode)}
+                  className={`rounded-full px-3 py-1 font-mono text-[10px] uppercase tracking-wider transition-colors ${
+                    contentMode === mode
+                      ? 'bg-foreground text-background'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            {isFDE && (workflow.status === 'pending' || workflow.status === 'failed') && (
+              <Button
+                size="sm"
+                onClick={handleRun}
+                className="h-7 gap-1.5 font-mono text-[10px] uppercase tracking-wider"
+              >
+                <Play className="h-3 w-3" />
+                Run
+              </Button>
+            )}
+
+            <NavMenu />
+          </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <div className="flex rounded-full border border-border p-0.5">
+        {/* Row 2: Mobile tabs — full width */}
+        <div className="flex md:hidden items-center gap-2 mt-2">
+          <div className="flex flex-1 rounded-full border border-border p-0.5">
             {TAB_CONFIG.map(({ mode, label }) => (
               <button
                 key={mode}
                 onClick={() => setContentMode(mode)}
-                className={`rounded-full px-3 py-1 font-mono text-[10px] uppercase tracking-wider transition-colors ${
+                className={`flex-1 rounded-full py-1.5 font-mono text-[10px] uppercase tracking-wider text-center whitespace-nowrap transition-colors ${
                   contentMode === mode
                     ? 'bg-foreground text-background'
                     : 'text-muted-foreground hover:text-foreground'
@@ -328,17 +365,20 @@ export default function WorkflowDetailPage() {
             ))}
           </div>
 
-          {/* Run button — team members only */}
           {isFDE && (workflow.status === 'pending' || workflow.status === 'failed') && (
             <Button
               size="sm"
               onClick={handleRun}
-              className="h-7 gap-1.5 font-mono text-[10px] uppercase tracking-wider"
+              className="h-7 gap-1.5 font-mono text-[10px] uppercase tracking-wider shrink-0"
             >
               <Play className="h-3 w-3" />
               Run
             </Button>
           )}
+
+          <div className="shrink-0">
+            <NavMenu />
+          </div>
         </div>
       </div>
 
@@ -346,14 +386,14 @@ export default function WorkflowDetailPage() {
       <div className="flex-1 overflow-auto">
         {/* ── Timeline tab ── */}
         {contentMode === 'timeline' && (
-          <div className="px-4 md:px-6">
+          <div className="px-2 md:px-6">
             <TimelineContainer
               header={spec ? (
                 <div className="relative flex items-start">
-                  <div className="absolute left-[calc(25%-0.375rem)] top-3 z-10">
+                  <div className="hidden md:block absolute left-[calc(25%-0.375rem)] top-3 z-10">
                     <div className="h-3 w-3 rounded-full bg-foreground" />
                   </div>
-                  <div className="ml-[26%] w-[52%] py-2">
+                  <div className="w-full md:ml-[26%] md:w-[52%] py-2">
                     <RequestCard spec={spec} creatorName={creatorName || 'Unknown'} createdAt={workflow.created_at} />
                   </div>
                 </div>
@@ -374,7 +414,7 @@ export default function WorkflowDetailPage() {
 
         {/* ── Dev Plan tab ── */}
         {contentMode === 'dev_plan' && (
-          <div className="px-4 md:px-6">
+          <div className="px-2 md:px-6">
             <div className="mx-auto w-full max-w-3xl pt-8 space-y-6 pb-12">
               {/* Request / spec card */}
               {spec && (

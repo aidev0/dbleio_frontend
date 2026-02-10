@@ -17,6 +17,7 @@ import {
 } from './lib/api';
 import type { Workflow, Organization, Project } from './lib/types';
 import { STAGE_LABELS } from './lib/types';
+import NavMenu from '@/components/NavMenu';
 
 function formatRelativeTime(dateStr?: string): string {
   if (!dateStr) return '';
@@ -190,13 +191,16 @@ export default function DeveloperPage() {
   }
 
   return (
-    <div className="px-4 md:px-6">
-      <div className="relative py-8 md:py-12">
-        {/* Vertical timeline line at 1/3 */}
-        <div className="absolute left-[25%] top-0 bottom-0 w-px bg-border" />
-
+    <div>
+      <div className="flex items-center justify-between border-b border-border px-4 md:px-6 py-2">
+        <span className="font-mono text-xs uppercase tracking-wider text-muted-foreground">Developer</span>
+        <NavMenu />
+      </div>
+      <div className="px-4 md:px-6 py-4 md:py-8">
         {/* Workflows section */}
         <div className="relative">
+          {/* Vertical timeline line at 1/4 — inside content area so it aligns with dots */}
+          <div className="hidden md:block absolute left-[25%] top-0 bottom-0 w-px bg-border" />
 
           {/* Section label */}
           {selectedOrg && (
@@ -222,7 +226,7 @@ export default function DeveloperPage() {
           />
 
           {createError && (
-            <div className="my-3 ml-[26%] w-[52%] rounded-lg border border-border bg-muted px-4 py-3 text-sm text-muted-foreground">
+            <div className="my-3 w-full md:ml-[26%] md:w-[52%] rounded-lg border border-border bg-muted px-4 py-3 text-sm text-muted-foreground">
               {createError}
             </div>
           )}
@@ -248,13 +252,13 @@ export default function DeveloperPage() {
               }}
               onClick={() => router.push(`/app/developer/${wf._id}`)}
             >
-              <div className="absolute left-[calc(25%-0.375rem)] top-4 z-10">
+              <div className="hidden md:block absolute left-[calc(25%-0.375rem)] top-4 z-10">
                 <div
                   className="h-3 w-3 rounded-full bg-foreground"
                   style={{ animation: 'dot-appear 0.3s ease-out' }}
                 />
               </div>
-              <div className="ml-[26%] w-[52%] py-3">
+              <div className="w-full md:ml-[26%] md:w-[52%] py-3">
                 <div className="group rounded-lg border border-border bg-background p-5 transition-all hover:border-foreground/20 hover:shadow-sm">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1 min-w-0">

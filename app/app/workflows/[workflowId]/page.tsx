@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { ArrowLeft, Play, ArrowRight, CheckCircle2, Circle, Loader2, XCircle, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import TimelineContainer from '@/components/timeline/TimelineContainer';
+import NavMenu from '@/components/NavMenu';
 import {
   getCustomWorkflow,
   getCustomWorkflowGraph,
@@ -353,7 +354,7 @@ export default function CustomWorkflowDetailPage() {
                   : 'text-muted-foreground hover:text-foreground'
               }`}
             >
-              Design
+              {workflow.status === 'active' ? 'Plan' : 'Workflow'}
             </button>
           </div>
 
@@ -373,6 +374,8 @@ export default function CustomWorkflowDetailPage() {
               Run
             </Button>
           )}
+
+          <NavMenu />
         </div>
       </div>
 

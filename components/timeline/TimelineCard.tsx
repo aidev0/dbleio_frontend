@@ -105,7 +105,7 @@ export default function TimelineCard({
       }}
     >
       {/* Timeline dot */}
-      <div className="absolute left-[calc(25%-0.375rem)] top-3 z-10">
+      <div className="hidden md:block absolute left-[calc(25%-0.375rem)] top-3 z-10">
         <div
           className={`h-3 w-3 rounded-full ${dotColor}`}
           style={{ animation: 'dot-appear 0.3s ease-out' }}
@@ -113,7 +113,7 @@ export default function TimelineCard({
       </div>
 
       {/* Card body */}
-      <div className={`ml-[26%] w-[52%] py-2`}>
+      <div className={`w-full md:ml-[26%] md:w-[52%] py-2`}>
         {isStatus ? (
           /* Status update — clean minimal card */
           <div className="rounded-lg border border-border px-4 py-3">

@@ -9,6 +9,7 @@ import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { getCustomWorkflows } from './workflows/lib/api';
 import type { CustomWorkflow } from './workflows/lib/types';
+import NavMenu from '@/components/NavMenu';
 
 function ContactForm({ user, logout }: { user: { email: string }; logout: () => void }) {
   const [name, setName] = useState('');
@@ -97,9 +98,9 @@ function ContactForm({ user, logout }: { user: { email: string }; logout: () => 
 function AppHome() {
   const searchParams = useSearchParams();
   const { user, logout } = useAuth();
+  const authCallbackCalled = useRef(false);
   const [customWorkflows, setCustomWorkflows] = useState<CustomWorkflow[]>([]);
   const [cwLoading, setCwLoading] = useState(true);
-  const authCallbackCalled = useRef(false);
 
   useEffect(() => {
     const handleAuthCallback = async () => {
@@ -147,7 +148,7 @@ function AppHome() {
         const wfs = await getCustomWorkflows();
         setCustomWorkflows(wfs);
       } catch {
-        // silently fail — user may not be authenticated yet
+        // silently fail
       } finally {
         setCwLoading(false);
       }
@@ -171,8 +172,11 @@ function AppHome() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <main className="mx-auto max-w-5xl px-6 py-16">
+    <div className="min-h-screen bg-background overflow-auto">
+      <div className="flex items-center justify-end border-b border-border px-4 md:px-6 py-2">
+        <NavMenu />
+      </div>
+      <main className="mx-auto max-w-5xl px-4 md:px-6 py-8 md:py-16">
         <div className="mb-8">
           <div className="mb-6 font-mono text-xs uppercase tracking-widest text-muted-foreground">DBLE Platform Workflows</div>
         </div>
@@ -207,18 +211,7 @@ function AppHome() {
 
         {/* Your Custom Workflows */}
         <div className="mt-16">
-          <div className="mb-6 flex items-center justify-between">
-            <div className="font-mono text-xs uppercase tracking-widest text-muted-foreground">Your Custom Workflows</div>
-            {customWorkflows.length > 0 && (
-              <Link
-                href="/app/workflows"
-                className="flex items-center gap-1 font-mono text-xs uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors"
-              >
-                View all
-                <ArrowRight className="h-3 w-3" />
-              </Link>
-            )}
-          </div>
+          <div className="mb-6 font-mono text-xs uppercase tracking-widest text-muted-foreground">Your Custom Workflows</div>
 
           {cwLoading ? (
             <div className="flex items-center justify-center py-12">
@@ -232,7 +225,7 @@ function AppHome() {
             </div>
           ) : (
             <div className="grid gap-px border border-border bg-border md:grid-cols-2">
-              {customWorkflows.slice(0, 4).map((wf) => (
+              {customWorkflows.map((wf) => (
                 <Link
                   key={wf._id}
                   href={`/app/workflows/${wf._id}`}
