@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, Suspense, useState } from 'react';
+import { useEffect, useRef, Suspense, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useAuth } from './video-simulation/auth/authContext';
@@ -99,11 +99,16 @@ function AppHome() {
   const { user, logout } = useAuth();
   const [customWorkflows, setCustomWorkflows] = useState<CustomWorkflow[]>([]);
   const [cwLoading, setCwLoading] = useState(true);
+  const authCallbackCalled = useRef(false);
 
   useEffect(() => {
     const handleAuthCallback = async () => {
       const code = searchParams.get('code');
       if (!code) return;
+
+      // Prevent duplicate calls (React strict mode / re-renders)
+      if (authCallbackCalled.current) return;
+      authCallbackCalled.current = true;
 
       try {
         const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/users/auth/callback`, {
