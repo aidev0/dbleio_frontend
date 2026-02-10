@@ -15,6 +15,7 @@ interface TimelineContainerProps {
   onApprove?: (entryId: string, approved: boolean, note: string) => void;
   inputPlaceholder?: string;
   loading?: boolean;
+  header?: React.ReactNode;
 }
 
 export default function TimelineContainer({
@@ -28,12 +29,15 @@ export default function TimelineContainer({
   onApprove,
   inputPlaceholder = "Type a message...",
   loading = false,
+  header,
 }: TimelineContainerProps) {
   return (
-    <div className="relative mx-auto w-full max-w-3xl py-8 md:py-12">
-      {/* The vertical timeline line */}
-      {/* Vertical line centered on dot: left + dot-half = 1.5rem+0.375rem / 2rem+0.375rem */}
-      <div className="absolute left-[1.875rem] md:left-[2.375rem] top-0 bottom-0 w-px bg-border" />
+    <div className="relative w-full py-8 md:py-12">
+      {/* Vertical timeline line at 1/4 */}
+      <div className="absolute left-[25%] top-0 bottom-0 w-px bg-border" />
+
+      {/* Optional header (e.g. RequestCard) within the timeline context */}
+      {header}
 
       {/* Loading state */}
       {loading && entries.length === 0 && (

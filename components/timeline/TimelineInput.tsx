@@ -53,8 +53,8 @@ export default function TimelineInput({ onSubmit, placeholder = "Type a message.
   if (!expanded) {
     return (
       <div className={`relative flex items-center ${className}`}>
-        {/* Center the 2rem button on the timeline axis (1.875rem / 2.375rem) */}
-        <div className="absolute left-[0.875rem] md:left-[1.375rem] z-10">
+        {/* Center the 2rem button on the timeline axis at 1/3 */}
+        <div className="absolute left-[calc(25%-1rem)] z-10">
           <button
             onClick={() => setExpanded(true)}
             className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-border bg-background transition-all hover:border-foreground hover:scale-110"
@@ -63,7 +63,7 @@ export default function TimelineInput({ onSubmit, placeholder = "Type a message.
             <Plus className="h-4 w-4 text-muted-foreground" />
           </button>
         </div>
-        <div className="ml-[calc(1.5rem+2.5rem)] md:ml-[calc(2rem+2.5rem)] py-2">
+        <div className="ml-[calc(25%+1.5rem)] py-2">
           <button
             onClick={() => setExpanded(true)}
             className="font-mono text-xs text-muted-foreground hover:text-foreground transition-colors"
@@ -77,10 +77,10 @@ export default function TimelineInput({ onSubmit, placeholder = "Type a message.
 
   return (
     <div className={`relative flex items-start ${className}`} style={{ animation: 'timeline-card-enter 0.3s ease-out' }}>
-      <div className="absolute left-[2.125rem] md:left-[2.625rem] top-3 z-10">
+      <div className="absolute left-[calc(25%-0.375rem)] top-3 z-10">
         <div className="h-3 w-3 rounded-full bg-foreground" style={{ animation: 'dot-appear 0.2s ease-out' }} />
       </div>
-      <div className="ml-[calc(1.5rem+1.5rem)] md:ml-[calc(2rem+1.5rem)] w-[calc(100%-4.5rem)] md:w-[80%] py-1">
+      <div className="ml-[26%] w-[52%] py-1">
         {titleField && (
           <input
             type="text"

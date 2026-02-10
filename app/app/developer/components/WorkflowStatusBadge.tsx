@@ -12,7 +12,7 @@ const STATUS_STYLES: Record<string, string> = {
 };
 
 const STATUS_LABELS: Record<string, string> = {
-  pending: 'Pending',
+  pending: 'Under Progress',
   running: 'Running',
   waiting_approval: 'Awaiting Approval',
   completed: 'Completed',

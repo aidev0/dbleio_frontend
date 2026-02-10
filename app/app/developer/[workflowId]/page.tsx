@@ -347,13 +347,17 @@ export default function WorkflowDetailPage() {
         {/* ── Timeline tab ── */}
         {contentMode === 'timeline' && (
           <div className="px-4 md:px-6">
-            {/* Request card on top of timeline */}
-            {spec && (
-              <div className="mx-auto w-full max-w-3xl pt-8">
-                <RequestCard spec={spec} creatorName={creatorName || 'Unknown'} createdAt={workflow.created_at} />
-              </div>
-            )}
             <TimelineContainer
+              header={spec ? (
+                <div className="relative flex items-start">
+                  <div className="absolute left-[calc(25%-0.375rem)] top-3 z-10">
+                    <div className="h-3 w-3 rounded-full bg-foreground" />
+                  </div>
+                  <div className="ml-[26%] w-[52%] py-2">
+                    <RequestCard spec={spec} creatorName={creatorName || 'Unknown'} createdAt={workflow.created_at} />
+                  </div>
+                </div>
+              ) : undefined}
               entries={entries}
               isFDE={isFDE}
               onSubmit={handleAddMessage}
