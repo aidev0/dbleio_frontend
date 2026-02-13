@@ -32,7 +32,7 @@ export default function TimelineContainer({
   header,
 }: TimelineContainerProps) {
   return (
-    <div className="relative w-full py-4 md:py-12">
+    <div className="relative w-full py-4">
       {/* Vertical timeline line at 1/4 */}
       <div className="hidden md:block absolute left-[25%] top-0 bottom-0 w-px bg-border" />
 
@@ -41,7 +41,7 @@ export default function TimelineContainer({
 
       {/* Loading state */}
       {loading && entries.length === 0 && (
-        <div className="flex items-center justify-center py-16">
+        <div className="flex items-center justify-center py-8">
           <div className="text-center">
             <div className="mx-auto mb-3 h-6 w-6 animate-spin rounded-full border-b-2 border-foreground" />
             <span className="font-mono text-xs text-muted-foreground">Loading...</span>
@@ -49,9 +49,9 @@ export default function TimelineContainer({
         </div>
       )}
 
-      {/* Empty state — just whitespace so timeline still feels connected */}
+      {/* Empty state — minimal gap before input */}
       {!loading && entries.length === 0 && (
-        <div className="py-8" />
+        <div className="py-2" />
       )}
 
       {/* Timeline cards */}

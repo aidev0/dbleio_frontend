@@ -197,16 +197,17 @@ function AppHome() {
           </Link>
 
           {/* Content Generation Workflow */}
-          <div className="bg-background p-8">
+          <Link href="/app/content-generator" className="group block bg-background p-8">
             <div className="mb-4 font-mono text-xs text-muted-foreground/40">02</div>
-            <h2 className="text-xl font-light text-foreground/50">Content Generator</h2>
-            <p className="mt-4 text-sm leading-relaxed text-muted-foreground/60">
+            <h2 className="text-xl font-light text-foreground">Content Generator</h2>
+            <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
               FDM-in-the-loop AI pipeline — brief intake, content strategy, creation, review, QA, and client approval for video, image, and copy.
             </p>
-            <div className="mt-6 font-mono text-xs uppercase tracking-wider text-muted-foreground/40">
-              Coming Soon
+            <div className="mt-6 flex items-center gap-2 font-mono text-xs uppercase tracking-wider text-muted-foreground transition-colors group-hover:text-foreground">
+              Open
+              <ArrowRight className="h-3 w-3" />
             </div>
-          </div>
+          </Link>
         </div>
 
         {/* Your Custom Workflows */}

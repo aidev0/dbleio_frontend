@@ -3,10 +3,11 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Code2, Building2, LogOut, Menu, X } from "lucide-react";
+import { Code2, Building2, LogOut, Menu, X, Pencil } from "lucide-react";
 import { useAuth } from "@/app/app/video-simulation/auth/authContext";
 
 const menuItems = [
+  { label: "Content Generation", icon: Pencil, href: "/app/content-generator" },
   { label: "Developer", icon: Code2, href: "/app/developer" },
   { label: "Organizations", icon: Building2, href: "/app/organizations" },
 ];
