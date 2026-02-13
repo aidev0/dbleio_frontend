@@ -123,6 +123,7 @@ export async function getAudience(audienceId: string): Promise<Audience | null> 
 
 export async function createAudience(data: {
   brand_id: string;
+  campaign_id?: string;
   name: string;
   description?: string;
   demographics?: Record<string, unknown>;

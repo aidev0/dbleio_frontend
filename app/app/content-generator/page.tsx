@@ -6,6 +6,7 @@ import {
   List, ListChecks, GitBranch, Loader2, Image, Clock, X,
   CheckCircle2, Circle, XCircle, Bot, User as UserIcon,
   Film, FileText, Mic, Sparkles, Megaphone, Paperclip, Settings2,
+  Pencil, Trash2, Check as CheckIcon,
 } from 'lucide-react';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -13,11 +14,14 @@ import {
 import TimelineInput from '@/components/timeline/TimelineInput';
 import Chat from '@/components/Chat';
 import ContentWorkflowStatusBadge from './components/ContentWorkflowStatusBadge';
+import CreateContentWorkflowModal from './components/CreateContentWorkflowModal';
 import NavMenu from '@/components/NavMenu';
 import {
   getContentWorkflows,
   getBrands,
   createContentWorkflow,
+  updateContentWorkflow,
+  deleteContentWorkflow,
   getUserMe,
   getOrganizations,
   createOrganization,
@@ -329,6 +333,7 @@ export default function ContentGeneratorPage() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [isTeamMember, setIsTeamMember] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
+  const [showCreateModal, setShowCreateModal] = useState(false);
 
   const [selectedWorkflow, setSelectedWorkflow] = useState<ContentWorkflow | null>(null);
   const [selectedNodes, setSelectedNodes] = useState<ContentWorkflowNode[]>([]);
@@ -336,13 +341,32 @@ export default function ContentGeneratorPage() {
   const [timelineLoading, setTimelineLoading] = useState(false);
   const autoSelectedRef = useRef(false);
 
-  // Context selectors
+  // Inline editing
+  const [editingWorkflowId, setEditingWorkflowId] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState('');
+  const [editDescription, setEditDescription] = useState('');
+
+  // Context selectors — restore from localStorage
   const [organizations, setOrganizations] = useState<{ _id: string; name: string; slug?: string }[]>([]);
-  const [selectedOrgId, setSelectedOrgId] = useState<string | undefined>(undefined);
-  const [selectedBrandId, setSelectedBrandId] = useState<string | undefined>(undefined);
+  const [selectedOrgId, setSelectedOrgId] = useState<string | undefined>(() => {
+    if (typeof window !== 'undefined') return localStorage.getItem('cg_org_id') || undefined;
+    return undefined;
+  });
+  const [selectedBrandId, setSelectedBrandId] = useState<string | undefined>(() => {
+    if (typeof window !== 'undefined') return localStorage.getItem('cg_brand_id') || undefined;
+    return undefined;
+  });
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
-  const [selectedCampaignId, setSelectedCampaignId] = useState<string | undefined>(undefined);
+  const [selectedCampaignId, setSelectedCampaignId] = useState<string | undefined>(() => {
+    if (typeof window !== 'undefined') return localStorage.getItem('cg_campaign_id') || undefined;
+    return undefined;
+  });
   const [brandAssets, setBrandAssets] = useState<BrandAsset[]>([]);
+
+  // Persist selections to localStorage
+  useEffect(() => { if (selectedOrgId) localStorage.setItem('cg_org_id', selectedOrgId); }, [selectedOrgId]);
+  useEffect(() => { if (selectedBrandId) localStorage.setItem('cg_brand_id', selectedBrandId); }, [selectedBrandId]);
+  useEffect(() => { if (selectedCampaignId) localStorage.setItem('cg_campaign_id', selectedCampaignId); }, [selectedCampaignId]);
 
   // Graph component (lazy loaded)
   const [GraphComponent, setGraphComponent] = useState<React.ComponentType<{
@@ -413,29 +437,30 @@ export default function ContentGeneratorPage() {
     (async () => {
       const orgs = await getOrganizations();
       setOrganizations(orgs);
-      if (orgs.length > 0) {
+      if (orgs.length > 0 && !selectedOrgId) {
         const defaultOrg = orgs.find((o) => myOrgIds.includes(o._id)) || orgs[0];
         setSelectedOrgId(defaultOrg._id);
       }
     })();
   }, [roleLoaded, myOrgIds]);
 
-  // When org changes, reload brands and reset downstream
+  // When org changes, reload brands — keep stored brand if still valid
   useEffect(() => {
     if (!selectedOrgId) return;
     (async () => {
       const brs = await getBrands(selectedOrgId);
       setBrands(brs);
       if (brs.length > 0) {
-        setSelectedBrandId(brs[0]._id);
+        const stored = localStorage.getItem('cg_brand_id');
+        const match = stored && brs.find((b) => b._id === stored);
+        setSelectedBrandId(match ? match._id : brs[0]._id);
       } else {
         setSelectedBrandId(undefined);
       }
-      setSelectedCampaignId(undefined);
     })();
   }, [selectedOrgId]);
 
-  // When brand changes, reload campaigns and auto-select the latest
+  // When brand changes, reload campaigns — keep stored campaign if still valid
   useEffect(() => {
     if (!selectedBrandId) { setCampaigns([]); setSelectedCampaignId(undefined); setBrandAssets([]); return; }
     (async () => {
@@ -446,10 +471,9 @@ export default function ContentGeneratorPage() {
       setCampaigns(camps);
       setBrandAssets(assets);
       if (camps.length > 0) {
-        const latest = camps.reduce((a, b) =>
-          (a.created_at || '') > (b.created_at || '') ? a : b
-        );
-        setSelectedCampaignId(latest._id);
+        const stored = localStorage.getItem('cg_campaign_id');
+        const match = stored && camps.find((c) => c._id === stored);
+        setSelectedCampaignId(match ? match._id : camps[0]._id);
       } else {
         setSelectedCampaignId(undefined);
       }
@@ -575,6 +599,69 @@ export default function ContentGeneratorPage() {
     setTimeout(() => loadTimeline(selectedWorkflow._id), 1000);
   };
 
+  const startEditWorkflow = (wf: ContentWorkflow, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditingWorkflowId(wf._id);
+    setEditTitle(wf.title);
+    setEditDescription(wf.description || '');
+  };
+
+  const saveEditWorkflow = async (wfId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      await updateContentWorkflow(wfId, { title: editTitle, description: editDescription || undefined });
+      setEditingWorkflowId(null);
+      await loadData();
+    } catch (err) {
+      console.error('Failed to update workflow:', err);
+    }
+  };
+
+  const cancelEditWorkflow = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditingWorkflowId(null);
+  };
+
+  const handleDeleteWorkflow = async (wfId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!confirm('Delete this workflow?')) return;
+    try {
+      await deleteContentWorkflow(wfId);
+      if (selectedWorkflow?._id === wfId) {
+        setSelectedWorkflow(null);
+        setSelectedNodes([]);
+      }
+      await loadData();
+    } catch (err) {
+      console.error('Failed to delete workflow:', err);
+    }
+  };
+
+  const handleCreateFromModal = async (data: {
+    title: string;
+    description?: string;
+    campaign_id?: string;
+    strategy_ids?: string[];
+    audience_ids?: string[];
+  }) => {
+    setCreateError(null);
+    const brandId = await ensureBrand();
+    if (!brandId) { setCreateError('Could not create a brand. Please try again.'); throw new Error('No brand'); }
+    const config: Record<string, unknown> = {};
+    if (data.campaign_id) config.campaign_id = data.campaign_id;
+    if (data.strategy_ids) config.strategy_ids = data.strategy_ids;
+    if (data.audience_ids) config.audience_ids = data.audience_ids;
+    const wf = await createContentWorkflow({
+      brand_id: brandId,
+      title: data.title,
+      description: data.description,
+      config,
+    });
+    setWorkflows((prev) => [wf, ...prev]);
+    setSelectedWorkflow(wf);
+    loadWorkflowDetail(wf._id);
+  };
+
   if (!roleLoaded) {
     return (
       <div className="flex h-screen items-center justify-center">
@@ -680,10 +767,19 @@ export default function ContentGeneratorPage() {
                   </div>
                 )}
 
-                {/* + input at top */}
+                {/* + button at top — opens modal */}
                 <TimelineInput
                   onSubmit={(content) => handleSendMessage(content)}
                   placeholder="Describe content to create..."
+                  onClickPlus={() => setShowCreateModal(true)}
+                />
+
+                <CreateContentWorkflowModal
+                  open={showCreateModal}
+                  onOpenChange={setShowCreateModal}
+                  brandId={selectedBrandId}
+                  campaigns={campaigns}
+                  onSubmit={handleCreateFromModal}
                 />
 
                 {/* Loading */}
@@ -694,53 +790,114 @@ export default function ContentGeneratorPage() {
                 )}
 
                 {/* Workflow cards */}
-                {workflows.map((wf) => (
-                  <div key={wf._id} className="relative flex items-start cursor-pointer" onClick={() => {
-                    router.push(`/app/content-generator/${wf._id}`);
-                  }}>
-                    {/* Timeline dot */}
-                    <div className="hidden md:block absolute left-[calc(25%-0.375rem)] top-4 z-10">
-                      <div className="h-3 w-3 rounded-full bg-foreground" />
-                    </div>
+                {workflows.map((wf) => {
+                  const isEditing = editingWorkflowId === wf._id;
+                  return (
+                    <div key={wf._id} className="relative flex items-start cursor-pointer" onClick={() => {
+                      if (!isEditing) router.push(`/app/content-generator/${wf._id}`);
+                    }}>
+                      {/* Timeline dot */}
+                      <div className="hidden md:block absolute left-[calc(25%-0.375rem)] top-4 z-10">
+                        <div className="h-3 w-3 rounded-full bg-foreground" />
+                      </div>
 
-                    {/* Card */}
-                    <div className="w-full md:ml-[26%] md:w-[52%] py-3">
-                      <div className="group rounded-lg border border-border bg-background p-5 hover:border-foreground/20 transition-colors">
-                        {/* Header: title + status */}
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="flex-1 min-w-0">
-                            <h3 className="text-base font-medium">{wf.title}</h3>
+                      {/* Card */}
+                      <div className="w-full md:ml-[26%] md:w-[52%] py-3">
+                        <div className="group rounded-lg border border-border bg-background p-5 hover:border-foreground/20 transition-colors">
+                          {/* Header: title + status + actions */}
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex-1 min-w-0">
+                              {isEditing ? (
+                                <input
+                                  value={editTitle}
+                                  onChange={(e) => setEditTitle(e.target.value)}
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="w-full text-base font-medium bg-transparent border-b border-border focus:border-foreground outline-none pb-0.5"
+                                  autoFocus
+                                />
+                              ) : (
+                                <h3 className="text-base font-medium">{wf.title}</h3>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              {isEditing ? (
+                                <>
+                                  <button
+                                    onClick={(e) => saveEditWorkflow(wf._id, e)}
+                                    className="flex h-6 w-6 items-center justify-center rounded text-foreground hover:bg-muted transition-colors"
+                                    title="Save"
+                                  >
+                                    <CheckIcon className="h-3.5 w-3.5" />
+                                  </button>
+                                  <button
+                                    onClick={cancelEditWorkflow}
+                                    className="flex h-6 w-6 items-center justify-center rounded text-muted-foreground hover:bg-muted transition-colors"
+                                    title="Cancel"
+                                  >
+                                    <X className="h-3.5 w-3.5" />
+                                  </button>
+                                </>
+                              ) : (
+                                <>
+                                  <button
+                                    onClick={(e) => startEditWorkflow(wf, e)}
+                                    className="opacity-0 group-hover:opacity-100 flex h-6 w-6 items-center justify-center rounded text-muted-foreground/40 hover:text-foreground hover:bg-muted transition-all"
+                                    title="Edit"
+                                  >
+                                    <Pencil className="h-3 w-3" />
+                                  </button>
+                                  <button
+                                    onClick={(e) => handleDeleteWorkflow(wf._id, e)}
+                                    className="opacity-0 group-hover:opacity-100 flex h-6 w-6 items-center justify-center rounded text-muted-foreground/40 hover:text-destructive hover:bg-muted transition-all"
+                                    title="Delete"
+                                  >
+                                    <Trash2 className="h-3 w-3" />
+                                  </button>
+                                </>
+                              )}
+                              <ContentWorkflowStatusBadge status={wf.status} />
+                            </div>
                           </div>
-                          <ContentWorkflowStatusBadge status={wf.status} />
-                        </div>
 
-                        {/* Current stage badge */}
-                        {wf.current_stage && (
-                          <div className="mt-2">
-                            <span className="inline-flex items-center rounded-full border border-border px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider text-muted-foreground">
-                              {CONTENT_STAGE_LABELS[wf.current_stage] || wf.current_stage}
-                            </span>
-                          </div>
-                        )}
-
-                        {/* Description */}
-                        {wf.description && wf.description !== wf.title && (
-                          <p className="mt-2 text-sm text-muted-foreground leading-relaxed line-clamp-3">
-                            {wf.description}
-                          </p>
-                        )}
-
-                        {/* Timestamps */}
-                        <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 font-mono text-[10px] text-muted-foreground/50">
-                          <span>Requested {formatShortDate(wf.created_at)}</span>
-                          {wf.updated_at && wf.updated_at !== wf.created_at && (
-                            <span>Updated {formatShortDate(wf.updated_at)}</span>
+                          {/* Current stage badge */}
+                          {wf.current_stage && (
+                            <div className="mt-2">
+                              <span className="inline-flex items-center rounded-full border border-border px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider text-muted-foreground">
+                                {CONTENT_STAGE_LABELS[wf.current_stage] || wf.current_stage}
+                              </span>
+                            </div>
                           )}
+
+                          {/* Description */}
+                          {isEditing ? (
+                            <textarea
+                              value={editDescription}
+                              onChange={(e) => setEditDescription(e.target.value)}
+                              onClick={(e) => e.stopPropagation()}
+                              className="mt-2 w-full text-sm text-muted-foreground bg-transparent border border-border rounded-md px-2 py-1.5 focus:border-foreground outline-none resize-none"
+                              rows={2}
+                              placeholder="Description..."
+                            />
+                          ) : (
+                            wf.description && wf.description !== wf.title && (
+                              <p className="mt-2 text-sm text-muted-foreground leading-relaxed line-clamp-3">
+                                {wf.description}
+                              </p>
+                            )
+                          )}
+
+                          {/* Timestamps */}
+                          <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 font-mono text-[10px] text-muted-foreground/50">
+                            <span>Requested {formatShortDate(wf.created_at)}</span>
+                            {wf.updated_at && wf.updated_at !== wf.created_at && (
+                              <span>Updated {formatShortDate(wf.updated_at)}</span>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
 

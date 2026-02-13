@@ -32,6 +32,7 @@ export interface Seat {
 export interface AudienceDemographics {
   age_range?: number[];
   gender: string[];
+  generation?: string;
   locations: string[];
   income_level: string[];
   interests: string[];
@@ -41,6 +42,7 @@ export interface AudienceDemographics {
 export interface Audience {
   _id: string;
   brand_id: string;
+  campaign_id?: string;
   name: string;
   description?: string;
   demographics: AudienceDemographics;

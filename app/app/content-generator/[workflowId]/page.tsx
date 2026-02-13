@@ -37,8 +37,8 @@ import {
   getBrands,
 } from '../lib/api';
 import type { Campaign } from '../lib/api';
-import { getBrandAssets } from '../../brands/lib/api';
-import type { BrandAsset } from '../../brands/lib/types';
+import { getBrandAssets, getStrategies } from '../../brands/lib/api';
+import type { BrandAsset, Strategy } from '../../brands/lib/types';
 import type { Brand } from '../../brands/lib/types';
 import type { ContentWorkflow, ContentWorkflowNode, ContentTimelineEntry } from '../lib/types';
 import { CONTENT_PIPELINE_STAGES, CONTENT_STAGE_LABELS } from '../lib/types';
@@ -198,14 +198,16 @@ function VariationsGrid({ variations }: { variations: ContentVariation[] }) {
 function WorkflowStepsList({
   workflow,
   nodes,
-  campaignCount,
+  campaignName,
+  strategyNames,
   assetCount,
   onClickStage,
   onOpenStage,
 }: {
   workflow: ContentWorkflow;
   nodes: ContentWorkflowNode[];
-  campaignCount: number;
+  campaignName?: string;
+  strategyNames: string[];
   assetCount: number;
   onClickStage?: (stageKey: string) => void;
   onOpenStage?: (stageKey: string) => void;
@@ -266,12 +268,21 @@ function WorkflowStepsList({
               <div className="px-4 pb-3 bg-muted/50">
                 <div className="ml-10 space-y-1.5">
                   <div className="flex items-center gap-2">
-                    {campaignCount > 0
+                    {campaignName
                       ? <CheckCircle2 className="h-3.5 w-3.5 text-green-500 shrink-0" />
                       : <Circle className="h-3.5 w-3.5 text-muted-foreground/30 shrink-0" />}
                     <Megaphone className="h-3 w-3 text-muted-foreground/40" />
-                    <span className={`text-xs ${campaignCount > 0 ? 'text-foreground' : 'text-muted-foreground/50'}`}>
-                      Campaigns {campaignCount > 0 ? `(${campaignCount})` : '— none set'}
+                    <span className={`text-xs ${campaignName ? 'text-foreground' : 'text-muted-foreground/50'}`}>
+                      {campaignName || 'Campaign — none set'}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {strategyNames.length > 0
+                      ? <CheckCircle2 className="h-3.5 w-3.5 text-green-500 shrink-0" />
+                      : <Circle className="h-3.5 w-3.5 text-muted-foreground/30 shrink-0" />}
+                    <Settings2 className="h-3 w-3 text-muted-foreground/40" />
+                    <span className={`text-xs ${strategyNames.length > 0 ? 'text-foreground' : 'text-muted-foreground/50'}`}>
+                      {strategyNames.length > 0 ? strategyNames.join(', ') : 'Strategy — none set'}
                     </span>
                   </div>
                   <div className="flex items-center gap-2">
@@ -311,6 +322,7 @@ export default function ContentWorkflowDetailPage() {
   // Brand context
   const [brand, setBrand] = useState<Brand | null>(null);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [strategies, setStrategies] = useState<Strategy[]>([]);
   const [brandAssets, setBrandAssets] = useState<BrandAsset[]>([]);
 
   // Graph component (lazy loaded)
@@ -376,15 +388,18 @@ export default function ContentWorkflowDetailPage() {
 
       // Load brand context if available
       if (wf?.brand_id) {
-        const [brs, camps, assets] = await Promise.all([
+        const campaignId = (wf.config as Record<string, unknown>)?.campaign_id as string | undefined;
+        const [brs, camps, assets, strats] = await Promise.all([
           getBrands(),
           getCampaigns(wf.brand_id),
           getBrandAssets(wf.brand_id),
+          campaignId ? getStrategies(campaignId) : Promise.resolve([]),
         ]);
         const b = brs.find((br) => br._id === wf.brand_id) || null;
         setBrand(b);
         setCampaigns(camps);
         setBrandAssets(assets);
+        setStrategies(strats);
       }
     } catch (err) {
       console.error('Failed to load content workflow:', err);
@@ -566,7 +581,8 @@ export default function ContentWorkflowDetailPage() {
             <WorkflowStepsList
               workflow={workflow}
               nodes={nodes}
-              campaignCount={campaigns.length}
+              campaignName={campaigns.find((c) => c._id === (workflow.config as Record<string, unknown>)?.campaign_id)?.name}
+              strategyNames={strategies.map((s) => s.name)}
               assetCount={brandAssets.length}
               onClickStage={handleCompleteStage}
               onOpenStage={setOpenStageKey}
@@ -626,35 +642,43 @@ export default function ContentWorkflowDetailPage() {
 
                 {/* ── Strategy & Assets ── */}
                 {openStageKey === 'strategy_assets' && (() => {
-                  const allStrategies = campaigns.flatMap((c) =>
-                    (c.strategies || []).map((s, i) => ({
-                      key: `${c._id}-${i}`,
-                      label: s.name || `Strategy ${i + 1}`,
-                      campaign: c.name,
-                      budget: s.budget_amount ? `$${s.budget_amount} ${s.budget_type || ''}` : undefined,
-                    }))
-                  );
+                  const wfConfig = workflow.config as Record<string, unknown> | undefined;
+                  const wfCampaignId = wfConfig?.campaign_id as string | undefined;
+                  const campaign = campaigns.find((c) => c._id === wfCampaignId);
                   return (
                   <>
+                    {/* Campaign */}
+                    <div>
+                      <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground mb-1.5 flex items-center gap-1.5">
+                        <Megaphone className="h-3 w-3" /> Campaign
+                      </div>
+                      {campaign ? (
+                        <div className="rounded border border-border px-3 py-2">
+                          <span className="text-xs font-medium">{campaign.name}</span>
+                          {campaign.description && <p className="text-[10px] text-muted-foreground mt-0.5">{campaign.description}</p>}
+                        </div>
+                      ) : <p className="text-xs text-muted-foreground/50">No campaign linked</p>}
+                    </div>
+
                     {/* Strategy selector */}
                     <div>
                       <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground mb-1.5 flex items-center gap-1.5">
-                        <Megaphone className="h-3 w-3" /> Strategy
+                        <Settings2 className="h-3 w-3" /> Strategy
                       </div>
-                      {allStrategies.length > 0 ? (
+                      {strategies.length > 0 ? (
                         <Select value={selectedStrategy} onValueChange={handleSelectStrategy}>
                           <SelectTrigger className="h-8 text-xs">
                             <SelectValue placeholder="Select strategy" />
                           </SelectTrigger>
                           <SelectContent>
-                            {allStrategies.map((s) => (
-                              <SelectItem key={s.key} value={s.key}>
-                                {s.label} <span className="text-muted-foreground">— {s.campaign}</span>{s.budget ? ` (${s.budget})` : ''}
+                            {strategies.map((s) => (
+                              <SelectItem key={s._id} value={s._id}>
+                                {s.name}{s.budget_amount ? ` ($${s.budget_amount} ${s.budget_type || ''})` : ''}
                               </SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
-                      ) : <p className="text-xs text-muted-foreground/50">No strategies — add to campaigns in Brands</p>}
+                      ) : <p className="text-xs text-muted-foreground/50">{wfCampaignId ? 'No strategies for this campaign' : 'Link a campaign to see strategies'}</p>}
                     </div>
 
                     {/* Assets multi-select */}

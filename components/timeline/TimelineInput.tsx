@@ -9,9 +9,10 @@ interface TimelineInputProps {
   className?: string;
   titleField?: boolean;
   titlePlaceholder?: string;
+  onClickPlus?: () => void;
 }
 
-export default function TimelineInput({ onSubmit, placeholder = "Type a message...", className = "", titleField = false, titlePlaceholder = "Title (optional)" }: TimelineInputProps) {
+export default function TimelineInput({ onSubmit, placeholder = "Type a message...", className = "", titleField = false, titlePlaceholder = "Title (optional)", onClickPlus }: TimelineInputProps) {
   const [expanded, setExpanded] = useState(false);
   const [value, setValue] = useState('');
   const [title, setTitle] = useState('');
@@ -50,13 +51,21 @@ export default function TimelineInput({ onSubmit, placeholder = "Type a message.
     }
   };
 
+  const handlePlusClick = () => {
+    if (onClickPlus) {
+      onClickPlus();
+    } else {
+      setExpanded(true);
+    }
+  };
+
   if (!expanded) {
     return (
       <div className={`relative flex items-center ${className}`}>
         {/* Center the 2rem button on the timeline axis at 1/3 */}
         <div className="hidden md:block absolute left-[calc(25%-1rem)] z-10">
           <button
-            onClick={() => setExpanded(true)}
+            onClick={handlePlusClick}
             className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-border bg-background transition-all hover:border-foreground hover:scale-110"
             style={{ animation: 'dot-appear 0.3s ease-out' }}
           >
@@ -65,7 +74,7 @@ export default function TimelineInput({ onSubmit, placeholder = "Type a message.
         </div>
         <div className="md:ml-[calc(25%+1.5rem)] py-2">
           <button
-            onClick={() => setExpanded(true)}
+            onClick={handlePlusClick}
             className="font-mono text-xs text-muted-foreground hover:text-foreground transition-colors"
           >
             {placeholder}

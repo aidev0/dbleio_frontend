@@ -4,14 +4,14 @@ import { useEffect, useState, useRef } from 'react';
 import {
   Plus, Tag, ChevronDown, ChevronRight, Megaphone, Target, Layers,
   Trash2, Pencil, Paperclip, Eye, Download, Copy, Check,
-  Film, ImageIcon, FileText, Music, Type as TypeIcon,
+  Film, ImageIcon, FileText, Music, Type as TypeIcon, Users,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { getBrands, createBrand, updateBrand, deleteBrand, getAudiences, createAudience, deleteAudience, getBrandAssets, createBrandAsset, uploadBrandAsset, deleteBrandAsset, getStrategies, createStrategy, updateStrategy, deleteStrategy } from './lib/api';
+import { getBrands, createBrand, updateBrand, deleteBrand, getAudiences, createAudience, updateAudience, deleteAudience, getBrandAssets, createBrandAsset, uploadBrandAsset, deleteBrandAsset, getStrategies, createStrategy, updateStrategy, deleteStrategy } from './lib/api';
 import { getOrganizations } from '../developer/lib/api';
 import BrandForm from './components/BrandForm';
 import AudienceForm from './components/AudienceForm';
@@ -70,6 +70,8 @@ export default function BrandsPage() {
   const [showCreateBrand, setShowCreateBrand] = useState(false);
   const [showCreateCampaign, setShowCreateCampaign] = useState(false);
   const [showAddAudience, setShowAddAudience] = useState(false);
+  const [showEditAudience, setShowEditAudience] = useState(false);
+  const [editAudience, setEditAudience] = useState<Audience | null>(null);
   const [showAddAsset, setShowAddAsset] = useState(false);
   const [showCreateStrategy, setShowCreateStrategy] = useState(false);
   const [showEditCampaign, setShowEditCampaign] = useState(false);
@@ -80,6 +82,7 @@ export default function BrandsPage() {
   const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [expandedBrands, setExpandedBrands] = useState<Set<string>>(new Set());
+  const [expandedCampaigns, setExpandedCampaigns] = useState<Set<string>>(new Set());
 
   // Campaign form
   const [campaignName, setCampaignName] = useState('');
@@ -144,12 +147,19 @@ export default function BrandsPage() {
       setAssets(as_);
       setStrategies(st);
       if (o.length > 0 && !selectedOrgId) setSelectedOrgId(o[0]._id);
-      // Auto-expand brands that have content
-      const withContent = new Set<string>();
-      c.forEach((camp) => { if (camp.brand_id) withContent.add(camp.brand_id); });
-      a.forEach((aud) => { if (aud.brand_id) withContent.add(aud.brand_id); });
-      as_.forEach((ast) => { if (ast.brand_id) withContent.add(ast.brand_id); });
-      setExpandedBrands(withContent);
+      // Auto-expand on initial load only
+      if (!initialLoadDone.current) {
+        initialLoadDone.current = true;
+        const withContent = new Set<string>();
+        c.forEach((camp) => { if (camp.brand_id) withContent.add(camp.brand_id); });
+        a.forEach((aud) => { if (aud.brand_id) withContent.add(aud.brand_id); });
+        as_.forEach((ast) => { if (ast.brand_id) withContent.add(ast.brand_id); });
+        setExpandedBrands(withContent);
+        const campaignsWithContent = new Set<string>();
+        st.forEach((s) => { if (s.campaign_id) campaignsWithContent.add(s.campaign_id); });
+        a.forEach((aud) => { if (aud.campaign_id) campaignsWithContent.add(aud.campaign_id); });
+        setExpandedCampaigns(campaignsWithContent);
+      }
     } catch (err) {
       console.error('Failed to load:', err);
     } finally {
@@ -205,7 +215,7 @@ export default function BrandsPage() {
   const handleCreateAudience = async (data: Parameters<typeof createAudience>[0]) => {
     setCreating(true);
     try {
-      await createAudience(data);
+      await createAudience({ ...data, campaign_id: selectedCampaignId || undefined });
       setShowAddAudience(false);
       await load();
     } finally {
@@ -220,6 +230,31 @@ export default function BrandsPage() {
       await load();
     } catch (err) {
       console.error('Failed to delete audience:', err);
+    }
+  };
+
+  const openEditAudience = (aud: Audience) => {
+    setEditAudience(aud);
+    setShowEditAudience(true);
+  };
+
+  const handleSaveEditAudience = async (data: Parameters<typeof createAudience>[0]) => {
+    if (!editAudience) return;
+    setSaving(true);
+    try {
+      await updateAudience(editAudience._id, {
+        name: data.name,
+        description: data.description,
+        demographics: data.demographics as unknown as Audience['demographics'],
+        size_estimate: data.size_estimate,
+      });
+      setShowEditAudience(false);
+      setEditAudience(null);
+      await load();
+    } catch (err) {
+      console.error('Failed to update audience:', err);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -313,6 +348,12 @@ export default function BrandsPage() {
         name: editStrategyName,
         budget_amount: editStrategyBudgetAmount ? parseFloat(editStrategyBudgetAmount) : undefined,
         budget_type: editStrategyBudgetType || undefined,
+        performance_objective: editStrategyKpi ? { kpi: editStrategyKpi, value: editStrategyKpiValue ? parseFloat(editStrategyKpiValue) : undefined } : undefined,
+        audience_control: (editStrategyLocations || editStrategyInterests) ? {
+          location: editStrategyLocations ? editStrategyLocations.split(',').map(s => s.trim()).filter(Boolean) : [],
+          zip_codes: [],
+          in_market_interests: editStrategyInterests ? editStrategyInterests.split(',').map(s => s.trim()).filter(Boolean) : [],
+        } : undefined,
       });
       setShowEditStrategy(false);
       setEditStrategy(null);
@@ -384,8 +425,9 @@ export default function BrandsPage() {
     setShowCreateCampaign(true);
   };
 
-  const openAddAudience = (brandId: string) => {
+  const openAddAudience = (brandId: string, campaignId: string) => {
     setSelectedBrandId(brandId);
+    setSelectedCampaignId(campaignId);
     setShowAddAudience(true);
   };
 
@@ -441,11 +483,23 @@ export default function BrandsPage() {
     });
   };
 
+  const toggleCampaign = (campaignId: string) => {
+    setExpandedCampaigns((prev) => {
+      const next = new Set(prev);
+      if (next.has(campaignId)) next.delete(campaignId);
+      else next.add(campaignId);
+      return next;
+    });
+  };
+
   const getCampaignsForBrand = (brandId: string) =>
     campaigns.filter((c) => c.brand_id === brandId);
 
   const getAudiencesForBrand = (brandId: string) =>
     audiences.filter((a) => a.brand_id === brandId);
+
+  const getAudiencesForCampaign = (campaignId: string) =>
+    audiences.filter((a) => a.campaign_id === campaignId);
 
   const getAssetsForBrand = (brandId: string) =>
     assets.filter((a) => a.brand_id === brandId);
@@ -454,16 +508,11 @@ export default function BrandsPage() {
     <div className="min-h-screen bg-background">
       <main className="mx-auto max-w-2xl px-4 md:px-6 py-8 md:py-12">
         {/* Header */}
-        <div className="flex items-start justify-between gap-4 mb-10">
-          <div>
-            <h1 className="text-xl font-medium tracking-tight">Brands</h1>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Manage brands, campaigns, and audiences.
-            </p>
-          </div>
-          <Button onClick={() => setShowCreateBrand(true)} size="sm" className="h-8 gap-1 text-xs shrink-0">
-            <Plus className="h-3.5 w-3.5" /> New Brand
-          </Button>
+        <div className="mb-10">
+          <h1 className="text-xl font-medium tracking-tight">Brands</h1>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Manage brands, campaigns, and audiences.
+          </p>
         </div>
 
         {loading && (
@@ -489,7 +538,7 @@ export default function BrandsPage() {
           <div className="space-y-2">
             {brands.map((brand) => {
               const brandCampaigns = getCampaignsForBrand(brand._id);
-              const brandAudiences = getAudiencesForBrand(brand._id);
+
               const brandAssets = getAssetsForBrand(brand._id);
               const isExpanded = expandedBrands.has(brand._id);
 
@@ -577,13 +626,26 @@ export default function BrandsPage() {
 
                       {brandCampaigns.map((c) => {
                         const campStrategies = getStrategiesForCampaign(c._id);
+                        const campAudiences = getAudiencesForCampaign(c._id);
+                        const isCampExpanded = expandedCampaigns.has(c._id);
                         return (
                           <div key={c._id}>
                             {/* Campaign row */}
-                            <div className="group flex items-start gap-3 px-4 py-2.5 hover:bg-muted/40 transition-colors border-b border-border/30">
-                              <div className="w-6 shrink-0" />
+                            <div
+                              className="group flex items-start gap-2 px-4 py-3 hover:bg-muted/40 transition-colors border-b border-border/30 border-l-2 border-l-foreground/20 cursor-pointer"
+                              onClick={() => toggleCampaign(c._id)}
+                            >
+                              <button className="mt-0.5 shrink-0 ml-1 text-muted-foreground/40">
+                                {isCampExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                              </button>
+                              <Megaphone className="h-3.5 w-3.5 text-muted-foreground/50 mt-0.5 shrink-0" />
                               <div className="flex-1 min-w-0 space-y-1">
-                                <span className="text-xs font-medium">{c.name}</span>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-sm font-semibold">{c.name}</span>
+                                  <span className="font-mono text-[9px] text-muted-foreground/40">
+                                    {campStrategies.length}s · {campAudiences.length}a
+                                  </span>
+                                </div>
                                 {c.description && (
                                   <p className="text-[11px] text-muted-foreground/60 line-clamp-2">{c.description}</p>
                                 )}
@@ -597,20 +659,21 @@ export default function BrandsPage() {
                                 </div>
                               </div>
                               <button
-                                onClick={() => openEditCampaign(c)}
+                                onClick={(e) => { e.stopPropagation(); openEditCampaign(c); }}
                                 className="opacity-0 group-hover:opacity-100 flex h-5 w-5 items-center justify-center rounded text-muted-foreground/30 hover:text-foreground hover:bg-muted transition-all"
                                 title="Edit campaign"
                               >
                                 <Pencil className="h-3 w-3" />
                               </button>
                               <button
-                                onClick={() => handleDeleteCampaign(c._id)}
+                                onClick={(e) => { e.stopPropagation(); handleDeleteCampaign(c._id); }}
                                 className="opacity-0 group-hover:opacity-100 flex h-5 w-5 items-center justify-center rounded text-muted-foreground/40 hover:text-destructive transition-all"
                               >
                                 <Trash2 className="h-3 w-3" />
                               </button>
                             </div>
 
+                            {isCampExpanded && (<>
                             {/* Strategies sub-section under this campaign */}
                             <div className="px-4 py-1.5 border-b border-border/30 bg-muted/10">
                               <div className="flex items-center justify-between ml-12">
@@ -642,7 +705,7 @@ export default function BrandsPage() {
                             {campStrategies.map((st) => (
                               <div
                                 key={st._id}
-                                className="group flex items-start gap-3 px-4 py-2.5 hover:bg-muted/40 transition-colors border-b border-border/20 bg-muted/10"
+                                className="group flex items-center gap-3 px-4 py-2.5 hover:bg-muted/40 transition-colors border-b border-border/20 bg-muted/10"
                               >
                                 <div className="w-12 shrink-0" />
                                 <div className="flex-1 min-w-0 space-y-1">
@@ -661,14 +724,10 @@ export default function BrandsPage() {
                                     {st.audience_control?.location && st.audience_control.location.length > 0 && st.audience_control.location.map(l => (
                                       <span key={l} className="rounded bg-muted px-1.5 py-0.5 font-mono text-[8px] text-muted-foreground/60">{l}</span>
                                     ))}
+                                    {st.audience_control?.in_market_interests && st.audience_control.in_market_interests.length > 0 && st.audience_control.in_market_interests.map(i => (
+                                      <span key={i} className="rounded bg-muted px-1.5 py-0.5 font-mono text-[8px] text-muted-foreground/60">{i}</span>
+                                    ))}
                                   </div>
-                                  {st.audience_control?.in_market_interests && st.audience_control.in_market_interests.length > 0 && (
-                                    <div className="flex flex-wrap gap-1">
-                                      {st.audience_control.in_market_interests.map(i => (
-                                        <span key={i} className="rounded bg-muted px-1.5 py-0.5 font-mono text-[8px] text-muted-foreground/60">{i}</span>
-                                      ))}
-                                    </div>
-                                  )}
                                 </div>
                                 <button
                                   onClick={() => openEditStrategy(st)}
@@ -685,58 +744,90 @@ export default function BrandsPage() {
                                 </button>
                               </div>
                             ))}
+
+                            {/* Audiences sub-section under this campaign */}
+                            <div className="px-4 py-1.5 border-b border-border/30 bg-muted/10">
+                              <div className="flex items-center justify-between ml-12">
+                                <div className="flex items-center gap-1.5">
+                                  <Target className="h-3 w-3 text-muted-foreground/40" />
+                                  <span className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/60">Audiences</span>
+                                </div>
+                                <button
+                                  onClick={() => openAddAudience(brand._id, c._id)}
+                                  className="text-muted-foreground/30 hover:text-foreground transition-colors"
+                                  title="Add audience"
+                                >
+                                  <Plus className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                            </div>
+
+                            {campAudiences.length === 0 && (
+                              <div className="px-4 py-3 text-center bg-muted/10 border-b border-border/30">
+                                <button
+                                  onClick={() => openAddAudience(brand._id, c._id)}
+                                  className="text-xs text-muted-foreground/40 hover:text-foreground transition-colors"
+                                >
+                                  + Add first audience
+                                </button>
+                              </div>
+                            )}
+
+                            {campAudiences.map((aud) => (
+                              <div
+                                key={aud._id}
+                                className="group flex items-center gap-3 px-4 py-2.5 hover:bg-muted/40 transition-colors border-b border-border/20 bg-muted/10"
+                              >
+                                <div className="w-12 shrink-0" />
+                                <div className="flex-1 min-w-0 space-y-1">
+                                  <span className="text-xs font-medium">{aud.name}</span>
+                                  <div className="flex flex-wrap items-center gap-1.5">
+                                    {aud.demographics?.generation && (
+                                      <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-[8px] uppercase text-muted-foreground/60">
+                                        {aud.demographics.generation}
+                                      </span>
+                                    )}
+                                    {aud.demographics?.age_range && aud.demographics.age_range.length === 2 && (
+                                      <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-[8px] text-muted-foreground/60">
+                                        {aud.demographics.age_range[0]}–{aud.demographics.age_range[1]}
+                                      </span>
+                                    )}
+                                    {aud.demographics?.gender && aud.demographics.gender.length > 0 && !(aud.demographics.gender.length === 1 && aud.demographics.gender[0] === 'All') && (
+                                      <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-[8px] text-muted-foreground/60">
+                                        {aud.demographics.gender.join(', ')}
+                                      </span>
+                                    )}
+                                    {aud.demographics?.locations && aud.demographics.locations.length > 0 && aud.demographics.locations.map(l => (
+                                      <span key={l} className="rounded bg-muted px-1.5 py-0.5 font-mono text-[8px] text-muted-foreground/60">{l}</span>
+                                    ))}
+                                    {aud.demographics?.interests && aud.demographics.interests.length > 0 && aud.demographics.interests.map(i => (
+                                      <span key={i} className="rounded bg-muted px-1.5 py-0.5 font-mono text-[8px] text-muted-foreground/60">{i}</span>
+                                    ))}
+                                    {aud.size_estimate != null && (
+                                      <span className="inline-flex items-center gap-0.5 rounded bg-muted px-1.5 py-0.5 font-mono text-[8px] text-muted-foreground/60">
+                                        <Users className="h-2.5 w-2.5" />~{aud.size_estimate.toLocaleString()}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                                <button
+                                  onClick={() => openEditAudience(aud)}
+                                  className="opacity-0 group-hover:opacity-100 flex h-5 w-5 items-center justify-center rounded text-muted-foreground/40 hover:text-foreground transition-all"
+                                >
+                                  <Pencil className="h-3 w-3" />
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteAudience(aud._id)}
+                                  className="opacity-0 group-hover:opacity-100 flex h-5 w-5 items-center justify-center rounded text-muted-foreground/40 hover:text-destructive transition-all"
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </button>
+                              </div>
+                            ))}
+                            </>)}
                           </div>
                         );
                       })}
-
-                      {/* Audiences section */}
-                      <div className="px-4 py-2 border-t border-border/50 border-b border-border/50">
-                        <div className="flex items-center justify-between ml-6">
-                          <div className="flex items-center gap-1.5">
-                            <Target className="h-3 w-3 text-muted-foreground/40" />
-                            <span className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/60">Audiences</span>
-                          </div>
-                          <button
-                            onClick={() => openAddAudience(brand._id)}
-                            className="text-muted-foreground/30 hover:text-foreground transition-colors"
-                            title="Add audience"
-                          >
-                            <Plus className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
-                      </div>
-
-                      {brandAudiences.length === 0 && (
-                        <div className="px-4 py-4 text-center">
-                          <button
-                            onClick={() => openAddAudience(brand._id)}
-                            className="text-xs text-muted-foreground/40 hover:text-foreground transition-colors"
-                          >
-                            + Add first audience
-                          </button>
-                        </div>
-                      )}
-
-                      {brandAudiences.map((aud) => (
-                        <div
-                          key={aud._id}
-                          className="group flex items-center gap-3 px-4 py-2.5 hover:bg-muted/40 transition-colors border-b border-border/30 last:border-b-0"
-                        >
-                          <div className="w-6 shrink-0" />
-                          <div className="flex-1 min-w-0">
-                            <span className="text-xs font-medium">{aud.name}</span>
-                            {aud.description && (
-                              <p className="text-[11px] text-muted-foreground/60 line-clamp-2">{aud.description}</p>
-                            )}
-                          </div>
-                          <button
-                            onClick={() => handleDeleteAudience(aud._id)}
-                            className="opacity-0 group-hover:opacity-100 flex h-5 w-5 items-center justify-center rounded text-muted-foreground/40 hover:text-destructive transition-all"
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </button>
-                        </div>
-                      ))}
 
                       {/* Assets section */}
                       <div className="px-4 py-2 border-t border-border/50 border-b border-border/50">
@@ -1003,6 +1094,31 @@ export default function BrandsPage() {
                 onSubmit={handleCreateAudience}
                 onCancel={() => setShowAddAudience(false)}
                 loading={creating}
+              />
+            )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Edit Audience Dialog */}
+        <Dialog open={showEditAudience} onOpenChange={setShowEditAudience}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle className="text-base font-medium">Edit Audience</DialogTitle>
+            </DialogHeader>
+            {editAudience && (
+              <AudienceForm
+                key={editAudience._id}
+                brandId={editAudience.brand_id}
+                onSubmit={handleSaveEditAudience}
+                onCancel={() => setShowEditAudience(false)}
+                loading={saving}
+                initialValues={{
+                  name: editAudience.name,
+                  description: editAudience.description,
+                  demographics: editAudience.demographics,
+                  size_estimate: editAudience.size_estimate,
+                }}
+                submitLabel="Save Changes"
               />
             )}
           </DialogContent>
