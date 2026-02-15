@@ -7,12 +7,14 @@ import {
   CheckCircle2, Circle, Loader2, XCircle, Clock,
   MoreHorizontal, CalendarClock, Copy, Download, Star, Trash2,
   ChevronLeft, ChevronRight, Bot, User as UserIcon, Image as ImageIcon,
-  Megaphone, Paperclip, Settings2, X,
+  Megaphone, Paperclip, Settings2, X, Pencil,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
+import { Combobox } from '@/components/ui/combobox';
+import { Input } from '@/components/ui/input';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -35,6 +37,7 @@ import {
   updateContentWorkflow,
   getCampaigns,
   getBrands,
+  generateConcepts,
 } from '../lib/api';
 import type { Campaign } from '../lib/api';
 import { getBrandAssets, getStrategies } from '../../brands/lib/api';
@@ -318,6 +321,10 @@ export default function ContentWorkflowDetailPage() {
 
   // Variations
   const [variations, setVariations] = useState<ContentVariation[]>([]);
+
+  // Concept generation
+  const [generatingRows, setGeneratingRows] = useState<Set<number>>(new Set());
+  const [editingConceptIdx, setEditingConceptIdx] = useState<number | null>(null);
 
   // Brand context
   const [brand, setBrand] = useState<Brand | null>(null);
@@ -781,34 +788,213 @@ export default function ContentWorkflowDetailPage() {
                 )}
 
                 {/* ── Concepts ── */}
-                {openStageKey === 'concepts' && (
+                {openStageKey === 'concepts' && (() => {
+                  const conceptRows = (getSetting('concepts', 'concept_allocations') as Array<{ num: string; tone: string; model?: string }>) || [{ num: '3', tone: '', model: '' }];
+                  const totalConcepts = conceptRows.reduce((sum, r) => sum + (parseInt(r.num) || 0), 0);
+                  const generatedConcepts = (getSetting('concepts', 'generated_concepts') as Array<{ title: string; hook: string; script: string; messaging: string[]; tone?: string }>) || [];
+
+                  const updateConceptRows = (next: Array<{ num: string; tone: string; model?: string }>) => {
+                    updateStageSetting('concepts', 'concept_allocations', next);
+                  };
+                  const updateConceptRow = (idx: number, field: 'num' | 'tone' | 'model', value: string) => {
+                    const next = conceptRows.map((r, i) => i === idx ? { ...r, [field]: value } : r);
+                    updateConceptRows(next);
+                  };
+                  const addConceptRow = () => updateConceptRows([...conceptRows, { num: '3', tone: '', model: '' }]);
+                  const removeConceptRow = (idx: number) => updateConceptRows(conceptRows.filter((_, i) => i !== idx));
+
+                  const deleteGeneratedConcept = (idx: number) => {
+                    const next = generatedConcepts.filter((_, i) => i !== idx);
+                    updateStageSetting('concepts', 'generated_concepts', next);
+                    if (editingConceptIdx === idx) setEditingConceptIdx(null);
+                  };
+                  const updateGeneratedConcept = (idx: number, field: string, value: string) => {
+                    const parsed = field === 'messaging' ? value.split('\n') : value;
+                    const next = generatedConcepts.map((c, i) => i === idx ? { ...c, [field]: parsed } : c);
+                    updateStageSetting('concepts', 'generated_concepts', next);
+                  };
+
+                  const handleGenerate = async (idx: number) => {
+                    const row = conceptRows[idx];
+                    if (!row.tone || !row.num) return;
+                    setGeneratingRows((prev) => new Set(prev).add(idx));
+                    try {
+                      const result = await generateConcepts(workflowId, parseInt(row.num) || 3, row.tone);
+                      const taggedConcepts = result.concepts.map((c) => ({ ...c, tone: row.tone }));
+                      // Use functional update to safely merge with concurrent results
+                      setStageSettings((prev) => {
+                        const existing = (prev['concepts']?.['generated_concepts'] as Array<{ title: string; hook: string; script: string; messaging: string[]; tone?: string }>) || [];
+                        const next = { ...prev, concepts: { ...prev['concepts'], generated_concepts: [...existing, ...taggedConcepts] } };
+                        if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+                        saveTimeoutRef.current = setTimeout(async () => {
+                          if (!workflow) return;
+                          try {
+                            await updateContentWorkflow(workflow._id, {
+                              config: { ...workflow.config, stage_settings: next },
+                            } as Partial<ContentWorkflow>);
+                          } catch (err) {
+                            console.error('Failed to save settings:', err);
+                          }
+                        }, 500);
+                        return next;
+                      });
+                    } catch (err) {
+                      console.error('Concept generation failed:', err);
+                    } finally {
+                      setGeneratingRows((prev) => { const next = new Set(prev); next.delete(idx); return next; });
+                    }
+                  };
+
+                  return (
                   <>
                     <div>
-                      <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground mb-1.5">Number of Concepts</div>
-                      <Select value={(getSetting('concepts', 'num_concepts') as string) || ''} onValueChange={(v) => updateStageSetting('concepts', 'num_concepts', v)}><SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select" /></SelectTrigger>
-                        <SelectContent>
-                          {[3, 5, 8, 10].map((n) => <SelectItem key={n} value={String(n)}>{n} concepts</SelectItem>)}
-                        </SelectContent>
-                      </Select>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground">Concepts &middot; {totalConcepts} total</div>
+                        <button onClick={addConceptRow} className="font-mono text-[10px] text-muted-foreground hover:text-foreground transition-colors">+ Add concept</button>
+                      </div>
+                      <div className="space-y-1.5">
+                        {conceptRows.map((row, idx) => (
+                          <div key={idx} className="flex items-center gap-1">
+                            <Input type="number" min={1} max={50} className="h-7 w-[48px] text-xs shrink-0 px-2 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" placeholder="#" value={row.num} onChange={(e) => updateConceptRow(idx, 'num', e.target.value)} />
+                            <span className="text-muted-foreground text-[10px] shrink-0">&times;</span>
+                            <Combobox
+                              value={row.tone}
+                              onValueChange={(v) => updateConceptRow(idx, 'tone', v)}
+                              placeholder="Tone"
+                              className="flex-1 min-w-0 h-7"
+                              options={[
+                                { value: 'casual', label: 'Casual' },
+                                { value: 'professional', label: 'Professional' },
+                                { value: 'bold', label: 'Bold' },
+                                { value: 'playful', label: 'Playful' },
+                                { value: 'luxury', label: 'Luxury' },
+                                { value: 'witty', label: 'Witty' },
+                                { value: 'authoritative', label: 'Authoritative' },
+                                { value: 'warm', label: 'Warm' },
+                                { value: 'edgy', label: 'Edgy' },
+                                { value: 'minimalist', label: 'Minimalist' },
+                              ]}
+                            />
+                            <Select value={row.model || ''} onValueChange={(v) => updateConceptRow(idx, 'model', v)}>
+                              <SelectTrigger className="h-7 w-[120px] text-[10px] shrink-0"><SelectValue placeholder="Model" /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="claude-4.5-sonnet">Claude 4.5 Sonnet</SelectItem>
+                                <SelectItem value="gpt-5.2">GPT-5.2</SelectItem>
+                                <SelectItem value="gemini-pro-3">Gemini Pro 3</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <button
+                              onClick={() => handleGenerate(idx)}
+                              disabled={generatingRows.has(idx) || !row.tone}
+                              title="Generate concepts with AI"
+                              className="shrink-0 rounded p-1 text-muted-foreground/60 hover:text-foreground disabled:opacity-30 transition-colors"
+                            >
+                              {generatingRows.has(idx)
+                                ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                : <Bot className="h-3.5 w-3.5" />}
+                            </button>
+                            {conceptRows.length > 1 && (
+                              <button onClick={() => removeConceptRow(idx)} className="shrink-0 rounded p-1 text-muted-foreground/40 hover:text-foreground transition-colors">
+                                <X className="h-3 w-3" />
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                    <div>
-                      <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground mb-1.5">Tone</div>
-                      <Select value={(getSetting('concepts', 'tone') as string) || ''} onValueChange={(v) => updateStageSetting('concepts', 'tone', v)}><SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select tone" /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="casual">Casual</SelectItem>
-                          <SelectItem value="professional">Professional</SelectItem>
-                          <SelectItem value="bold">Bold</SelectItem>
-                          <SelectItem value="playful">Playful</SelectItem>
-                          <SelectItem value="luxury">Luxury</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground mb-1.5">Creative Brief</div>
-                      <textarea placeholder="Describe what you want..." rows={3} value={(getSetting('concepts', 'creative_brief') as string) || ''} onChange={(e) => updateStageSetting('concepts', 'creative_brief', e.target.value)} className="w-full rounded border border-border bg-background px-3 py-2 text-xs text-foreground resize-none" />
-                    </div>
+
+                    {/* Generated concepts */}
+                    {generatedConcepts.length > 0 && (
+                      <div>
+                        <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground mb-1.5">Generated Concepts ({generatedConcepts.length})</div>
+                        <div className="space-y-2">
+                          {generatedConcepts.map((concept, idx) => (
+                            <div key={idx} className="relative group/card rounded border border-border p-3 space-y-2">
+                              {/* Top-right: tone badge + edit/delete */}
+                              <div className="absolute top-2 right-2 flex items-center gap-1">
+                                <span className="inline-flex items-center rounded-full border border-border bg-background px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider text-foreground/70">
+                                  {concept.tone || 'general'}
+                                </span>
+                                <button
+                                  onClick={() => setEditingConceptIdx(editingConceptIdx === idx ? null : idx)}
+                                  className="opacity-0 group-hover/card:opacity-100 rounded p-1 text-muted-foreground hover:text-foreground transition-all"
+                                  title="Edit"
+                                >
+                                  <Pencil className="h-3 w-3" />
+                                </button>
+                                <button
+                                  onClick={() => deleteGeneratedConcept(idx)}
+                                  className="opacity-0 group-hover/card:opacity-100 rounded p-1 text-muted-foreground hover:text-destructive transition-all"
+                                  title="Delete"
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </button>
+                              </div>
+
+                              {editingConceptIdx === idx ? (
+                                <>
+                                  <div>
+                                    <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/60 mb-0.5">Title</div>
+                                    <input value={concept.title} onChange={(e) => updateGeneratedConcept(idx, 'title', e.target.value)} className="w-full h-7 rounded border border-border bg-background px-2 text-xs text-foreground" />
+                                  </div>
+                                  <div>
+                                    <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/60 mb-0.5">Hook</div>
+                                    <textarea value={concept.hook} onChange={(e) => updateGeneratedConcept(idx, 'hook', e.target.value)} rows={2} className="w-full rounded border border-border bg-background px-2 py-1 text-xs text-foreground resize-none" />
+                                  </div>
+                                  <div>
+                                    <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/60 mb-0.5">Script</div>
+                                    <textarea value={typeof concept.script === 'string' ? concept.script : (concept.script as string[]).join('\n')} onChange={(e) => updateGeneratedConcept(idx, 'script', e.target.value)} rows={4} className="w-full rounded border border-border bg-background px-2 py-1 text-xs text-foreground resize-none" />
+                                  </div>
+                                  <div>
+                                    <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/60 mb-0.5">Key Messaging (one per line)</div>
+                                    <textarea value={(concept.messaging || []).join('\n')} onChange={(e) => updateGeneratedConcept(idx, 'messaging', e.target.value)} rows={3} className="w-full rounded border border-border bg-background px-2 py-1 text-xs text-foreground resize-none" />
+                                  </div>
+                                </>
+                              ) : (
+                                <>
+                                  <h4 className="text-xs font-semibold pr-28">{concept.title}</h4>
+                                  <div>
+                                    <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/60 mb-0.5">Hook</div>
+                                    <p className="text-[10px] text-muted-foreground leading-relaxed whitespace-pre-line">{concept.hook}</p>
+                                  </div>
+                                  <div>
+                                    <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/60 mb-0.5">Script</div>
+                                    {typeof concept.script === 'string' ? (
+                                      <p className="text-[10px] text-muted-foreground leading-relaxed whitespace-pre-line">{concept.script}</p>
+                                    ) : Array.isArray(concept.script) ? (
+                                      <ul className="space-y-0.5">
+                                        {(concept.script as string[]).map((line, li) => (
+                                          <li key={li} className="text-[10px] text-muted-foreground flex items-start gap-1.5">
+                                            <span className="text-muted-foreground/40 shrink-0">&#x2022;</span>
+                                            <span className="whitespace-pre-line">{line}</span>
+                                          </li>
+                                        ))}
+                                      </ul>
+                                    ) : null}
+                                  </div>
+                                  {concept.messaging && concept.messaging.length > 0 && (
+                                    <div>
+                                      <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/60 mb-0.5">Key Messaging</div>
+                                      <ul className="space-y-0.5">
+                                        {concept.messaging.map((msg, mi) => (
+                                          <li key={mi} className="text-[10px] text-muted-foreground flex items-start gap-1.5">
+                                            <span className="text-muted-foreground/40 shrink-0">&#x2022;</span>
+                                            <span className="whitespace-pre-line">{msg}</span>
+                                          </li>
+                                        ))}
+                                      </ul>
+                                    </div>
+                                  )}
+                                </>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </>
-                )}
+                  );
+                })()}
 
                 {/* ── Content Generation ── */}
                 {openStageKey === 'content_generation' && (() => {

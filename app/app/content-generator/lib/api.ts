@@ -244,6 +244,18 @@ export async function sendContentChat(workflowId: string, message: string, role:
   return res.json();
 }
 
+// --- Concept Generation ---
+
+export async function generateConcepts(
+  workflowId: string,
+  num: number,
+  tone: string
+): Promise<{ concepts: Array<{ title: string; hook: string; script: string; messaging: string[] }> }> {
+  const res = await apiPost(`/api/content/workflows/${workflowId}/generate-concepts`, { num, tone });
+  if (!res.ok) throw new Error('Failed to generate concepts');
+  return res.json();
+}
+
 // --- Timeline ---
 
 export async function getContentTimeline(workflowId: string, visibility?: string): Promise<ContentTimelineEntry[]> {
