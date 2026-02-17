@@ -23,7 +23,7 @@ import { STAGE_LABELS } from '../lib/types';
 import WorkflowGraphNode from './WorkflowGraphNode';
 import WorkflowStatusBadge from './WorkflowStatusBadge';
 import ReactMarkdown from 'react-markdown';
-import { Cog, Bot, User } from 'lucide-react';
+import { Bot, User } from 'lucide-react';
 import {
   Sheet,
   SheetContent,
@@ -172,15 +172,16 @@ function computeLayout() {
 const { nodePositions: POSITIONS, bundleRects: BUNDLE_RECTS } = computeLayout();
 
 // ─── Helpers ────────────────────────────────────────────────────────
-const NODE_TYPE_ICON: Record<string, typeof Cog> = { auto: Cog, agent: Bot, human: User };
+const NODE_TYPE_ICON: Record<string, typeof Bot> = { agent: Bot, human: User };
 
 // ─── Props ──────────────────────────────────────────────────────────
 interface DevelopmentWorkflowGraphProps {
-  nodes: WFNode[];
+  nodes: WFNode[];  // accepts agents array (WorkflowAgent[] = WorkflowNode[])
   onNodeClick?: (node: WFNode) => void;
 }
 
 export default function DevelopmentWorkflowGraph({ nodes, onNodeClick }: DevelopmentWorkflowGraphProps) {
+  // nodes prop is now agents — aliased for backward compat
   const [selectedNode, setSelectedNode] = useState<WFNode | null>(null);
 
   const nodeMap = useMemo(() => {
@@ -244,7 +245,7 @@ export default function DevelopmentWorkflowGraph({ nodes, onNodeClick }: Develop
         data: {
           stageName,
           status: wfNode?.status || 'pending',
-          nodeType: wfNode?.node_type || 'auto',
+          nodeType: wfNode?.node_type || 'agent',
           stepNumber: i + 1,
           isCurrent: stageName === currentStage,
           isUpcoming: i > currentStageIndex,
@@ -327,7 +328,7 @@ export default function DevelopmentWorkflowGraph({ nodes, onNodeClick }: Develop
   }
 
   const selectedStepNumber = selectedNode ? DEV_STAGE_ORDER.indexOf(selectedNode.stage_name) + 1 : 0;
-  const SelectedIcon = selectedNode ? NODE_TYPE_ICON[selectedNode.node_type] || Cog : Cog;
+  const SelectedIcon = selectedNode ? NODE_TYPE_ICON[selectedNode.node_type] || Bot : Bot;
 
   return (
     <div className="relative h-full w-full">

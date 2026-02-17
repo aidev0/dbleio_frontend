@@ -28,7 +28,7 @@ interface TimelineSegment {
 function Home() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { user, login, logout, isAuthenticated, loading: authLoading } = useAuth();
+  const { user, login, logout, isAuthenticated, loading: authLoading, checkAuth } = useAuth();
   const [videos, setVideos] = useState<Video[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'campaign' | 'videos' | 'personas' | 'simulations' | 'insights' | 'synthesis' | 'integrations' | 'shopify-data'>('campaign');
@@ -141,9 +141,9 @@ function Home() {
         localStorage.setItem('refresh_token', data.refresh_token);
       }
 
-      // Remove code from URL and force reload to update auth state
+      // Remove code from URL and update auth state in-memory (no full reload)
       window.history.replaceState({}, '', '/app/video-simulation');
-      window.location.reload();
+      checkAuth();
     } catch (error) {
       console.error('Auth callback error:', error);
       setProcessingAuth(false);
@@ -160,8 +160,8 @@ function Home() {
         // User is not authenticated, redirect to login page
         router.push('/');
       } else {
-        // Token exists but auth state not updated - reload to sync
-        window.location.reload();
+        // Token exists but auth state not updated - sync from localStorage
+        checkAuth();
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

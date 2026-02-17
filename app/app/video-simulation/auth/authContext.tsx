@@ -20,6 +20,7 @@ interface AuthContextType {
   login: () => void;
   logout: () => void;
   isAuthenticated: boolean;
+  checkAuth: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -68,32 +69,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const checkAuth = () => {
+    // Check if we have a valid token
+    if (!hasValidToken()) {
+      // Token is missing or expired - clear everything
+      clearAuthData();
+      setUser(null);
+      setLoading(false);
+      return;
+    }
+
+    // Token is valid, load user from localStorage
+    const storedUser = localStorage.getItem('user');
+    if (storedUser) {
+      try {
+        const parsed = JSON.parse(storedUser);
+        setUser(parsed);
+      } catch (err) {
+        console.error('Failed to parse stored user:', err);
+        clearAuthData();
+      }
+    }
+    setLoading(false);
+  };
+
   // Check auth state on mount
   useEffect(() => {
-    const checkAuth = () => {
-      // Check if we have a valid token
-      if (!hasValidToken()) {
-        // Token is missing or expired - clear everything
-        clearAuthData();
-        setUser(null);
-        setLoading(false);
-        return;
-      }
-
-      // Token is valid, load user from localStorage
-      const storedUser = localStorage.getItem('user');
-      if (storedUser) {
-        try {
-          const parsed = JSON.parse(storedUser);
-          setUser(parsed);
-        } catch (err) {
-          console.error('Failed to parse stored user:', err);
-          clearAuthData();
-        }
-      }
-      setLoading(false);
-    };
-
     checkAuth();
 
     // Listen for storage changes (e.g., from other tabs)
@@ -137,6 +138,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     login,
     logout,
     isAuthenticated: !!user,
+    checkAuth,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, Suspense } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import {
   Code2, Tag, LayoutDashboard, Building2, LogOut,
   CalendarDays, FileText, CheckSquare, ImageIcon, Sparkles,
@@ -55,8 +55,9 @@ const bottomItems = [
 ];
 
 
-export default function AppLayout({ children }: { children: React.ReactNode }) {
+function AppLayoutInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { user, loading, login, logout } = useAuth();
   const redirected = useRef(false);
 
@@ -68,7 +69,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     if (isControlCenterActive) setControlOpen(true);
   }, [isControlCenterActive]);
 
-  const isAuthCallback = typeof window !== 'undefined' && window.location.search.includes('code=');
+  // Use Next.js searchParams for reliable detection of in-flight OAuth callbacks
+  const isAuthCallback = searchParams.has('code');
 
   useEffect(() => {
     if (!loading && !user && !isAuthCallback && !redirected.current) {
@@ -206,5 +208,17 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         {children}
       </SidebarInset>
     </SidebarProvider>
+  );
+}
+
+export default function AppLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <Suspense fallback={
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <div className="h-6 w-6 animate-spin rounded-full border-b-2 border-foreground" />
+      </div>
+    }>
+      <AppLayoutInner>{children}</AppLayoutInner>
+    </Suspense>
   );
 }

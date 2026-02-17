@@ -256,6 +256,163 @@ export async function generateConcepts(
   return res.json();
 }
 
+// --- Image Models ---
+
+export async function getImageModels(): Promise<{ id: string; name: string; provider: string; tier: string; description: string; platform: string }[]> {
+  try {
+    const res = await apiGet('/api/content/workflows/models/image');
+    if (!res.ok) return [];
+    const data = await res.json();
+    return data.models || [];
+  } catch {
+    return [];
+  }
+}
+
+// --- Storyboard ---
+
+export async function generateStoryboard(
+  workflowId: string,
+  conceptIndex: number,
+  llmModel?: string,
+  imageModel?: string
+): Promise<Record<string, unknown>> {
+  const body: Record<string, unknown> = { concept_index: conceptIndex };
+  if (llmModel) body.llm_model = llmModel;
+  if (imageModel) body.image_model = imageModel;
+  const res = await apiPost(`/api/content/workflows/${workflowId}/generate-storyboard`, body);
+  if (!res.ok) {
+    const text = await res.text();
+    let detail = text;
+    try { detail = JSON.parse(text).detail || text; } catch { /* */ }
+    throw new Error(detail);
+  }
+  return res.json();
+}
+
+export async function generateStoryboardImage(
+  workflowId: string,
+  conceptIndex: number,
+  targetType: 'character' | 'scene',
+  targetId: string,
+  imageModel?: string
+): Promise<{ task_id: string }> {
+  const body: Record<string, unknown> = { concept_index: conceptIndex, target_type: targetType, target_id: targetId };
+  if (imageModel) body.image_model = imageModel;
+  const res = await apiPost(`/api/content/workflows/${workflowId}/generate-storyboard-image`, body);
+  if (!res.ok) {
+    const text = await res.text();
+    let detail = text;
+    try { detail = JSON.parse(text).detail || text; } catch { /* */ }
+    throw new Error(detail);
+  }
+  return res.json();
+}
+
+export async function getStoryboardImageStatus(
+  workflowId: string,
+  taskId: string
+): Promise<Record<string, unknown>> {
+  const res = await apiGet(`/api/content/workflows/${workflowId}/storyboard-image-status/${taskId}`);
+  if (!res.ok) throw new Error('Failed to get image status');
+  return res.json();
+}
+
+// --- Storyboard Scene Update ---
+
+export async function updateStoryboardScene(
+  workflowId: string,
+  storyboardIndex: number,
+  sceneId: string,
+  updates: { title?: string; description?: string; shot_type?: string; duration_hint?: string; image_prompt?: string },
+): Promise<{ ok: boolean; scene: Record<string, unknown> }> {
+  const res = await apiFetch(`/api/content/workflows/${workflowId}/storyboard-scene`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ storyboard_index: storyboardIndex, scene_id: sceneId, ...updates }),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    let detail = text;
+    try { detail = JSON.parse(text).detail || text; } catch { /* */ }
+    throw new Error(detail);
+  }
+  return res.json();
+}
+
+// --- Video Generation ---
+
+export async function generateVideo(
+  workflowId: string,
+  storyboardIndex: number,
+  count: number,
+  model: string,
+  outputFormat?: string,
+  resolution?: string,
+  temperature?: number,
+): Promise<{ task_id: string; status: string; model: string; count: number }> {
+  const body: Record<string, unknown> = { storyboard_index: storyboardIndex, count, model };
+  if (outputFormat) body.output_format = outputFormat;
+  if (resolution) body.resolution = resolution;
+  if (temperature != null) body.temperature = temperature;
+  const res = await apiPost(`/api/content/workflows/${workflowId}/generate-video`, body);
+  if (!res.ok) {
+    const text = await res.text();
+    let detail = text;
+    try { detail = JSON.parse(text).detail || text; } catch { /* */ }
+    throw new Error(detail);
+  }
+  return res.json();
+}
+
+export async function getVideoStatus(
+  workflowId: string,
+  taskId: string,
+): Promise<Record<string, unknown>> {
+  const res = await apiGet(`/api/content/workflows/${workflowId}/video-status/${taskId}`);
+  if (!res.ok) throw new Error('Failed to get video status');
+  return res.json();
+}
+
+export interface VideoJob {
+  task_id: string;
+  model: string;
+  status: string;
+  scenes_total: number;
+  scenes_done: number;
+  scenes_failed: number;
+  scenes_pending: number;
+  created_at: string;
+}
+
+export async function getVideoJobs(workflowId: string): Promise<VideoJob[]> {
+  try {
+    const res = await apiGet(`/api/content/workflows/${workflowId}/video-jobs`);
+    if (!res.ok) return [];
+    return res.json();
+  } catch {
+    return [];
+  }
+}
+
+export async function deleteVideoVariation(
+  workflowId: string,
+  variationId: string,
+): Promise<{ ok: boolean }> {
+  const res = await apiDelete(`/api/content/workflows/${workflowId}/video-variation/${variationId}`);
+  if (!res.ok) throw new Error('Failed to delete variation');
+  return res.json();
+}
+
+export async function deleteVideoJob(
+  workflowId: string,
+  taskId: string,
+): Promise<{ ok: boolean }> {
+  const res = await apiDelete(`/api/content/workflows/${workflowId}/video-job/${taskId}`);
+  if (!res.ok) throw new Error('Failed to delete video job');
+  return res.json();
+}
+
 // --- Timeline ---
 
 export async function getContentTimeline(workflowId: string, visibility?: string): Promise<ContentTimelineEntry[]> {

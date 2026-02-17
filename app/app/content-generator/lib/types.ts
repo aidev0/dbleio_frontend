@@ -83,7 +83,7 @@ export interface WorkflowStateSnapshot {
   updated_at?: string;
 }
 
-// --- 14-Stage Pipeline (source of truth for frontend) ---
+// --- 15-Stage Pipeline (source of truth for frontend) ---
 
 export interface StageDefinition {
   key: string;
@@ -100,7 +100,9 @@ export const CONTENT_PIPELINE_STAGES: StageDefinition[] = [
   { key: 'scheduling', label: 'Scheduling', stageType: 'human', description: 'Plan the content calendar.', approvalRequired: false },
   { key: 'research', label: 'Research', stageType: 'agent', description: 'Discover trends and identify patterns relevant to your audience.', approvalRequired: false },
   { key: 'concepts', label: 'Concepts', stageType: 'agent', description: 'Generate ideas and develop scripts for content pieces.', approvalRequired: false },
-  { key: 'content_generation', label: 'Content Generation', stageType: 'agent', description: 'Produce videos, images, and voiceovers using AI.', approvalRequired: false },
+  { key: 'image_generation', label: 'Image Generation', stageType: 'agent', description: 'Generate concept art and reference images for each concept before storyboarding.', approvalRequired: false },
+  { key: 'storyboard', label: 'Storyboard', stageType: 'agent', description: 'Generate detailed storylines with scenes, characters, and visual assets for each concept.', approvalRequired: false },
+  { key: 'video_generation', label: 'Video Generation', stageType: 'agent', description: 'Produce videos and voiceovers using AI.', approvalRequired: false },
   { key: 'simulation_testing', label: 'Simulation & Testing', stageType: 'agent', description: 'Model audience personas and run A/B testing to predict content performance.', approvalRequired: false },
   { key: 'brand_qa', label: 'Brand QA', stageType: 'human', description: 'Ensure content aligns with brand guidelines and safety requirements.', approvalRequired: true, rejectTarget: 'concepts' },
   { key: 'fdm_review', label: 'FDM Review', stageType: 'human', description: 'Team members review, edit, or override AI decisions and run compliance checks.', approvalRequired: true, rejectTarget: 'concepts' },

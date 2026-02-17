@@ -38,7 +38,18 @@ import {
   getCampaigns,
   getBrands,
   generateConcepts,
+  getImageModels,
+  generateStoryboard,
+  generateStoryboardImage,
+  getStoryboardImageStatus,
+  generateVideo,
+  getVideoStatus,
+  updateStoryboardScene,
+  getVideoJobs,
+  deleteVideoJob,
+  deleteVideoVariation,
 } from '../lib/api';
+import type { VideoJob } from '../lib/api';
 import type { Campaign } from '../lib/api';
 import { getBrandAssets, getStrategies } from '../../brands/lib/api';
 import type { BrandAsset, Strategy } from '../../brands/lib/types';
@@ -103,8 +114,12 @@ function VariationCard({ variation, index }: { variation: ContentVariation; inde
     <div className="group relative rounded-lg border border-border bg-background overflow-hidden transition-all hover:border-foreground/20 hover:shadow-sm">
       <div className="relative aspect-[4/5] bg-muted">
         {variation.preview ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={variation.preview} alt={variation.title} className="h-full w-full object-cover" />
+          variation.type === 'video' ? (
+            <video src={variation.preview} className="h-full w-full object-cover" controls playsInline />
+          ) : (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={variation.preview} alt={variation.title} className="h-full w-full object-cover" />
+          )
         ) : (
           <div className="flex h-full items-center justify-center">
             <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground/30">
@@ -321,10 +336,22 @@ export default function ContentWorkflowDetailPage() {
 
   // Variations
   const [variations, setVariations] = useState<ContentVariation[]>([]);
+  const [videoJobs, setVideoJobs] = useState<VideoJob[]>([]);
 
   // Concept generation
   const [generatingRows, setGeneratingRows] = useState<Set<number>>(new Set());
   const [editingConceptIdx, setEditingConceptIdx] = useState<number | null>(null);
+
+  // Storyboard state
+  const [imageModels, setImageModels] = useState<{ id: string; name: string; provider: string }[]>([]);
+  const [storyboardConceptIdx, setStoryboardConceptIdx] = useState<number>(0);
+  const [storyboardLlmModel, setStoryboardLlmModel] = useState<string>('gemini-pro-3');
+  const [storyboardImageModel, setStoryboardImageModel] = useState<string>('');
+  const [generatingStoryboard, setGeneratingStoryboard] = useState(false);
+  const [storyboardError, setStoryboardError] = useState<string | null>(null);
+  const [generatingImages, setGeneratingImages] = useState<Set<string>>(new Set());
+  const [imageErrors, setImageErrors] = useState<Map<string, string>>(new Map());
+  const pollingRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
 
   // Brand context
   const [brand, setBrand] = useState<Brand | null>(null);
@@ -361,6 +388,13 @@ export default function ContentWorkflowDetailPage() {
     })();
   }, []);
 
+  // Load image models for storyboard
+  useEffect(() => {
+    getImageModels().then((models) => {
+      if (models.length > 0) setImageModels(models);
+    });
+  }, []);
+
   // Load workflow + nodes
   const loadWorkflow = useCallback(async () => {
     try {
@@ -373,11 +407,16 @@ export default function ContentWorkflowDetailPage() {
 
       // Init stage settings from workflow config (skip if a debounced save is pending)
       if (wf?.config?.stage_settings && !saveTimeoutRef.current) {
-        setStageSettings(wf.config.stage_settings as Record<string, Record<string, unknown>>);
+        const ss = { ...(wf.config.stage_settings as Record<string, Record<string, unknown>>) };
+        // Clear stuck generating state on load
+        if (ss.video_generation) {
+          ss.video_generation = { ...ss.video_generation, _generating_rows: [], _row_errors: {} };
+        }
+        setStageSettings(ss);
       }
 
-      // Extract variations from content_generation node output
-      const genNode = nodeList.find((n) => n.stage_key === 'content_generation');
+      // Extract variations from video_generation node output
+      const genNode = nodeList.find((n) => n.stage_key === 'video_generation');
       if (genNode?.output_data) {
         const raw = (genNode.output_data.variations || genNode.output_data.content || []) as ContentVariation[];
         if (Array.isArray(raw) && raw.length > 0) {
@@ -392,6 +431,9 @@ export default function ContentWorkflowDetailPage() {
           })));
         }
       }
+
+      // Load video jobs
+      getVideoJobs(workflowId).then(setVideoJobs).catch(() => {});
 
       // Load brand context if available
       if (wf?.brand_id) {
@@ -456,13 +498,23 @@ export default function ContentWorkflowDetailPage() {
   const updateStageSetting = (stage: string, key: string, value: unknown) => {
     setStageSettings((prev) => {
       const next = { ...prev, [stage]: { ...prev[stage], [key]: value } };
+      // Don't persist ephemeral keys (prefixed with _) to the DB
+      if (key.startsWith('_')) return next;
       // Debounce save to backend
       if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
       saveTimeoutRef.current = setTimeout(async () => {
         if (!workflow) return;
         try {
+          // Strip ephemeral keys before saving
+          const clean: Record<string, Record<string, unknown>> = {};
+          for (const [s, settings] of Object.entries(next)) {
+            clean[s] = {};
+            for (const [k, v] of Object.entries(settings)) {
+              if (!k.startsWith('_')) clean[s][k] = v;
+            }
+          }
           await updateContentWorkflow(workflow._id, {
-            config: { ...workflow.config, stage_settings: next },
+            config: { ...workflow.config, stage_settings: clean },
           } as Partial<ContentWorkflow>);
         } catch (err) {
           console.error('Failed to save settings:', err);
@@ -624,7 +676,7 @@ export default function ContentWorkflowDetailPage() {
 
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setOpenStageKey(null)}>
-            <div className="bg-background border border-border rounded-xl shadow-xl w-full max-w-lg mx-4 max-h-[80vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className={`bg-background border border-border rounded-xl shadow-xl w-full mx-4 overflow-y-auto ${openStageKey === 'storyboard' || openStageKey === 'video_generation' ? 'max-w-[98vw] max-h-[90vh]' : 'max-w-lg max-h-[80vh]'}`} onClick={(e) => e.stopPropagation()}>
               {/* Header */}
               <div className="flex items-center justify-between px-5 py-4 border-b border-border">
                 <div className="flex items-center gap-2">
@@ -996,63 +1048,65 @@ export default function ContentWorkflowDetailPage() {
                   );
                 })()}
 
-                {/* ── Content Generation ── */}
-                {openStageKey === 'content_generation' && (() => {
-                  const allocations = (getSetting('content_generation', 'creative_allocations') as Array<{ count: string; model: string }>) || [{ count: '4', model: '' }];
-                  const totalCreatives = allocations.reduce((sum, a) => sum + (parseInt(a.count) || 0), 0);
+                {/* ── Image Generation (optional, between Concepts & Storyboard) ── */}
+                {openStageKey === 'image_generation' && (() => {
+                  const generatedConcepts = (getSetting('concepts', 'generated_concepts') as Array<{ title: string; hook: string; script: string; messaging: string[]; tone?: string }>) || [];
+                  type ImgGenRow = { conceptIdx: number; llm: string; imageModel: string };
+                  const rows = (getSetting('image_generation', 'rows') as ImgGenRow[]) || [{ conceptIdx: 0, llm: 'gemini-pro-3', imageModel: '' }];
 
-                  const updateAllocations = (next: Array<{ count: string; model: string }>) => {
-                    updateStageSetting('content_generation', 'creative_allocations', next);
+                  const updateRows = (next: ImgGenRow[]) => updateStageSetting('image_generation', 'rows', next);
+                  const updateImgRow = (idx: number, field: keyof ImgGenRow, value: string | number) => {
+                    const next = rows.map((r, i) => i === idx ? { ...r, [field]: value } : r);
+                    updateRows(next);
                   };
-                  const updateRow = (idx: number, field: 'count' | 'model', value: string) => {
-                    const next = allocations.map((a, i) => i === idx ? { ...a, [field]: value } : a);
-                    updateAllocations(next);
-                  };
-                  const addRow = () => updateAllocations([...allocations, { count: '1', model: '' }]);
-                  const removeRow = (idx: number) => updateAllocations(allocations.filter((_, i) => i !== idx));
+                  const addImgRow = () => updateRows([...rows, { conceptIdx: 0, llm: 'gemini-pro-3', imageModel: '' }]);
+                  const removeImgRow = (idx: number) => updateRows(rows.filter((_, i) => i !== idx));
 
                   return (
                   <>
                     <div>
                       <div className="flex items-center justify-between mb-1.5">
-                        <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground">Creatives &middot; {totalCreatives} total</div>
-                        <button onClick={addRow} className="font-mono text-[10px] text-muted-foreground hover:text-foreground transition-colors">+ Add model</button>
+                        <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground">Concept &times; LLM &times; Image Model</div>
+                        <button onClick={addImgRow} className="font-mono text-[10px] text-muted-foreground hover:text-foreground transition-colors">+ Add row</button>
                       </div>
                       <div className="space-y-1.5">
-                        {allocations.map((alloc, idx) => (
+                        {rows.map((row, idx) => (
                           <div key={idx} className="flex items-center gap-1.5">
-                            <Select value={alloc.count} onValueChange={(v) => updateRow(idx, 'count', v)}>
-                              <SelectTrigger className="h-8 w-[60px] text-xs shrink-0"><SelectValue /></SelectTrigger>
-                              <SelectContent>{[1, 2, 3, 4, 5, 6, 8, 10].map((n) => <SelectItem key={n} value={String(n)}>{n}</SelectItem>)}</SelectContent>
-                            </Select>
-                            <span className="text-muted-foreground text-[10px] shrink-0">&times;</span>
-                            <Select value={alloc.model} onValueChange={(v) => updateRow(idx, 'model', v)}>
-                              <SelectTrigger className="h-8 flex-1 text-xs"><SelectValue placeholder="Select model" /></SelectTrigger>
+                            <Select value={String(row.conceptIdx)} onValueChange={(v) => updateImgRow(idx, 'conceptIdx', Number(v))}>
+                              <SelectTrigger className="h-8 flex-1 text-xs"><SelectValue placeholder="Concept" /></SelectTrigger>
                               <SelectContent>
-                                {/* OpenAI (direct API) */}
-                                <SelectItem value="sora-2-pro">Sora 2 Pro — OpenAI</SelectItem>
-                                <SelectItem value="sora-2">Sora 2 — OpenAI</SelectItem>
-                                {/* Google (direct API) */}
-                                <SelectItem value="veo-3.1">Veo 3.1 — Google</SelectItem>
-                                <SelectItem value="veo-3.1-fast">Veo 3.1 Fast — Google</SelectItem>
-                                <SelectItem value="veo-3">Veo 3 — Google</SelectItem>
-                                <SelectItem value="veo-3-fast">Veo 3 Fast — Google</SelectItem>
-                                {/* Replicate */}
-                                <SelectItem value="kwaivgi/kling-v2.6">Kling v2.6 — Kuaishou</SelectItem>
-                                <SelectItem value="kwaivgi/kling-v2.5-turbo-pro">Kling v2.5 Turbo Pro — Kuaishou</SelectItem>
-                                <SelectItem value="minimax/hailuo-2.3">Hailuo 2.3 — MiniMax</SelectItem>
-                                <SelectItem value="minimax/hailuo-02">Hailuo 02 — MiniMax</SelectItem>
-                                <SelectItem value="pixverse/pixverse-v5">PixVerse v5 — PixVerse</SelectItem>
-                                <SelectItem value="bytedance/seedance-1-pro">Seedance 1 Pro — ByteDance</SelectItem>
-                                <SelectItem value="luma/ray-2-720p">Ray 2 720p — Luma</SelectItem>
-                                <SelectItem value="wan-video/wan-2.5-t2v">Wan 2.5 T2V — Alibaba</SelectItem>
-                                <SelectItem value="wan-video/wan-2.5-i2v">Wan 2.5 I2V — Alibaba</SelectItem>
-                                <SelectItem value="wan-video/wan-2.2-t2v-fast">Wan 2.2 Fast — Alibaba</SelectItem>
-                                <SelectItem value="tencent/hunyuan-video">HunyuanVideo — Tencent</SelectItem>
+                                {generatedConcepts.map((c, i) => (
+                                  <SelectItem key={i} value={String(i)}>{c.title}</SelectItem>
+                                ))}
+                                {generatedConcepts.length === 0 && <SelectItem value="0" disabled>No concepts yet</SelectItem>}
                               </SelectContent>
                             </Select>
-                            {allocations.length > 1 && (
-                              <button onClick={() => removeRow(idx)} className="shrink-0 rounded p-1 text-muted-foreground/40 hover:text-foreground transition-colors">
+                            <Select value={row.llm} onValueChange={(v) => updateImgRow(idx, 'llm', v)}>
+                              <SelectTrigger className="h-8 w-[140px] text-[10px] shrink-0"><SelectValue placeholder="LLM" /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="gemini-pro-3">Gemini Pro 3</SelectItem>
+                                <SelectItem value="claude-4.5-sonnet">Claude 4.5 Sonnet</SelectItem>
+                                <SelectItem value="gpt-5.2">GPT-5.2</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <Select value={row.imageModel} onValueChange={(v) => updateImgRow(idx, 'imageModel', v)}>
+                              <SelectTrigger className="h-8 w-[160px] text-[10px] shrink-0"><SelectValue placeholder="Image model" /></SelectTrigger>
+                              <SelectContent>
+                                {imageModels.map((m) => (
+                                  <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
+                                ))}
+                                {imageModels.length === 0 && (
+                                  <>
+                                    <SelectItem value="google/nano-banana-pro">Nano Banana Pro</SelectItem>
+                                    <SelectItem value="google/nano-banana">Nano Banana</SelectItem>
+                                    <SelectItem value="black-forest-labs/flux-schnell">Flux Schnell</SelectItem>
+                                    <SelectItem value="black-forest-labs/flux-dev">Flux Dev</SelectItem>
+                                  </>
+                                )}
+                              </SelectContent>
+                            </Select>
+                            {rows.length > 1 && (
+                              <button onClick={() => removeImgRow(idx)} className="shrink-0 rounded p-1 text-muted-foreground/40 hover:text-foreground transition-colors">
                                 <X className="h-3 w-3" />
                               </button>
                             )}
@@ -1060,27 +1114,958 @@ export default function ContentWorkflowDetailPage() {
                         ))}
                       </div>
                     </div>
-                    <div>
-                      <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground mb-1.5">Output Format</div>
-                      <Select value={(getSetting('content_generation', 'output_format') as string) || ''} onValueChange={(v) => updateStageSetting('content_generation', 'output_format', v)}><SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select format" /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="reel_9_16">Reel 9:16</SelectItem>
-                          <SelectItem value="story_9_16">Story 9:16</SelectItem>
-                          <SelectItem value="post_1_1">Post 1:1</SelectItem>
-                          <SelectItem value="landscape_16_9">Landscape 16:9</SelectItem>
-                        </SelectContent>
-                      </Select>
+
+                    <div className="flex justify-end">
+                      <Button size="sm" disabled={generatedConcepts.length === 0} className="h-8 text-xs">
+                        <ImageIcon className="h-3 w-3 mr-1.5" />
+                        Generate Images
+                      </Button>
                     </div>
-                    <div>
-                      <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground mb-1.5">Resolution</div>
-                      <Select value={(getSetting('content_generation', 'resolution') as string) || ''} onValueChange={(v) => updateStageSetting('content_generation', 'resolution', v)}><SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select resolution" /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="720p">720p</SelectItem>
-                          <SelectItem value="1080p">1080p (HD)</SelectItem>
-                          <SelectItem value="4k">4K</SelectItem>
-                        </SelectContent>
-                      </Select>
+
+                    {generatedConcepts.length === 0 && (
+                      <div className="text-center py-8 text-muted-foreground/50">
+                        <p className="text-xs">Generate concepts first in the Concepts stage</p>
+                      </div>
+                    )}
+                  </>
+                  );
+                })()}
+
+                {/* ── Storyboard ── */}
+                {openStageKey === 'storyboard' && (() => {
+                  // Get concepts from stageSettings or node output
+                  const generatedConcepts = (getSetting('concepts', 'generated_concepts') as Array<{ title: string; hook: string; script: string; messaging: string[]; tone?: string }>) || [];
+                  // Get storyboard data from nodes
+                  const storyboardNode = nodes.find((n) => n.stage_key === 'storyboard');
+                  const storyboardOutput = (storyboardNode?.output_data || {}) as { storyboards?: Array<Record<string, unknown>> };
+                  const storyboards = storyboardOutput.storyboards || [];
+                  const currentStoryboard = storyboards.find((sb) => (sb.concept_index as number) === storyboardConceptIdx) as Record<string, unknown> | undefined;
+
+                  type StoryboardCharacter = { id: string; name: string; description: string; image_prompt: string; image_url: string | null; gs_uri: string | null; image_model: string };
+                  type StoryboardScene = { id: string; scene_number: number; title: string; description: string; shot_type: string; duration_hint: string; character_ids: string[]; image_prompt: string; image_url: string | null; gs_uri: string | null; image_model: string };
+
+                  const characters = (currentStoryboard?.characters || []) as StoryboardCharacter[];
+                  const scenes = (currentStoryboard?.scenes || []) as StoryboardScene[];
+                  const storyline = (currentStoryboard?.storyline || '') as string;
+                  const totalCuts = (currentStoryboard?.total_cuts || 0) as number;
+
+                  const handleGenerateStoryboard = async () => {
+                    if (generatedConcepts.length === 0) return;
+                    setGeneratingStoryboard(true);
+                    setStoryboardError(null);
+                    try {
+                      await generateStoryboard(workflowId, storyboardConceptIdx, storyboardLlmModel || undefined, storyboardImageModel || undefined);
+                      await loadWorkflow();
+                    } catch (err) {
+                      const msg = err instanceof Error ? err.message : 'Storyboard generation failed';
+                      setStoryboardError(msg);
+                      console.error('Storyboard generation failed:', err);
+                    } finally {
+                      setGeneratingStoryboard(false);
+                    }
+                  };
+
+                  const handleGenerateImage = async (targetType: 'character' | 'scene', targetId: string, model?: string) => {
+                    setGeneratingImages((prev) => new Set(prev).add(targetId));
+                    setImageErrors((prev) => { const next = new Map(prev); next.delete(targetId); return next; });
+                    try {
+                      const { task_id } = await generateStoryboardImage(workflowId, storyboardConceptIdx, targetType, targetId, model || storyboardImageModel || undefined);
+                      // Poll for completion
+                      const interval = setInterval(async () => {
+                        try {
+                          const status = await getStoryboardImageStatus(workflowId, task_id);
+                          if (status.status === 'completed') {
+                            clearInterval(interval);
+                            pollingRef.current.delete(targetId);
+                            setGeneratingImages((prev) => { const next = new Set(prev); next.delete(targetId); return next; });
+                            await loadWorkflow();
+                          } else if (status.status === 'failed') {
+                            clearInterval(interval);
+                            pollingRef.current.delete(targetId);
+                            setGeneratingImages((prev) => { const next = new Set(prev); next.delete(targetId); return next; });
+                            const errMsg = (status.message as string) || (status.error as string) || 'Image generation failed';
+                            setImageErrors((prev) => new Map(prev).set(targetId, errMsg));
+                          }
+                        } catch {
+                          clearInterval(interval);
+                          pollingRef.current.delete(targetId);
+                          setGeneratingImages((prev) => { const next = new Set(prev); next.delete(targetId); return next; });
+                        }
+                      }, 2000);
+                      pollingRef.current.set(targetId, interval);
+                    } catch (err) {
+                      const msg = err instanceof Error ? err.message : 'Failed to start image generation';
+                      setImageErrors((prev) => new Map(prev).set(targetId, msg));
+                      setGeneratingImages((prev) => { const next = new Set(prev); next.delete(targetId); return next; });
+                    }
+                  };
+
+                  const handleGenerateAllImages = async () => {
+                    // Generate character images first (in parallel)
+                    const charPromises = characters
+                      .filter((c) => !c.image_url && !generatingImages.has(c.id))
+                      .map((c) => handleGenerateImage('character', c.id));
+                    if (charPromises.length > 0) {
+                      await Promise.allSettled(charPromises);
+                      // Wait for all character polls to finish before doing scenes
+                      await new Promise<void>((resolve) => {
+                        const check = setInterval(() => {
+                          const charIds = characters.map((c) => c.id);
+                          const stillGenerating = charIds.some((id) => pollingRef.current.has(id));
+                          if (!stillGenerating) { clearInterval(check); resolve(); }
+                        }, 1000);
+                      });
+                    }
+                    // Then generate scene images (in parallel)
+                    const scenePromises = scenes
+                      .filter((s) => !s.image_url && !generatingImages.has(s.id))
+                      .map((s) => handleGenerateImage('scene', s.id));
+                    await Promise.allSettled(scenePromises);
+                  };
+
+                  // Check if all characters referenced by a scene have images
+                  const sceneCharsReady = (scene: StoryboardScene) => {
+                    return scene.character_ids.every((cid) => {
+                      const char = characters.find((c) => c.id === cid);
+                      return char && char.image_url;
+                    });
+                  };
+
+                  return (
+                  <>
+                    {/* Controls */}
+                    <div className="space-y-2">
+                      <div className="flex items-end gap-2">
+                        <div className="flex-1 min-w-0">
+                          <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground mb-1">Concept</div>
+                          <Select value={String(storyboardConceptIdx)} onValueChange={(v) => setStoryboardConceptIdx(Number(v))}>
+                            <SelectTrigger className="h-7 text-xs"><SelectValue placeholder="Select concept" /></SelectTrigger>
+                            <SelectContent>
+                              {generatedConcepts.map((c, i) => (
+                                <SelectItem key={i} value={String(i)}>{c.title}</SelectItem>
+                              ))}
+                              {generatedConcepts.length === 0 && (
+                                <SelectItem value="0" disabled>No concepts yet</SelectItem>
+                              )}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="w-[140px] shrink-0">
+                          <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground mb-1">LLM</div>
+                          <Select value={storyboardLlmModel} onValueChange={setStoryboardLlmModel}>
+                            <SelectTrigger className="h-7 text-[10px]"><SelectValue placeholder="LLM" /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="gemini-pro-3">Gemini Pro 3</SelectItem>
+                              <SelectItem value="claude-4.5-sonnet">Claude 4.5 Sonnet</SelectItem>
+                              <SelectItem value="gpt-5.2">GPT-5.2</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="w-[140px] shrink-0">
+                          <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground mb-1">Image Model</div>
+                          <Select value={storyboardImageModel} onValueChange={setStoryboardImageModel}>
+                            <SelectTrigger className="h-7 text-[10px]"><SelectValue placeholder="Default" /></SelectTrigger>
+                            <SelectContent>
+                              {imageModels.map((m) => (
+                                <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
+                              ))}
+                              {imageModels.length === 0 && (
+                                <>
+                                  <SelectItem value="google/nano-banana-pro">Nano Banana Pro</SelectItem>
+                                  <SelectItem value="google/nano-banana">Nano Banana</SelectItem>
+                                  <SelectItem value="black-forest-labs/flux-schnell">Flux Schnell</SelectItem>
+                                  <SelectItem value="black-forest-labs/flux-dev">Flux Dev</SelectItem>
+                                </>
+                              )}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="w-[80px] shrink-0">
+                          <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground mb-1">Temp</div>
+                          <Select value={(getSetting('storyboard', 'temperature') as string) || '0.7'} onValueChange={(v) => updateStageSetting('storyboard', 'temperature', v)}>
+                            <SelectTrigger className="h-7 text-[10px]"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="0.3">0.3</SelectItem>
+                              <SelectItem value="0.5">0.5</SelectItem>
+                              <SelectItem value="0.7">0.7</SelectItem>
+                              <SelectItem value="0.9">0.9</SelectItem>
+                              <SelectItem value="1.0">1.0</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <Button
+                          size="sm"
+                          onClick={handleGenerateStoryboard}
+                          disabled={generatingStoryboard || generatedConcepts.length === 0}
+                          className="h-7 text-[10px] shrink-0"
+                        >
+                          {generatingStoryboard ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Bot className="h-3 w-3 mr-1" />}
+                          Generate
+                        </Button>
+                      </div>
                     </div>
+
+                    {/* Error display */}
+                    {storyboardError && (
+                      <div className="rounded border border-destructive/30 bg-destructive/5 px-3 py-2">
+                        <p className="text-xs text-destructive">{storyboardError}</p>
+                      </div>
+                    )}
+
+                    {/* Storyline */}
+                    {currentStoryboard && (
+                      <>
+                        <div>
+                          <div className="font-mono text-xs uppercase tracking-wider text-muted-foreground mb-1.5">Storyline</div>
+                          <p className="text-sm text-foreground/80 leading-relaxed">{storyline}</p>
+                          <div className="flex items-center gap-3 mt-1.5">
+                            <span className="font-mono text-[9px] text-muted-foreground">{totalCuts} cuts</span>
+                            <span className="font-mono text-[9px] text-muted-foreground">{characters.length} characters</span>
+                          </div>
+                        </div>
+
+                        {/* Characters */}
+                        <div>
+                          <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground mb-2">
+                            Characters <span className="text-muted-foreground/40">(generate these first for visual consistency)</span>
+                          </div>
+                          <div className="flex gap-3 flex-wrap">
+                            {characters.map((char) => (
+                              <div key={char.id} className="w-[160px] rounded-lg border border-border overflow-hidden bg-muted/20">
+                                <div className="relative aspect-[3/4] bg-muted">
+                                  {char.image_url ? (
+                                    // eslint-disable-next-line @next/next/no-img-element
+                                    <img src={char.image_url} alt={char.name} className="h-full w-full object-cover" />
+                                  ) : (
+                                    <div className="flex h-full items-center justify-center">
+                                      {generatingImages.has(char.id) ? (
+                                        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                                      ) : (
+                                        <UserIcon className="h-6 w-6 text-muted-foreground/20" />
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                                <div className="p-2 space-y-1">
+                                  <div className="text-xs font-medium truncate">{char.name}</div>
+                                  <p className="text-[9px] text-muted-foreground line-clamp-2 leading-relaxed">{char.description}</p>
+                                  {imageErrors.get(char.id) && (
+                                    <p className="text-[8px] text-destructive line-clamp-2">{imageErrors.get(char.id)}</p>
+                                  )}
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => handleGenerateImage('character', char.id)}
+                                    disabled={generatingImages.has(char.id)}
+                                    className="w-full h-6 text-[9px]"
+                                  >
+                                    {generatingImages.has(char.id) ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : char.image_url ? 'Regenerate' : 'Generate'}
+                                  </Button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Scenes filmstrip */}
+                        <div>
+                          <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground mb-2">Scenes</div>
+                          <div className="overflow-x-auto flex gap-3 snap-x snap-mandatory pb-2">
+                            {scenes.map((scene) => {
+                              const charsReady = sceneCharsReady(scene);
+                              return (
+                                <div key={scene.id} className="min-w-[220px] max-w-[220px] snap-start rounded-lg border border-border overflow-hidden bg-muted/20 shrink-0">
+                                  <div className="relative aspect-video bg-muted">
+                                    {scene.image_url ? (
+                                      // eslint-disable-next-line @next/next/no-img-element
+                                      <img src={scene.image_url} alt={scene.title} className="h-full w-full object-cover" />
+                                    ) : (
+                                      <div className="flex h-full items-center justify-center">
+                                        {generatingImages.has(scene.id) ? (
+                                          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                                        ) : (
+                                          <ImageIcon className="h-6 w-6 text-muted-foreground/20" />
+                                        )}
+                                      </div>
+                                    )}
+                                    {/* Badges */}
+                                    <div className="absolute top-1.5 left-1.5 flex items-center gap-1">
+                                      <span className="inline-flex items-center rounded-full bg-black/60 px-1.5 py-0.5 font-mono text-[8px] text-white">
+                                        {scene.shot_type}
+                                      </span>
+                                      <span className="inline-flex items-center rounded-full bg-black/60 px-1.5 py-0.5 font-mono text-[8px] text-white">
+                                        {scene.duration_hint}
+                                      </span>
+                                    </div>
+                                  </div>
+                                  <div className="p-2 space-y-1">
+                                    <div className="flex items-center gap-1">
+                                      <span className="font-mono text-[8px] text-muted-foreground/50">{scene.scene_number}.</span>
+                                      <span className="text-[10px] font-medium truncate">{scene.title}</span>
+                                    </div>
+                                    <p className="text-[9px] text-muted-foreground line-clamp-2 leading-relaxed">{scene.description}</p>
+                                    {/* Character pills */}
+                                    <div className="flex flex-wrap gap-1">
+                                      {scene.character_ids.map((cid) => {
+                                        const char = characters.find((c) => c.id === cid);
+                                        return (
+                                          <span key={cid} className="inline-flex items-center rounded-full border border-border px-1.5 py-0.5 font-mono text-[8px] text-muted-foreground">
+                                            {char?.name || cid}
+                                          </span>
+                                        );
+                                      })}
+                                    </div>
+                                    {imageErrors.get(scene.id) && (
+                                      <p className="text-[8px] text-destructive line-clamp-2">{imageErrors.get(scene.id)}</p>
+                                    )}
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => handleGenerateImage('scene', scene.id)}
+                                      disabled={generatingImages.has(scene.id) || !charsReady}
+                                      title={!charsReady ? 'Generate character images first' : undefined}
+                                      className="w-full h-6 text-[9px]"
+                                    >
+                                      {generatingImages.has(scene.id) ? (
+                                        <Loader2 className="h-2.5 w-2.5 animate-spin" />
+                                      ) : !charsReady ? (
+                                        'Chars required'
+                                      ) : scene.image_url ? (
+                                        'Regenerate'
+                                      ) : (
+                                        'Generate'
+                                      )}
+                                    </Button>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {/* Generate All */}
+                        <div className="flex justify-end">
+                          <Button
+                            size="sm"
+                            onClick={handleGenerateAllImages}
+                            disabled={generatingImages.size > 0 || (characters.length === 0 && scenes.length === 0)}
+                            className="h-8 text-xs"
+                          >
+                            {generatingImages.size > 0 ? <Loader2 className="h-3 w-3 animate-spin mr-1.5" /> : <ImageIcon className="h-3 w-3 mr-1.5" />}
+                            Generate All Images
+                          </Button>
+                        </div>
+
+                        {/* Thumbnail */}
+                        <div>
+                          <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground mb-2">Thumbnail</div>
+                          <div className="rounded-lg border border-border overflow-hidden bg-muted/20">
+                            {(currentStoryboard as Record<string, unknown>)?.thumbnail_url ? (
+                              <div className="relative">
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img src={(currentStoryboard as Record<string, unknown>).thumbnail_url as string} alt="Thumbnail" className="w-full aspect-video object-cover" />
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleGenerateImage('scene', `thumbnail_${storyboardConceptIdx}`)}
+                                  disabled={generatingImages.has(`thumbnail_${storyboardConceptIdx}`)}
+                                  className="absolute bottom-2 right-2 h-6 text-[9px] bg-background/80 backdrop-blur-sm"
+                                >
+                                  {generatingImages.has(`thumbnail_${storyboardConceptIdx}`) ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : 'Regenerate'}
+                                </Button>
+                              </div>
+                            ) : (
+                              <div className="flex flex-col items-center justify-center py-6 gap-2">
+                                <ImageIcon className="h-6 w-6 text-muted-foreground/20" />
+                                <p className="text-[9px] text-muted-foreground/50">Auto-composed from characters & scenes</p>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleGenerateImage('scene', `thumbnail_${storyboardConceptIdx}`)}
+                                  disabled={generatingImages.has(`thumbnail_${storyboardConceptIdx}`) || (characters.every((c) => !c.image_url) && scenes.every((s) => !s.image_url))}
+                                  className="h-7 text-[10px]"
+                                >
+                                  {generatingImages.has(`thumbnail_${storyboardConceptIdx}`) ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <ImageIcon className="h-3 w-3 mr-1" />}
+                                  Generate Thumbnail
+                                </Button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </>
+                    )}
+
+                    {!currentStoryboard && !generatingStoryboard && generatedConcepts.length > 0 && (
+                      <div className="text-center py-8 text-muted-foreground/50">
+                        <ImageIcon className="h-8 w-8 mx-auto mb-2 opacity-30" />
+                        <p className="text-xs">Select a concept and click &quot;Generate Storyboard&quot; to begin</p>
+                      </div>
+                    )}
+
+                    {generatedConcepts.length === 0 && (
+                      <div className="text-center py-8 text-muted-foreground/50">
+                        <p className="text-xs">Generate concepts first in the Concepts stage</p>
+                      </div>
+                    )}
+
+                    {/* Generated Videos below storyboard */}
+                    {(() => {
+                      const vidNode = nodes.find((n) => n.stage_key === 'video_generation');
+                      const vidVariations = (vidNode?.output_data?.variations || []) as Array<{ id: string; title: string; preview?: string; type: string }>;
+                      if (vidVariations.length === 0) return null;
+                      const fmt = (getSetting('video_generation', 'output_format') as string) || '';
+                      const fmtMap: Record<string, string> = { 'reel_9_16': 'aspect-[9/16]', 'story_9_16': 'aspect-[9/16]', 'post_1_1': 'aspect-square', 'landscape_16_9': 'aspect-video' };
+                      const vidAspect = fmtMap[fmt] || 'aspect-video';
+                      return (
+                        <div className="mt-6 border-t border-border pt-4">
+                          <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Generated Videos</h4>
+                          <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
+                            {vidVariations.map((v) => (
+                              <div key={v.id} className="rounded-lg border border-border overflow-hidden bg-muted relative group/gv">
+                                <video
+                                  src={v.preview}
+                                  className={`w-full ${vidAspect} object-cover [&:fullscreen]:object-contain [&:fullscreen]:bg-black [&:fullscreen]:h-screen [&:fullscreen]:w-auto [&:fullscreen]:mx-auto`}
+                                  controls
+                                  playsInline
+                                />
+                                <button
+                                  className="absolute top-1 right-1 h-5 w-5 rounded-full bg-black/60 text-white/70 hover:text-white hover:bg-red-600/80 opacity-0 group-hover/gv:opacity-100 transition-opacity flex items-center justify-center"
+                                  onClick={() => deleteVideoVariation(workflowId, v.id).then(() => loadWorkflow()).catch(() => {})}
+                                >
+                                  <X className="h-3 w-3" />
+                                </button>
+                                <div className="p-1.5">
+                                  <p className="text-[9px] font-medium truncate">{v.title}</p>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </>
+                  );
+                })()}
+
+                {/* ── Video Generation ── */}
+                {openStageKey === 'video_generation' && (() => {
+                  const rawAlloc = getSetting('video_generation', 'creative_allocations') as Array<{ count: string | number; model: string }> | undefined;
+                  const allocations = (rawAlloc && rawAlloc.length > 0 ? rawAlloc : [{ count: '1', model: '' }]).map(a => ({ ...a, count: String(a.count || '1') }));
+                  const totalCreatives = allocations.reduce((sum, a) => sum + (parseInt(a.count) || 0), 0);
+
+                  const updateAllocations = (next: Array<{ count: string; model: string }>) => {
+                    updateStageSetting('video_generation', 'creative_allocations', next);
+                  };
+                  const updateVidRow = (idx: number, field: 'count' | 'model', value: string) => {
+                    const next = allocations.map((a, i) => i === idx ? { ...a, [field]: value } : a);
+                    updateAllocations(next);
+                  };
+                  const addVidRow = () => updateAllocations([...allocations, { count: '1', model: '' }]);
+                  const removeVidRow = (idx: number) => updateAllocations(allocations.filter((_, i) => i !== idx));
+
+                  const vidGeneratingRows = (getSetting('video_generation', '_generating_rows') as number[]) || [];
+                  const vidRowErrors = (getSetting('video_generation', '_row_errors') as Record<number, string>) || {};
+
+                  const handleGenerateRow = async (idx: number) => {
+                    const alloc = allocations[idx];
+                    if (!alloc.model) return;
+
+                    // Mark row as generating
+                    updateStageSetting('video_generation', '_generating_rows', [...vidGeneratingRows, idx]);
+                    updateStageSetting('video_generation', '_row_errors', { ...vidRowErrors, [idx]: '' });
+
+                    try {
+                      const outputFormat = (getSetting('video_generation', 'output_format') as string) || undefined;
+                      const resolution = (getSetting('video_generation', 'resolution') as string) || undefined;
+                      const temperature = parseFloat((getSetting('video_generation', 'temperature') as string) || '0.7');
+
+                      const { task_id } = await generateVideo(
+                        workflowId,
+                        selectedSbIdx,
+                        parseInt(alloc.count) || 1,
+                        alloc.model,
+                        outputFormat,
+                        resolution,
+                        temperature,
+                      );
+
+                      // Poll for completion
+                      const poll = setInterval(async () => {
+                        try {
+                          const status = await getVideoStatus(workflowId, task_id);
+                          if (status.status === 'completed' || status.status === 'failed') {
+                            clearInterval(poll);
+                            const currentGenerating = ((getSetting('video_generation', '_generating_rows') as number[]) || []).filter((r) => r !== idx);
+                            updateStageSetting('video_generation', '_generating_rows', currentGenerating);
+                            if (status.status === 'failed') {
+                              updateStageSetting('video_generation', '_row_errors', {
+                                ...((getSetting('video_generation', '_row_errors') as Record<number, string>) || {}),
+                                [idx]: (status.error as string) || 'Generation failed',
+                              });
+                            }
+                            await loadWorkflow();
+                          }
+                        } catch {
+                          clearInterval(poll);
+                          const currentGenerating = ((getSetting('video_generation', '_generating_rows') as number[]) || []).filter((r) => r !== idx);
+                          updateStageSetting('video_generation', '_generating_rows', currentGenerating);
+                        }
+                      }, 3000);
+                    } catch (err) {
+                      const currentGenerating = vidGeneratingRows.filter((r) => r !== idx);
+                      updateStageSetting('video_generation', '_generating_rows', currentGenerating);
+                      updateStageSetting('video_generation', '_row_errors', {
+                        ...vidRowErrors,
+                        [idx]: err instanceof Error ? err.message : 'Failed to start generation',
+                      });
+                    }
+                  };
+
+                  // Get storyboard data
+                  const storyboardNode = nodes.find((n) => n.stage_key === 'storyboard');
+                  const storyboardOutput = (storyboardNode?.output_data || {}) as { storyboards?: Array<Record<string, unknown>> };
+                  const storyboards = storyboardOutput.storyboards || [];
+                  const generatedConcepts = (getSetting('concepts', 'generated_concepts') as Array<{ title: string; hook: string; script: string; messaging: string[]; tone?: string }>) || [];
+                  const selectedSbIdx = (getSetting('video_generation', 'selected_storyboard') as number) ?? 0;
+                  const selectedSb = storyboards[selectedSbIdx] as Record<string, unknown> | undefined;
+
+                  type VidChar = { id: string; name: string; description: string; image_url: string | null; image_model: string };
+                  type VidScene = { id: string; scene_number: number; title: string; description: string; shot_type: string; duration_hint: string; character_ids: string[]; image_url: string | null; image_model: string };
+                  const sbStoryline = (selectedSb?.storyline || '') as string;
+                  const sbTotalCuts = (selectedSb?.total_cuts || 0) as number;
+                  const sbCharacters = (selectedSb?.characters || []) as VidChar[];
+                  const sbScenes = (selectedSb?.scenes || []) as VidScene[];
+                  const sbThumbnail = (selectedSb?.thumbnail_url || null) as string | null;
+                  const sbConceptIdx = (selectedSb?.concept_index ?? 0) as number;
+                  const sbConceptTitle = generatedConcepts[sbConceptIdx]?.title || `Concept ${sbConceptIdx + 1}`;
+
+                  return (
+                  <>
+                    {/* Storyboard selector + summary */}
+                    {storyboards.length > 0 && (
+                      <div className="space-y-3">
+                        {/* Selector (only if multiple) */}
+                        {storyboards.length > 1 && (
+                          <div className="max-w-xs">
+                            <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground mb-1">Storyboard</div>
+                            <Select value={String(selectedSbIdx)} onValueChange={(v) => updateStageSetting('video_generation', 'selected_storyboard', Number(v))}>
+                              <SelectTrigger className="h-7 text-[10px]"><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                {storyboards.map((sb, i) => {
+                                  const cIdx = (sb.concept_index ?? i) as number;
+                                  const cTitle = generatedConcepts[cIdx]?.title || `Concept ${cIdx + 1}`;
+                                  return <SelectItem key={i} value={String(i)}>{cTitle}</SelectItem>;
+                                })}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )}
+
+                        {selectedSb && (
+                          <>
+                            {/* Storyline & stats */}
+                            <div className="rounded-lg border border-border p-3 space-y-2">
+                              <div className="flex items-center gap-2">
+                                <span className="font-mono text-xs uppercase tracking-wider text-muted-foreground">Storyline</span>
+                                <span className="text-xs text-muted-foreground/50">&middot; {sbConceptTitle}</span>
+                              </div>
+                              <p className="text-sm text-foreground/80 leading-relaxed">{sbStoryline}</p>
+                              <div className="flex items-center gap-3">
+                                <span className="font-mono text-[8px] text-muted-foreground">{sbTotalCuts} cuts</span>
+                                <span className="font-mono text-[8px] text-muted-foreground">{sbCharacters.length} characters</span>
+                                <span className="font-mono text-[8px] text-muted-foreground">{sbScenes.length} scenes</span>
+                                <span className="font-mono text-[8px] text-muted-foreground">
+                                  {sbScenes.reduce((sum, s) => sum + (parseInt(String(s.duration_hint).replace('s', '')) || 0), 0)}s total
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Thumbnail */}
+                            {sbThumbnail && (
+                              <div>
+                                <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground mb-1.5">Thumbnail</div>
+                                <div className="w-[160px] rounded border border-border overflow-hidden">
+                                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                                  <img src={sbThumbnail} alt="Thumbnail" className="w-full aspect-video object-cover" />
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Characters */}
+                            {sbCharacters.length > 0 && (
+                              <div>
+                                <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground mb-1.5">Characters</div>
+                                <div
+                                  className="grid gap-2 items-stretch"
+                                  style={{ gridTemplateColumns: sbCharacters.length <= 2 ? `repeat(${sbCharacters.length}, minmax(0, 160px))` : `repeat(${sbCharacters.length}, 1fr)`, maxWidth: sbCharacters.length <= 4 ? `${sbCharacters.length * 168}px` : undefined }}
+                                >
+                                  {sbCharacters.map((char) => (
+                                    <div key={char.id} className="rounded border border-border overflow-hidden flex flex-col min-w-0">
+                                      <div className="aspect-[3/4] bg-muted shrink-0">
+                                        {char.image_url ? (
+                                          // eslint-disable-next-line @next/next/no-img-element
+                                          <img src={char.image_url} alt={char.name} className="h-full w-full object-cover" />
+                                        ) : (
+                                          <div className="flex h-full items-center justify-center"><UserIcon className="h-4 w-4 text-muted-foreground/20" /></div>
+                                        )}
+                                      </div>
+                                      <div className="px-1.5 py-1 flex-1">
+                                        <div className="text-xs font-medium truncate">{char.name}</div>
+                                        <p className="text-[11px] text-muted-foreground leading-snug">{char.description}</p>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Scenes + Generated Videos */}
+                            {sbScenes.length > 0 && (() => {
+                              const vidNode = nodes.find((n) => n.stage_key === 'video_generation');
+                              const allVariations = (vidNode?.output_data?.variations || []) as Array<{ id: string; title: string; preview?: string; type: string; task_id?: string; scene_number?: number; model?: string }>;
+                              const sceneVariations = allVariations.filter((v) => v.type === 'scene');
+                              const taskIds = [...new Set(sceneVariations.map((v) => v.task_id || '').filter(Boolean))].reverse();
+                              // Read aspect ratio from config
+                              const outputFormat = (getSetting('video_generation', 'output_format') as string) || '';
+                              const aspectMap: Record<string, string> = { 'reel_9_16': 'aspect-[9/16]', 'story_9_16': 'aspect-[9/16]', 'post_1_1': 'aspect-square', 'landscape_16_9': 'aspect-video' };
+                              const videoAspect = aspectMap[outputFormat] || 'aspect-video';
+                              return (
+                              <div>
+                                <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground mb-1.5">Scenes</div>
+                                <div
+                                  className="grid gap-2 pb-1 items-stretch"
+                                  style={{ gridTemplateColumns: sbScenes.length <= 2 ? `repeat(${sbScenes.length}, minmax(0, 280px))` : `repeat(${sbScenes.length}, 1fr)` }}
+                                >
+                                  {sbScenes.map((scene) => (
+                                    <div key={scene.id} className="flex flex-col gap-1.5 min-w-0">
+                                      {/* Scene image */}
+                                      <div className="rounded border border-border overflow-hidden flex flex-col flex-1">
+                                        <div className={`${videoAspect} bg-muted relative shrink-0`}>
+                                          {scene.image_url ? (
+                                            // eslint-disable-next-line @next/next/no-img-element
+                                            <img src={scene.image_url} alt={scene.title} className="h-full w-full object-cover" />
+                                          ) : (
+                                            <div className="flex h-full items-center justify-center"><ImageIcon className="h-3 w-3 text-muted-foreground/20" /></div>
+                                          )}
+                                          <div className="absolute top-0.5 left-0.5 flex gap-0.5">
+                                            <input
+                                              className="inline-flex items-center rounded-full bg-black/60 px-1 py-px font-mono text-[6px] text-white w-16 text-center border-none focus:outline-none focus:ring-1 focus:ring-white/40"
+                                              defaultValue={scene.shot_type}
+                                              onBlur={(e) => {
+                                                if (e.target.value !== scene.shot_type) {
+                                                  updateStoryboardScene(workflowId as string, selectedSbIdx, scene.id, { shot_type: e.target.value })
+                                                    .then(() => loadWorkflow())
+                                                    .catch(() => { e.target.value = scene.shot_type; });
+                                                }
+                                              }}
+                                              onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                                            />
+                                            <input
+                                              className="inline-flex items-center rounded-full bg-black/60 px-1 py-px font-mono text-[6px] text-white w-8 text-center border-none focus:outline-none focus:ring-1 focus:ring-white/40"
+                                              defaultValue={scene.duration_hint}
+                                              onBlur={(e) => {
+                                                if (e.target.value !== scene.duration_hint) {
+                                                  updateStoryboardScene(workflowId as string, selectedSbIdx, scene.id, { duration_hint: e.target.value })
+                                                    .then(() => loadWorkflow())
+                                                    .catch(() => { e.target.value = scene.duration_hint; });
+                                                }
+                                              }}
+                                              onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                                            />
+                                          </div>
+                                        </div>
+                                        <div className="px-1.5 py-1 space-y-0.5 flex-1">
+                                          <div className="flex items-center gap-1">
+                                            <span className="font-mono text-[7px] text-muted-foreground/50">{scene.scene_number}.</span>
+                                            <input
+                                              className="text-[8px] font-medium truncate bg-transparent border-b border-transparent hover:border-border focus:border-primary focus:outline-none w-full"
+                                              defaultValue={scene.title}
+                                              onBlur={(e) => {
+                                                if (e.target.value !== scene.title) {
+                                                  updateStoryboardScene(workflowId as string, selectedSbIdx, scene.id, { title: e.target.value })
+                                                    .then(() => loadWorkflow())
+                                                    .catch(() => { e.target.value = scene.title; });
+                                                }
+                                              }}
+                                              onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                                            />
+                                          </div>
+                                          <textarea
+                                            className="text-[7px] text-muted-foreground leading-relaxed bg-transparent border border-transparent hover:border-border focus:border-primary focus:outline-none w-full resize-none"
+                                            defaultValue={scene.description}
+                                            rows={2}
+                                            onBlur={(e) => {
+                                              if (e.target.value !== scene.description) {
+                                                updateStoryboardScene(workflowId as string, selectedSbIdx, scene.id, { description: e.target.value })
+                                                  .then(() => loadWorkflow())
+                                                  .catch(() => { e.target.value = scene.description; });
+                                              }
+                                            }}
+                                          />
+                                          {scene.character_ids.length > 0 && (
+                                            <div className="flex flex-wrap gap-0.5">
+                                              {scene.character_ids.map((cid: string) => {
+                                                const char = sbCharacters.find((c) => c.id === cid);
+                                                return <span key={cid} className="inline-flex items-center rounded-full border border-border px-1 py-px font-mono text-[6px] text-muted-foreground">{char?.name || cid}</span>;
+                                              })}
+                                            </div>
+                                          )}
+                                        </div>
+                                      </div>
+                                      {/* Generated videos for this scene — one per batch */}
+                                      {taskIds.map((tid) => {
+                                        const batchVideos = sceneVariations.filter((v) => v.task_id === tid);
+                                        const vid = batchVideos.find((v) => v.scene_number === scene.scene_number || v.id.includes(`-scene${scene.scene_number}-`));
+                                        const batchModel = batchVideos[0]?.model || '';
+                                        return (
+                                          <div key={tid} className="rounded border border-border overflow-hidden relative group/vid">
+                                            {vid?.preview ? (
+                                              <div className={`${videoAspect} bg-black relative`}>
+                                                <video
+                                                  src={vid.preview}
+                                                  className="h-full w-full object-cover [&:fullscreen]:object-contain [&:fullscreen]:bg-black [&:fullscreen]:h-screen [&:fullscreen]:w-auto [&:fullscreen]:mx-auto"
+                                                  controls
+                                                  playsInline
+                                                />
+                                                <div className="absolute top-0.5 left-0.5">
+                                                  <span className="inline-flex items-center rounded-full bg-green-600/80 px-1 py-px font-mono text-[6px] text-white">{batchModel}</span>
+                                                </div>
+                                                {vid.id && (
+                                                  <button
+                                                    className="absolute top-0.5 right-0.5 h-4 w-4 rounded-full bg-black/60 text-white/70 hover:text-white hover:bg-red-600/80 opacity-0 group-hover/vid:opacity-100 transition-opacity flex items-center justify-center"
+                                                    onClick={() => deleteVideoVariation(workflowId, vid.id).then(() => loadWorkflow()).catch(() => {})}
+                                                  >
+                                                    <X className="h-2.5 w-2.5" />
+                                                  </button>
+                                                )}
+                                              </div>
+                                            ) : (
+                                              <div className={`${videoAspect} bg-muted/50 flex items-center justify-center`}>
+                                                <span className="font-mono text-[8px] text-muted-foreground/40">rendering...</span>
+                                              </div>
+                                            )}
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                              );
+                            })()}
+                          </>
+                        )}
+
+                        {!selectedSb && (
+                          <div className="text-center py-4 text-muted-foreground/50">
+                            <p className="text-xs">No storyboard generated yet</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {storyboards.length === 0 && (
+                      <div className="rounded-lg border border-dashed border-border p-4 text-center text-muted-foreground/50">
+                        <p className="text-xs">Generate a storyboard first</p>
+                      </div>
+                    )}
+
+                    {/* Generated Videos — stitched/full only */}
+                    {(() => {
+                      const vidNode = nodes.find((n) => n.stage_key === 'video_generation');
+                      const vidVariations = ((vidNode?.output_data?.variations || []) as Array<{ id: string; title: string; preview?: string; type: string }>).filter((v) => v.type !== 'scene');
+                      if (vidVariations.length === 0) return null;
+                      const fmt2 = (getSetting('video_generation', 'output_format') as string) || '';
+                      const fmtMap2: Record<string, string> = { 'reel_9_16': 'aspect-[9/16]', 'story_9_16': 'aspect-[9/16]', 'post_1_1': 'aspect-square', 'landscape_16_9': 'aspect-video' };
+                      const vidAspect2 = fmtMap2[fmt2] || 'aspect-video';
+                      return (
+                        <div className="mb-4 border-b border-border pb-4">
+                          <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Generated Videos</h4>
+                          <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
+                            {vidVariations.map((v) => (
+                              <div key={v.id} className="rounded-lg border border-border overflow-hidden bg-muted relative group/gv2">
+                                <video
+                                  src={v.preview}
+                                  className={`w-full ${vidAspect2} object-cover [&:fullscreen]:object-contain [&:fullscreen]:bg-black [&:fullscreen]:h-screen [&:fullscreen]:w-auto [&:fullscreen]:mx-auto`}
+                                  controls
+                                  playsInline
+                                />
+                                <button
+                                  className="absolute top-1 right-1 h-5 w-5 rounded-full bg-black/60 text-white/70 hover:text-white hover:bg-red-600/80 opacity-0 group-hover/gv2:opacity-100 transition-opacity flex items-center justify-center"
+                                  onClick={() => deleteVideoVariation(workflowId, v.id).then(() => loadWorkflow()).catch(() => {})}
+                                >
+                                  <X className="h-3 w-3" />
+                                </button>
+                                <div className="p-1.5">
+                                  <p className="text-[9px] font-medium truncate">{v.title}</p>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })()}
+
+                    {/* Model allocations — all controls in one row */}
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground">{totalCreatives} creatives</div>
+                        <button onClick={addVidRow} className="font-mono text-[10px] text-muted-foreground hover:text-foreground transition-colors">+ Add Variation</button>
+                      </div>
+                      <div className="space-y-1.5">
+                        {allocations.map((alloc, idx) => (
+                          <div key={idx} className="space-y-0.5">
+                            <div className="flex items-end gap-1.5">
+                              <div className="shrink-0">
+                                <div className="font-mono text-[8px] uppercase tracking-wider text-muted-foreground mb-0.5">Qty</div>
+                                <Select value={String(alloc.count)} onValueChange={(v) => updateVidRow(idx, 'count', v)}>
+                                  <SelectTrigger className="h-7 w-[52px] text-[10px]"><SelectValue /></SelectTrigger>
+                                  <SelectContent>{[1, 2, 3, 4, 5, 6, 8, 10].map((n) => <SelectItem key={n} value={String(n)}>{n}</SelectItem>)}</SelectContent>
+                                </Select>
+                              </div>
+                              <div className="shrink-0">
+                                <div className="font-mono text-[8px] uppercase tracking-wider text-muted-foreground mb-0.5">Model</div>
+                                <Select value={alloc.model} onValueChange={(v) => updateVidRow(idx, 'model', v)}>
+                                  <SelectTrigger className="h-7 w-[180px] text-[10px]"><SelectValue placeholder="Select model" /></SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="sora-2-pro">Sora 2 Pro — OpenAI</SelectItem>
+                                    <SelectItem value="sora-2">Sora 2 — OpenAI</SelectItem>
+                                    <SelectItem value="veo-3.1">Veo 3.1 — Google</SelectItem>
+                                    <SelectItem value="veo-3.1-fast">Veo 3.1 Fast — Google</SelectItem>
+                                    <SelectItem value="veo-3">Veo 3 — Google</SelectItem>
+                                    <SelectItem value="veo-3-fast">Veo 3 Fast — Google</SelectItem>
+                                    <SelectItem value="kwaivgi/kling-v2.6">Kling v2.6 — Kuaishou</SelectItem>
+                                    <SelectItem value="kwaivgi/kling-v2.5-turbo-pro">Kling v2.5 Turbo — Kuaishou</SelectItem>
+                                    <SelectItem value="minimax/hailuo-2.3">Hailuo 2.3 — MiniMax</SelectItem>
+                                    <SelectItem value="minimax/hailuo-02">Hailuo 02 — MiniMax</SelectItem>
+                                    <SelectItem value="pixverse/pixverse-v5">PixVerse v5</SelectItem>
+                                    <SelectItem value="bytedance/seedance-1-pro">Seedance 1 Pro — ByteDance</SelectItem>
+                                    <SelectItem value="luma/ray-2-720p">Ray 2 720p — Luma</SelectItem>
+                                    <SelectItem value="wan-video/wan-2.5-t2v">Wan 2.5 T2V — Alibaba</SelectItem>
+                                    <SelectItem value="wan-video/wan-2.5-i2v">Wan 2.5 I2V — Alibaba</SelectItem>
+                                    <SelectItem value="wan-video/wan-2.2-t2v-fast">Wan 2.2 Fast — Alibaba</SelectItem>
+                                    <SelectItem value="tencent/hunyuan-video">HunyuanVideo — Tencent</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div className="shrink-0">
+                                <div className="font-mono text-[8px] uppercase tracking-wider text-muted-foreground mb-0.5">Format</div>
+                                <Select value={(getSetting('video_generation', 'output_format') as string) || ''} onValueChange={(v) => updateStageSetting('video_generation', 'output_format', v)}>
+                                  <SelectTrigger className="h-7 w-[95px] text-[10px]"><SelectValue placeholder="Format" /></SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="reel_9_16">Reel 9:16</SelectItem>
+                                    <SelectItem value="story_9_16">Story 9:16</SelectItem>
+                                    <SelectItem value="post_1_1">Post 1:1</SelectItem>
+                                    <SelectItem value="landscape_16_9">16:9</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div className="shrink-0">
+                                <div className="font-mono text-[8px] uppercase tracking-wider text-muted-foreground mb-0.5">Res</div>
+                                <Select value={(getSetting('video_generation', 'resolution') as string) || ''} onValueChange={(v) => updateStageSetting('video_generation', 'resolution', v)}>
+                                  <SelectTrigger className="h-7 w-[70px] text-[10px]"><SelectValue placeholder="Res" /></SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="720p">720p</SelectItem>
+                                    <SelectItem value="1080p">1080p</SelectItem>
+                                    <SelectItem value="4k">4K</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div className="shrink-0">
+                                <div className="font-mono text-[8px] uppercase tracking-wider text-muted-foreground mb-0.5">Temp</div>
+                                <Select value={(getSetting('video_generation', 'temperature') as string) || '0.7'} onValueChange={(v) => updateStageSetting('video_generation', 'temperature', v)}>
+                                  <SelectTrigger className="h-7 w-[72px] text-[10px]"><SelectValue /></SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="0.3">0.3</SelectItem>
+                                    <SelectItem value="0.5">0.5</SelectItem>
+                                    <SelectItem value="0.7">0.7</SelectItem>
+                                    <SelectItem value="0.9">0.9</SelectItem>
+                                    <SelectItem value="1.0">1.0</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div className="shrink-0">
+                                <div className="font-mono text-[8px] uppercase tracking-wider text-muted-foreground mb-0.5">Style</div>
+                                <Select value={(getSetting('video_generation', 'style') as string) || ''} onValueChange={(v) => updateStageSetting('video_generation', 'style', v)}>
+                                  <SelectTrigger className="h-7 w-[85px] text-[10px]"><SelectValue placeholder="Style" /></SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="realistic">Realistic</SelectItem>
+                                    <SelectItem value="animated">Animated</SelectItem>
+                                    <SelectItem value="cinematic">Cinematic</SelectItem>
+                                    <SelectItem value="documentary">Documentary</SelectItem>
+                                    <SelectItem value="stop_motion">Stop Motion</SelectItem>
+                                    <SelectItem value="3d_render">3D Render</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div className="shrink-0">
+                                <div className="font-mono text-[8px] uppercase tracking-wider text-muted-foreground mb-0.5">Tone</div>
+                                <Select value={(getSetting('video_generation', 'tone') as string) || ''} onValueChange={(v) => updateStageSetting('video_generation', 'tone', v)}>
+                                  <SelectTrigger className="h-7 w-[85px] text-[10px]"><SelectValue placeholder="Tone" /></SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="energetic">Energetic</SelectItem>
+                                    <SelectItem value="calm">Calm</SelectItem>
+                                    <SelectItem value="dramatic">Dramatic</SelectItem>
+                                    <SelectItem value="playful">Playful</SelectItem>
+                                    <SelectItem value="professional">Professional</SelectItem>
+                                    <SelectItem value="luxury">Luxury</SelectItem>
+                                    <SelectItem value="raw">Raw / Authentic</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div className="shrink-0 flex flex-col justify-end">
+                                <div className="font-mono text-[8px] uppercase tracking-wider text-transparent mb-0.5 select-none">Go</div>
+                                <button
+                                  onClick={() => handleGenerateRow(idx)}
+                                  disabled={!alloc.model || vidGeneratingRows.includes(idx) || storyboards.length === 0}
+                                  className="h-8 px-4 rounded-md text-xs font-medium bg-foreground text-background hover:bg-foreground/90 disabled:opacity-30 disabled:cursor-not-allowed transition-colors inline-flex items-center gap-1.5"
+                                >
+                                  {vidGeneratingRows.includes(idx) ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Bot className="h-3.5 w-3.5" />}
+                                  Generate
+                                </button>
+                              </div>
+                              {allocations.length > 1 && (
+                                <div className="shrink-0">
+                                  <div className="font-mono text-[8px] uppercase tracking-wider text-transparent mb-0.5 select-none">X</div>
+                                  <button onClick={() => removeVidRow(idx)} className="h-7 inline-flex items-center justify-center rounded p-1 text-muted-foreground/40 hover:text-foreground transition-colors">
+                                    <X className="h-3 w-3" />
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                            {vidRowErrors[idx] && (
+                              <p className="text-[8px] text-destructive pl-[62px]">{vidRowErrors[idx]}</p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Video jobs list */}
+                    {videoJobs.length > 0 && (
+                      <div className="mt-3">
+                        <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground mb-1">Jobs</div>
+                        <div className="space-y-1">
+                          {videoJobs.map((job) => (
+                            <div key={job.task_id} className="flex items-center gap-2 text-[10px] font-mono">
+                              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${job.status === 'completed' ? 'bg-green-500' : job.status === 'failed' || job.scenes_failed === job.scenes_total ? 'bg-red-500' : 'bg-yellow-500 animate-pulse'}`} />
+                              <span className="text-muted-foreground truncate">{job.model}</span>
+                              <span className="text-muted-foreground/60">{job.scenes_done}/{job.scenes_total}</span>
+                              {job.scenes_failed > 0 && <span className="text-red-500">{job.scenes_failed}✗</span>}
+                              <span className="text-muted-foreground/40 truncate">{job.task_id.slice(0, 8)}</span>
+                              <button
+                                className="ml-auto shrink-0 h-4 w-4 rounded hover:bg-destructive/20 text-muted-foreground/40 hover:text-destructive flex items-center justify-center transition-colors"
+                                onClick={() => deleteVideoJob(workflowId, job.task_id).then(() => loadWorkflow()).catch(() => {})}
+                                title="Delete job"
+                              >
+                                <X className="h-2.5 w-2.5" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
                   </>
                   );
                 })()}

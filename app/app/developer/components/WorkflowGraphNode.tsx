@@ -6,7 +6,6 @@ import type { NodeStatus, NodeType } from '../lib/types';
 import { STAGE_LABELS } from '../lib/types';
 
 const NODE_TYPE_ICON: Record<string, typeof Bot> = {
-  auto: Bot,
   agent: Bot,
   human: User,
 };

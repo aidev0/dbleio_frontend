@@ -10,7 +10,7 @@ export type WorkflowStatus =
   | 'failed'
   | 'cancelled';
 
-export type NodeType = 'auto' | 'agent' | 'human';
+export type NodeType = 'agent' | 'human';
 
 export type NodeStatus =
   | 'pending'
@@ -106,25 +106,34 @@ export interface Workflow {
   current_stage: string;
   current_stage_index: number;
   agent_config?: Record<string, unknown>;
-  nodes?: WorkflowNode[];
+  agents?: WorkflowAgent[];
   created_by?: string;
   created_at?: string;
   updated_at?: string;
 }
 
-export interface WorkflowNode {
+export interface WorkflowAgent {
   _id: string;
   workflow_id: string;
   stage_name: string;
   stage_index: number;
   node_type: NodeType;
+  agent_type: string | null;
+  model_id: string | null;
+  allowed_model_categories: string[];
   status: NodeStatus;
   iteration: number;
   input_data: Record<string, unknown>;
   output_data: Record<string, unknown>;
+  error?: string | null;
   started_at?: string;
   completed_at?: string;
+  created_at?: string;
+  updated_at?: string;
 }
+
+// Backward-compatible alias
+export type WorkflowNode = WorkflowAgent;
 
 export interface WorkflowJob {
   _id: string;

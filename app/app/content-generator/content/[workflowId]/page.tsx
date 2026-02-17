@@ -90,8 +90,12 @@ function VariationCard({ variation, index }: { variation: ContentVariation; inde
       {/* Preview area */}
       <div className="relative aspect-[4/5] bg-muted">
         {variation.preview ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={variation.preview} alt={variation.title} className="h-full w-full object-cover" />
+          variation.type === 'video' ? (
+            <video src={variation.preview} className="h-full w-full object-cover" muted autoPlay loop playsInline />
+          ) : (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={variation.preview} alt={variation.title} className="h-full w-full object-cover" />
+          )
         ) : (
           <div className="flex h-full items-center justify-center">
             <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground/30">

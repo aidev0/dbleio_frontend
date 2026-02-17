@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, Suspense, useState } from 'react';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { useAuth } from './video-simulation/auth/authContext';
 import { ArrowRight } from 'lucide-react';
 import Image from 'next/image';
@@ -97,7 +97,8 @@ function ContactForm({ user, logout }: { user: { email: string }; logout: () => 
 
 function AppHome() {
   const searchParams = useSearchParams();
-  const { user, logout } = useAuth();
+  const router = useRouter();
+  const { user, logout, checkAuth } = useAuth();
   const authCallbackCalled = useRef(false);
   const [customWorkflows, setCustomWorkflows] = useState<CustomWorkflow[]>([]);
   const [cwLoading, setCwLoading] = useState(true);
@@ -129,20 +130,27 @@ function AppHome() {
           localStorage.setItem('refresh_token', data.refresh_token);
         }
 
-        window.location.href = '/app';
+        // Update auth state in-memory immediately, then navigate without full reload
+        checkAuth();
+        router.replace('/app');
       } catch (err) {
         console.error('Authentication error:', err);
         localStorage.removeItem('user');
         localStorage.removeItem('access_token');
         localStorage.removeItem('refresh_token');
-        window.location.href = '/';
+        router.replace('/');
       }
     };
 
     handleAuthCallback();
-  }, [searchParams]);
+  }, [searchParams, checkAuth, router]);
 
   useEffect(() => {
+    // Don't fetch workflows while mid-auth-callback — no token yet
+    if (searchParams.get('code')) {
+      setCwLoading(false);
+      return;
+    }
     (async () => {
       try {
         const wfs = await getCustomWorkflows();
@@ -153,7 +161,7 @@ function AppHome() {
         setCwLoading(false);
       }
     })();
-  }, []);
+  }, [searchParams]);
 
   if (searchParams.get('code')) {
     return (

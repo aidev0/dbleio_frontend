@@ -11,7 +11,7 @@ import ReactMarkdown from 'react-markdown';
 import NavMenu from '@/components/NavMenu';
 import {
   getWorkflow,
-  getWorkflowNodes,
+  getWorkflowAgents,
   getSpecification,
   approveWorkflowPlan,
   approveWorkflowQA,
@@ -149,12 +149,12 @@ export default function WorkflowDetailPage() {
 
   const loadWorkflow = useCallback(async () => {
     try {
-      const [wf, nodeList] = await Promise.all([
+      const [wf, agentList] = await Promise.all([
         getWorkflow(workflowId),
-        getWorkflowNodes(workflowId),
+        getWorkflowAgents(workflowId),
       ]);
       setWorkflow(wf);
-      setNodes(nodeList);
+      setNodes(agentList);
     } catch (err) {
       console.error('Failed to load workflow:', err);
     }

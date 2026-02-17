@@ -3,6 +3,7 @@ import type {
   Organization,
   Project,
   Workflow,
+  WorkflowAgent,
   WorkflowNode,
   WorkflowJob,
   WorkflowEvent,
@@ -169,15 +170,18 @@ export async function deleteWorkflow(workflowId: string): Promise<void> {
   }
 }
 
-export async function getWorkflowNodes(workflowId: string): Promise<WorkflowNode[]> {
+export async function getWorkflowAgents(workflowId: string): Promise<WorkflowAgent[]> {
   try {
-    const res = await apiGet(`/api/development/workflows/${workflowId}/nodes`);
+    const res = await apiGet(`/api/development/workflows/${workflowId}/agents`);
     if (!res.ok) return [];
     return res.json();
   } catch {
     return [];
   }
 }
+
+// Backward-compatible alias
+export const getWorkflowNodes = getWorkflowAgents;
 
 export async function getWorkflowEvents(workflowId: string, limit = 100): Promise<WorkflowEvent[]> {
   try {
@@ -323,6 +327,125 @@ export async function toggleTodo(workflowId: string, entryId: string, todoId: st
   if (!res.ok) {
     const body = await res.text();
     throw new Error(`Failed to toggle todo: ${res.status} ${body}`);
+  }
+  return res.json();
+}
+
+// --- Agent Model Selection ---
+
+export async function getAgentModel(workflowId: string, stageName: string) {
+  const res = await apiGet(`/api/development/workflows/${workflowId}/agents/${stageName}/model`);
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`Failed to get agent model: ${res.status} ${body}`);
+  }
+  return res.json();
+}
+
+export async function setAgentModel(workflowId: string, stageName: string, modelId: string) {
+  const res = await apiFetch(`/api/development/workflows/${workflowId}/agents/${stageName}/model`, {
+    method: 'PUT',
+    body: JSON.stringify({ model_id: modelId }),
+  });
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`Failed to set agent model: ${res.status} ${body}`);
+  }
+  return res.json();
+}
+
+export async function getAvailableModels() {
+  const res = await apiGet('/api/development/workflows/models/available');
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`Failed to get available models: ${res.status} ${body}`);
+  }
+  return res.json();
+}
+
+// --- Pipeline Control ---
+
+export async function runWorkflow(workflowId: string) {
+  const res = await apiPost(`/api/development/workflows/${workflowId}/run`);
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`Failed to run workflow: ${res.status} ${body}`);
+  }
+  return res.json();
+}
+
+export async function advanceWorkflow(workflowId: string) {
+  const res = await apiPost(`/api/development/workflows/${workflowId}/advance`);
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`Failed to advance workflow: ${res.status} ${body}`);
+  }
+  return res.json();
+}
+
+export async function approveStage(workflowId: string, stageName: string, approved: boolean, note?: string) {
+  const res = await apiPost(`/api/development/workflows/${workflowId}/stages/${stageName}/approve`, { approved, note });
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`Failed to approve stage: ${res.status} ${body}`);
+  }
+  return res.json();
+}
+
+export async function submitStageInput(workflowId: string, stageName: string, inputData: Record<string, unknown>) {
+  const res = await apiPost(`/api/development/workflows/${workflowId}/stages/${stageName}/input`, { input_data: inputData });
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`Failed to submit stage input: ${res.status} ${body}`);
+  }
+  return res.json();
+}
+
+// --- Chat ---
+
+export async function sendChatMessage(workflowId: string, message: string, role: string = 'user') {
+  const res = await apiPost(`/api/development/workflows/${workflowId}/chat`, { message, role });
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`Failed to send chat message: ${res.status} ${body}`);
+  }
+  return res.json();
+}
+
+// --- State & History ---
+
+export async function getWorkflowState(workflowId: string) {
+  const res = await apiGet(`/api/development/workflows/${workflowId}/state`);
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`Failed to get workflow state: ${res.status} ${body}`);
+  }
+  return res.json();
+}
+
+export async function getAgentStates(workflowId: string) {
+  const res = await apiGet(`/api/development/workflows/${workflowId}/agent-states`);
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`Failed to get agent states: ${res.status} ${body}`);
+  }
+  return res.json();
+}
+
+export async function getTransitions(workflowId: string) {
+  const res = await apiGet(`/api/development/workflows/${workflowId}/transitions`);
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`Failed to get transitions: ${res.status} ${body}`);
+  }
+  return res.json();
+}
+
+export async function getUserSessions(workflowId: string) {
+  const res = await apiGet(`/api/development/workflows/${workflowId}/sessions`);
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`Failed to get user sessions: ${res.status} ${body}`);
   }
   return res.json();
 }
