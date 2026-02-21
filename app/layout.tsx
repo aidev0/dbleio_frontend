@@ -11,6 +11,7 @@ const cormorantGaramond = Cormorant_Garamond({
 export const metadata: Metadata = {
   title: "DBLE | DTC Marketing Engine",
   description: "AI-powered marketing intelligence platform for DTC e-commerce brands",
+  referrer: "no-referrer",
 };
 
 export default function RootLayout({
@@ -20,6 +21,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <head>
+        <meta name="referrer" content="no-referrer" />
+      </head>
       <body className={cormorantGaramond.variable}>
         <Providers>{children}</Providers>
       </body>
