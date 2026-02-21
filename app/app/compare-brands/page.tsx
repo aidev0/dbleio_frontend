@@ -535,7 +535,7 @@ function AddBrandDialog({ open, onClose, onAdded }: { open: boolean; onClose: ()
 
 export default function CompareBrandsPage() {
   const [profiles, setProfiles] = useState<InstagramProfile[]>([]);
-  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [selected, setSelected] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [addOpen, setAddOpen] = useState(false);
   const [modalItem, setModalItem] = useState<{ item: AnyItem; type: "post" | "reel" } | null>(null);
@@ -544,7 +544,7 @@ export default function CompareBrandsPage() {
     try {
       const data = await getInstagramProfiles();
       setProfiles(data);
-      setSelected(new Set(data.map((p) => p.username)));
+      setSelected(data.map((p) => p.username));
     } catch (e) {
       console.error("Failed to load profiles:", e);
     } finally {
@@ -556,14 +556,13 @@ export default function CompareBrandsPage() {
 
   const toggleBrand = (username: string) => {
     setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(username)) next.delete(username);
-      else next.add(username);
-      return next;
+      if (prev.includes(username)) return prev.filter((u) => u !== username);
+      return [...prev, username];
     });
   };
 
-  const selectedProfiles = profiles.filter((p) => selected.has(p.username));
+  const profileMap = new Map(profiles.map((p) => [p.username, p]));
+  const selectedProfiles = selected.map((u) => profileMap.get(u)).filter(Boolean) as InstagramProfile[];
   const colsClass =
     selectedProfiles.length === 1 ? "grid-cols-1 max-w-xl"
     : selectedProfiles.length === 2 ? "grid-cols-2"
@@ -583,7 +582,7 @@ export default function CompareBrandsPage() {
         <h1 className="text-xl font-semibold mb-4">Compare Brands</h1>
         <div className="flex flex-wrap items-center gap-2">
           {profiles.map((p) => {
-            const active = selected.has(p.username);
+            const active = selected.includes(p.username);
             return (
               <button
                 key={p.username}
