@@ -295,9 +295,11 @@ export async function generateStoryboardImage(
   conceptIndex: number,
   targetType: 'character' | 'scene',
   targetId: string,
-  imageModel?: string
+  imageModel?: string,
+  variationIndex?: number
 ): Promise<{ task_id: string }> {
   const body: Record<string, unknown> = { concept_index: conceptIndex, target_type: targetType, target_id: targetId };
+  if (variationIndex !== undefined) body.variation_index = variationIndex;
   if (imageModel) body.image_model = imageModel;
   const res = await apiPost(`/api/content/workflows/${workflowId}/generate-storyboard-image`, body);
   if (!res.ok) {
@@ -350,11 +352,13 @@ export async function generateVideo(
   outputFormat?: string,
   resolution?: string,
   temperature?: number,
+  customPrompt?: string,
 ): Promise<{ task_id: string; status: string; model: string; count: number }> {
   const body: Record<string, unknown> = { storyboard_index: storyboardIndex, count, model };
   if (outputFormat) body.output_format = outputFormat;
   if (resolution) body.resolution = resolution;
   if (temperature != null) body.temperature = temperature;
+  if (customPrompt) body.custom_prompt = customPrompt;
   const res = await apiPost(`/api/content/workflows/${workflowId}/generate-video`, body);
   if (!res.ok) {
     const text = await res.text();

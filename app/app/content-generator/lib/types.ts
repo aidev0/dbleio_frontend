@@ -91,27 +91,28 @@ export interface StageDefinition {
   stageType: StageType;
   description: string;
   approvalRequired: boolean;
+  available: boolean;
   rejectTarget?: string;
   feedbackTarget?: string;
 }
 
 export const CONTENT_PIPELINE_STAGES: StageDefinition[] = [
-  { key: 'strategy_assets', label: 'Strategy & Assets', stageType: 'human', description: 'Define brand goals and gather Shopify assets to guide content direction.', approvalRequired: false },
-  { key: 'scheduling', label: 'Scheduling', stageType: 'human', description: 'Plan the content calendar.', approvalRequired: false },
-  { key: 'research', label: 'Research', stageType: 'agent', description: 'Discover trends and identify patterns relevant to your audience.', approvalRequired: false },
-  { key: 'concepts', label: 'Concepts', stageType: 'agent', description: 'Generate ideas and develop scripts for content pieces.', approvalRequired: false },
-  { key: 'image_generation', label: 'Image Generation', stageType: 'agent', description: 'Generate concept art and reference images for each concept before storyboarding.', approvalRequired: false },
-  { key: 'storyboard', label: 'Storyboard', stageType: 'agent', description: 'Generate detailed storylines with scenes, characters, and visual assets for each concept.', approvalRequired: false },
-  { key: 'video_generation', label: 'Video Generation', stageType: 'agent', description: 'Produce videos and voiceovers using AI.', approvalRequired: false },
-  { key: 'simulation_testing', label: 'Simulation & Testing', stageType: 'agent', description: 'Model audience personas and run A/B testing to predict content performance.', approvalRequired: false },
-  { key: 'brand_qa', label: 'Brand QA', stageType: 'human', description: 'Ensure content aligns with brand guidelines and safety requirements.', approvalRequired: true, rejectTarget: 'concepts' },
-  { key: 'fdm_review', label: 'FDM Review', stageType: 'human', description: 'Team members review, edit, or override AI decisions and run compliance checks.', approvalRequired: true, rejectTarget: 'concepts' },
-  { key: 'publish', label: 'Publish', stageType: 'auto', description: 'Deploy content across channels (3 reels/week, daily stories).', approvalRequired: false },
-  { key: 'metrics', label: 'Metrics', stageType: 'auto', description: 'Track performance data and ROI for each piece of content.', approvalRequired: false },
-  { key: 'analytics', label: 'Analytics', stageType: 'agent', description: 'Generate insights and build predictive models from the data.', approvalRequired: false, feedbackTarget: 'scheduling' },
-  { key: 'channel_learning', label: 'Channel-Specific Learning', stageType: 'agent', description: 'Adapt strategies based on what works on each platform.', approvalRequired: false },
-  { key: 'ab_testing', label: 'A/B Testing', stageType: 'agent', description: 'Test content variations to identify top performers and optimize future content.', approvalRequired: false },
-  { key: 'reinforcement_learning', label: 'Reinforcement Learning', stageType: 'auto', description: 'Continuously fine-tune the system to improve future outputs.', approvalRequired: false, feedbackTarget: 'research' },
+  { key: 'strategy_assets', label: 'Strategy & Assets', stageType: 'human', description: 'Define brand goals and gather Shopify assets to guide content direction.', approvalRequired: false, available: true },
+  { key: 'scheduling', label: 'Scheduling', stageType: 'human', description: 'Plan the content calendar.', approvalRequired: false, available: true },
+  { key: 'research', label: 'Research', stageType: 'agent', description: 'Discover trends and identify patterns relevant to your audience.', approvalRequired: false, available: false },
+  { key: 'concepts', label: 'Concepts', stageType: 'agent', description: 'Generate ideas and develop scripts for content pieces.', approvalRequired: false, available: true },
+  { key: 'image_generation', label: 'Image Generation', stageType: 'agent', description: 'Generate concept art and reference images for each concept before storyboarding.', approvalRequired: false, available: true },
+  { key: 'storyboard', label: 'Storyboard', stageType: 'agent', description: 'Generate detailed storylines with scenes, characters, and visual assets for each concept.', approvalRequired: false, available: true },
+  { key: 'video_generation', label: 'Video Generation', stageType: 'agent', description: 'Produce videos and voiceovers using AI.', approvalRequired: false, available: true },
+  { key: 'simulation_testing', label: 'Simulation & Testing', stageType: 'agent', description: 'Model audience personas and run A/B testing to predict content performance.', approvalRequired: false, available: false },
+  { key: 'brand_qa', label: 'Brand QA', stageType: 'human', description: 'Ensure content aligns with brand guidelines and safety requirements.', approvalRequired: true, available: false, rejectTarget: 'concepts' },
+  { key: 'fdm_review', label: 'FDM Review', stageType: 'human', description: 'Team members review, edit, or override AI decisions and run compliance checks.', approvalRequired: true, available: false, rejectTarget: 'concepts' },
+  { key: 'publish', label: 'Publish', stageType: 'auto', description: 'Deploy content across channels (3 reels/week, daily stories).', approvalRequired: false, available: false },
+  { key: 'metrics', label: 'Metrics', stageType: 'auto', description: 'Track performance data and ROI for each piece of content.', approvalRequired: false, available: false },
+  { key: 'analytics', label: 'Analytics', stageType: 'agent', description: 'Generate insights and build predictive models from the data.', approvalRequired: false, available: false, feedbackTarget: 'scheduling' },
+  { key: 'channel_learning', label: 'Channel-Specific Learning', stageType: 'agent', description: 'Adapt strategies based on what works on each platform.', approvalRequired: false, available: false },
+  { key: 'ab_testing', label: 'A/B Testing', stageType: 'agent', description: 'Test content variations to identify top performers and optimize future content.', approvalRequired: false, available: false },
+  { key: 'reinforcement_learning', label: 'Reinforcement Learning', stageType: 'auto', description: 'Continuously fine-tune the system to improve future outputs.', approvalRequired: false, available: false, feedbackTarget: 'research' },
 ];
 
 export const CONTENT_STAGE_MAP = Object.fromEntries(CONTENT_PIPELINE_STAGES.map(s => [s.key, s]));

@@ -9,6 +9,8 @@ import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { getCustomWorkflows } from './workflows/lib/api';
 import type { CustomWorkflow } from './workflows/lib/types';
+import { getContentWorkflows } from './content-generator/lib/api';
+import type { ContentWorkflow } from './content-generator/lib/types';
 import NavMenu from '@/components/NavMenu';
 
 function ContactForm({ user, logout }: { user: { email: string }; logout: () => void }) {
@@ -102,6 +104,7 @@ function AppHome() {
   const authCallbackCalled = useRef(false);
   const [customWorkflows, setCustomWorkflows] = useState<CustomWorkflow[]>([]);
   const [cwLoading, setCwLoading] = useState(true);
+  const [contentWorkflows, setContentWorkflows] = useState<ContentWorkflow[]>([]);
 
   useEffect(() => {
     const handleAuthCallback = async () => {
@@ -161,6 +164,16 @@ function AppHome() {
         setCwLoading(false);
       }
     })();
+
+    // Fetch content generator workflows
+    (async () => {
+      try {
+        const wfs = await getContentWorkflows();
+        setContentWorkflows(wfs);
+      } catch {
+        // silently fail
+      }
+    })();
   }, [searchParams]);
 
   if (searchParams.get('code')) {
@@ -185,6 +198,40 @@ function AppHome() {
         <NavMenu />
       </div>
       <main className="mx-auto max-w-5xl px-4 md:px-6 py-8 md:py-16">
+        {/* Content Generator Workflows — only shown if there are any */}
+        {contentWorkflows.length > 0 && (
+          <div className="mb-12">
+            <div className="mb-4 flex items-center justify-between">
+              <div className="font-mono text-xs uppercase tracking-widest text-muted-foreground">Content Generator</div>
+              <Link href="/app/content-generator" className="font-mono text-xs uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1">
+                View all <ArrowRight className="h-3 w-3" />
+              </Link>
+            </div>
+            <div className="grid gap-px border border-border bg-border md:grid-cols-2">
+              {contentWorkflows.slice(0, 6).map((wf) => (
+                <Link
+                  key={wf._id}
+                  href={`/app/content-generator/${wf._id}`}
+                  className="group block bg-background p-6"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <h3 className="text-base font-medium">{wf.title}</h3>
+                    <span className="inline-flex shrink-0 items-center rounded-full border border-border px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider text-muted-foreground">
+                      {wf.status}
+                    </span>
+                  </div>
+                  {wf.description && (
+                    <p className="mt-2 text-sm leading-relaxed text-muted-foreground line-clamp-2">{wf.description}</p>
+                  )}
+                  <div className="mt-4 flex items-center gap-2 font-mono text-xs uppercase tracking-wider text-muted-foreground transition-colors group-hover:text-foreground">
+                    Open <ArrowRight className="h-3 w-3" />
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div className="mb-8">
           <div className="mb-6 font-mono text-xs uppercase tracking-widest text-muted-foreground">DBLE Platform Workflows</div>
         </div>
