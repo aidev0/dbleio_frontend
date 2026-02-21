@@ -7,7 +7,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 import {
   Code2, Tag, LayoutDashboard, Building2, LogOut,
   CalendarDays, FileText, CheckSquare, ImageIcon, Sparkles,
-  ChevronRight,
+  ChevronRight, Scale,
 } from "lucide-react";
 
 import { useAuth } from "./video-simulation/auth/authContext";
@@ -37,6 +37,7 @@ import {
 const topItems = [
   { label: "Developer", icon: Code2, href: "/app/developer" },
   { label: "Brands", icon: Tag, href: "/app/brands" },
+  { label: "Competitive Analysis", icon: Scale, href: "/app/competitive-analysis" },
 ];
 
 // Control Center with sub-items

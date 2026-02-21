@@ -579,7 +579,7 @@ export default function CompareBrandsPage() {
   return (
     <div className="p-6 space-y-6">
       <div>
-        <h1 className="text-xl font-semibold mb-4">Compare Brands</h1>
+        <h1 className="text-xl font-semibold mb-4">Competitive Analysis</h1>
         <div className="flex flex-wrap items-center gap-2">
           {profiles.map((p) => {
             const active = selected.includes(p.username);
