@@ -93,13 +93,12 @@ function GridThumbnail({
   const isVideo = isReelTab || !!videoUrl;
   const isSidecar = (item as InstagramPost).type === "Sidecar";
   const thumb = getThumb(item);
-  const w = item.dimensionsWidth || 4;
-  const h = item.dimensionsHeight || 5;
+  const aspect = isReelTab ? "9/16" : "3/4";
 
   return (
     <button
       className="relative overflow-hidden group cursor-pointer bg-muted rounded-sm"
-      style={{ aspectRatio: `${w}/${h}` }}
+      style={{ aspectRatio: aspect }}
       onClick={onClick}
     >
       {thumb && (
