@@ -38,6 +38,7 @@ import {
   approveContentStage,
   advanceContentStage,
   submitStageInput,
+  resetStage,
   getUserMe,
   getContentTimeline,
   createContentTimelineEntry,
@@ -244,7 +245,7 @@ function WorkflowStepsList({
   campaignName?: string;
   strategyNames: string[];
   assetCount: number;
-  onClickStage?: (stageKey: string) => void;
+  onClickStage?: (stageKey: string, status: string) => void;
   onOpenStage?: (stageKey: string) => void;
 }) {
   return (
@@ -259,7 +260,7 @@ function WorkflowStepsList({
           : status === 'waiting_approval' ? Clock
           : Circle;
         const TypeIcon = stage.stageType === 'agent' ? Bot : UserIcon;
-        const canComplete = isCurrent && (status === 'pending' || status === 'running') && !stage.approvalRequired;
+        const canToggle = (status === 'pending' || status === 'running' || status === 'completed') && !stage.approvalRequired;
 
         if (!stage.available) {
           return (
@@ -290,18 +291,18 @@ function WorkflowStepsList({
                 {i + 1}
               </span>
               <button
-                onClick={(e) => { e.stopPropagation(); canComplete && onClickStage?.(stage.key); }}
-                disabled={!canComplete}
-                className={`shrink-0 ${canComplete ? 'cursor-pointer hover:scale-110 transition-transform' : ''}`}
-                title={canComplete ? 'Click to complete' : undefined}
+                onClick={(e) => { e.stopPropagation(); canToggle && onClickStage?.(stage.key, status); }}
+                disabled={!canToggle}
+                className={`shrink-0 ${canToggle ? 'cursor-pointer hover:scale-110 transition-transform' : ''}`}
+                title={canToggle ? (status === 'completed' ? 'Click to undo' : 'Click to complete') : undefined}
               >
                 <Icon className={`h-4 w-4 ${
                   status === 'running' ? 'animate-spin text-foreground' : ''
-                } ${status === 'completed' ? 'text-foreground' : ''
+                } ${status === 'completed' ? 'text-foreground hover:text-muted-foreground/50' : ''
                 } ${status === 'failed' ? 'text-destructive' : ''
                 } ${status === 'waiting_approval' ? 'text-yellow-500' : ''
-                } ${status === 'pending' && canComplete ? 'text-muted-foreground/50 hover:text-foreground' : ''
-                } ${status === 'pending' && !canComplete ? 'text-muted-foreground/30' : ''}`} />
+                } ${status === 'pending' && canToggle ? 'text-muted-foreground/50 hover:text-foreground' : ''
+                } ${status === 'pending' && !canToggle ? 'text-muted-foreground/30' : ''}`} />
               </button>
               <div className="flex-1 min-w-0">
                 <span className={`text-sm ${isCurrent ? 'font-medium text-foreground' : 'text-muted-foreground'}`}>
@@ -701,13 +702,17 @@ export default function ContentWorkflowDetailPage() {
     }
   };
 
-  const handleCompleteStage = async (stageKey: string) => {
+  const handleToggleStage = async (stageKey: string, currentStatus: string) => {
     if (!workflow) return;
     try {
-      await submitStageInput(workflow._id, stageKey, { completed_by: 'user' });
+      if (currentStatus === 'completed') {
+        await resetStage(workflow._id, stageKey);
+      } else {
+        await submitStageInput(workflow._id, stageKey, { completed_by: 'user' });
+      }
       await loadWorkflow();
     } catch (err) {
-      console.error('Failed to complete stage:', err);
+      console.error('Failed to toggle stage:', err);
     }
   };
 
@@ -1905,7 +1910,7 @@ export default function ContentWorkflowDetailPage() {
               campaignName={campaigns.find((c) => c._id === (workflow.config as Record<string, unknown>)?.campaign_id)?.name}
               strategyNames={strategies.map((s) => s.name)}
               assetCount={brandAssets.length}
-              onClickStage={handleCompleteStage}
+              onClickStage={handleToggleStage}
               onOpenStage={setOpenStageKey}
             />
             <PipelineProgressBar workflow={workflow} nodes={nodes} />

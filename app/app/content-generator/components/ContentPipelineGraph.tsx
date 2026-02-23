@@ -213,10 +213,11 @@ interface Bundle {
 
 const BUNDLES: Bundle[] = [
   { id: 'input',          label: 'Input',              row: 0, stages: ['strategy_assets', 'scheduling'] },
-  { id: 'research',       label: 'Research & Creation', row: 1, stages: ['research', 'concepts', 'content_generation', 'simulation_testing'] },
-  { id: 'review',         label: 'Review',             row: 2, stages: ['brand_qa', 'fdm_review'] },
-  { id: 'distribution',   label: 'Distribution',       row: 3, stages: ['publish', 'metrics'] },
-  { id: 'learning',       label: 'Learning',           row: 4, stages: ['analytics', 'channel_learning', 'ab_testing', 'reinforcement_learning'] },
+  { id: 'research',       label: 'Research & Creation', row: 1, stages: ['research', 'concepts', 'image_generation', 'storyboard'] },
+  { id: 'generation',     label: 'Generation & Testing', row: 2, stages: ['video_generation', 'simulation_testing'] },
+  { id: 'review',         label: 'Review',             row: 3, stages: ['brand_qa', 'fdm_review'] },
+  { id: 'distribution',   label: 'Distribution',       row: 4, stages: ['publish', 'metrics'] },
+  { id: 'learning',       label: 'Learning',           row: 5, stages: ['analytics', 'channel_learning', 'ab_testing', 'reinforcement_learning'] },
 ];
 
 // Short feedback loops (same row -- use top handles)
@@ -372,6 +373,7 @@ export default function ContentPipelineGraph({ nodes, onNodeClick }: ContentPipe
       const tgt = CONTENT_STAGE_ORDER[i + 1];
       const srcPos = POSITIONS[src];
       const tgtPos = POSITIONS[tgt];
+      if (!srcPos || !tgtPos) continue;
       const srcNode = nodeMap[src];
       const isActive = srcNode?.status === 'completed' || srcNode?.status === 'running';
 

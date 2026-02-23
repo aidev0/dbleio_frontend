@@ -204,6 +204,12 @@ export async function submitStageInput(workflowId: string, stageKey: string, inp
   return res.json();
 }
 
+export async function resetStage(workflowId: string, stageKey: string): Promise<Record<string, unknown>> {
+  const res = await apiPost(`/api/content/workflows/${workflowId}/stages/${stageKey}/reset`, {});
+  if (!res.ok) throw new Error('Failed to reset stage');
+  return res.json();
+}
+
 // --- State ---
 
 export async function getContentWorkflowState(workflowId: string): Promise<WorkflowStateSnapshot | null> {

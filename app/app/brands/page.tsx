@@ -136,6 +136,7 @@ export default function BrandsPage() {
   const [copiedAssetId, setCopiedAssetId] = useState<string | null>(null);
   const [viewingAsset, setViewingAsset] = useState<BrandAsset | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const initialLoadDone = useRef(false);
 
   const load = async () => {
     try {
