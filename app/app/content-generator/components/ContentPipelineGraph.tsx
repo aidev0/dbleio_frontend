@@ -343,6 +343,7 @@ export default function ContentPipelineGraph({ nodes, onNodeClick }: ContentPipe
     // Stage nodes
     CONTENT_STAGE_ORDER.forEach((stageName, i) => {
       const pos = POSITIONS[stageName];
+      if (!pos) return;
       const wfNode = nodeMap[stageName];
       result.push({
         id: stageName,
