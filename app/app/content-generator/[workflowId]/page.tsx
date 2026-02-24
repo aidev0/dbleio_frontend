@@ -413,6 +413,7 @@ export default function ContentWorkflowDetailPage() {
   // Graph component (lazy loaded)
   const [GraphComponent, setGraphComponent] = useState<React.ComponentType<{
     nodes: ContentWorkflowNode[];
+    currentStageKey?: string;
     onNodeClick?: (node: ContentWorkflowNode) => void;
   }> | null>(null);
 
@@ -1922,7 +1923,7 @@ export default function ContentWorkflowDetailPage() {
           <div className="flex h-full flex-col">
             <div className="flex-1 min-h-0">
               {GraphComponent ? (
-                <GraphComponent nodes={nodes} onNodeClick={(node) => setOpenStageKey(node.stage_key)} />
+                <GraphComponent nodes={nodes} currentStageKey={workflow?.current_stage} onNodeClick={(node) => setOpenStageKey(node.stage_key)} />
               ) : (
                 <div className="flex h-full items-center justify-center">
                   <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
@@ -3156,9 +3157,9 @@ export default function ContentWorkflowDetailPage() {
                       return (
                         <div className="mb-4 border-b border-border pb-4">
                           <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Generated Videos</h4>
-                          <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
+                          <div className="flex flex-col gap-3">
                             {vidVariations.map((v) => (
-                              <div key={v.id} className="rounded-lg border border-border overflow-hidden bg-muted relative group/gv2">
+                              <div key={v.id} className="rounded-lg border border-border overflow-hidden bg-muted relative group/gv2 max-w-sm">
                                 <video
                                   src={v.preview}
                                   className={`w-full ${vidAspect2} object-contain bg-black [&:fullscreen]:h-screen [&:fullscreen]:w-auto [&:fullscreen]:mx-auto`}

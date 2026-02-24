@@ -284,10 +284,11 @@ const { nodePositions: POSITIONS, bundleRects: BUNDLE_RECTS } = computeLayout();
 // ---- Props -----------------------------------------------------------------
 interface ContentPipelineGraphProps {
   nodes: ContentWorkflowNode[];
+  currentStageKey?: string;
   onNodeClick?: (node: ContentWorkflowNode) => void;
 }
 
-export default function ContentPipelineGraph({ nodes, onNodeClick }: ContentPipelineGraphProps) {
+export default function ContentPipelineGraph({ nodes, currentStageKey, onNodeClick }: ContentPipelineGraphProps) {
   const [selectedNode, setSelectedNode] = useState<ContentWorkflowNode | null>(null);
 
   const nodeMap = useMemo(() => {
@@ -296,19 +297,7 @@ export default function ContentPipelineGraph({ nodes, onNodeClick }: ContentPipe
     return map;
   }, [nodes]);
 
-  const currentStage = useMemo(() => {
-    // First check for actively running/waiting stages
-    for (const stage of CONTENT_STAGE_ORDER) {
-      const n = nodeMap[stage];
-      if (n?.status === 'running' || n?.status === 'waiting_approval') return stage;
-    }
-    // Fall back to the first non-completed stage (the active frontier)
-    for (const stage of CONTENT_STAGE_ORDER) {
-      const n = nodeMap[stage];
-      if (!n || n.status !== 'completed') return stage;
-    }
-    return null;
-  }, [nodeMap]);
+  const currentStage = currentStageKey || null;
 
   const currentStageIndex = useMemo(
     () => currentStage ? CONTENT_STAGE_ORDER.indexOf(currentStage) : CONTENT_STAGE_ORDER.length,
