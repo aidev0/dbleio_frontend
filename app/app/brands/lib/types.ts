@@ -11,6 +11,8 @@ export interface Brand {
   industry?: string;
   logo_url?: string;
   platforms: string[];
+  social_urls?: Record<string, string>; // e.g. { instagram: "https://...", tiktok: "https://..." }
+  status?: string; // "active" or "done"
   created_by?: string;
   created_at?: string;
   updated_at?: string;

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { Loader2, Check } from 'lucide-react';
+import { Loader2, Check, Megaphone, Layers, Film, LayoutGrid } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -26,9 +26,11 @@ interface CreateContentWorkflowModalProps {
   onOpenChange: (open: boolean) => void;
   brandId?: string;
   campaigns: Campaign[];
+  selectedCampaignId?: string;
   onSubmit: (data: {
     title: string;
     description?: string;
+    content_type?: string;
     campaign_id?: string;
     strategy_ids?: string[];
     audience_ids?: string[];
@@ -84,11 +86,13 @@ export default function CreateContentWorkflowModal({
   onOpenChange,
   brandId,
   campaigns,
+  selectedCampaignId: initialCampaignId,
   onSubmit,
 }: CreateContentWorkflowModalProps) {
   const [step, setStep] = useState(1);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [contentType, setContentType] = useState<string | undefined>();
   const [campaignId, setCampaignId] = useState<string | undefined>();
   const [strategyIds, setStrategyIds] = useState<string[]>([]);
   const [audienceIds, setAudienceIds] = useState<string[]>([]);
@@ -98,7 +102,23 @@ export default function CreateContentWorkflowModal({
   const [loadingAudiences, setLoadingAudiences] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  // Load strategies when selected campaign changes
+  // Campaign & strategy details for step 1 display
+  const [contextStrategies, setContextStrategies] = useState<Strategy[]>([]);
+  const [loadingContext, setLoadingContext] = useState(false);
+
+  // Load context campaign details (for step 1 read-only display)
+  useEffect(() => {
+    if (!initialCampaignId) { setContextStrategies([]); return; }
+    setLoadingContext(true);
+    getStrategies(initialCampaignId)
+      .then(setContextStrategies)
+      .catch(() => setContextStrategies([]))
+      .finally(() => setLoadingContext(false));
+  }, [initialCampaignId]);
+
+  const contextCampaign = campaigns.find((c) => c._id === initialCampaignId);
+
+  // Load strategies when selected campaign changes (step 2)
   useEffect(() => {
     if (!campaignId) {
       setStrategies([]);
@@ -130,12 +150,13 @@ export default function CreateContentWorkflowModal({
       setStep(1);
       setTitle('');
       setDescription('');
-      setCampaignId(undefined);
+      setContentType(undefined);
+      setCampaignId(initialCampaignId);
       setStrategyIds([]);
       setAudienceIds([]);
       setStrategies([]);
     }
-  }, [open]);
+  }, [open, initialCampaignId]);
 
   const toggleId = (ids: string[], setIds: (v: string[]) => void, id: string) => {
     setIds(ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]);
@@ -147,6 +168,7 @@ export default function CreateContentWorkflowModal({
       await onSubmit({
         title: title.trim(),
         description: description.trim() || undefined,
+        content_type: contentType,
         campaign_id: campaignId,
         strategy_ids: strategyIds.length > 0 ? strategyIds : undefined,
         audience_ids: audienceIds.length > 0 ? audienceIds : undefined,
@@ -201,6 +223,99 @@ export default function CreateContentWorkflowModal({
                 className="w-full rounded-md border border-border bg-transparent px-3 py-2 text-sm outline-none focus:border-foreground transition-colors resize-none"
               />
             </div>
+
+            {/* Content Type */}
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
+                Content Type
+              </label>
+              <div className="flex gap-2">
+                {[
+                  { id: 'reel', label: 'Reel', icon: Film },
+                  { id: 'carousel', label: 'Carousel', icon: LayoutGrid },
+                ].map(({ id, label, icon: Icon }) => (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => setContentType(contentType === id ? undefined : id)}
+                    className={`flex flex-1 items-center justify-center gap-2 rounded-md border px-3 py-2.5 text-sm transition-colors ${
+                      contentType === id
+                        ? 'border-foreground bg-foreground text-background'
+                        : 'border-border hover:border-foreground/40'
+                    }`}
+                  >
+                    <Icon className="h-4 w-4" />
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Campaign & Strategy Details */}
+            {contextCampaign && (
+              <div className="rounded-lg border border-border bg-muted/20 overflow-hidden">
+                {/* Campaign info */}
+                <div className="flex items-start gap-2 px-3 py-2.5 border-b border-border/50">
+                  <Megaphone className="h-3.5 w-3.5 text-muted-foreground/50 mt-0.5 shrink-0" />
+                  <div className="flex-1 min-w-0 space-y-1">
+                    <span className="text-xs font-semibold">{contextCampaign.name}</span>
+                    {contextCampaign.description && (
+                      <p className="text-[11px] text-muted-foreground/60 line-clamp-2">{contextCampaign.description}</p>
+                    )}
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {contextCampaign.platform && (
+                        <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-[8px] uppercase text-muted-foreground/60">{contextCampaign.platform}</span>
+                      )}
+                      {contextCampaign.campaign_goal && (
+                        <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-[8px] uppercase text-muted-foreground/60">{contextCampaign.campaign_goal}</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Strategies */}
+                {loadingContext ? (
+                  <div className="flex items-center gap-2 px-3 py-2">
+                    <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+                    <span className="text-[10px] text-muted-foreground">Loading strategies...</span>
+                  </div>
+                ) : contextStrategies.length > 0 ? (
+                  <div className="divide-y divide-border/30">
+                    <div className="px-3 py-1.5 flex items-center gap-1.5">
+                      <Layers className="h-3 w-3 text-muted-foreground/40" />
+                      <span className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/60">Strategies</span>
+                    </div>
+                    {contextStrategies.map((st) => (
+                      <div key={st._id} className="px-3 py-2 pl-7 space-y-1">
+                        <span className="text-[11px] font-medium">{st.name}</span>
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          {st.budget_amount != null && (
+                            <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-[8px] text-muted-foreground/60">
+                              ${st.budget_amount.toLocaleString()}{st.budget_type ? `/${st.budget_type}` : ''}
+                            </span>
+                          )}
+                          {st.performance_objective?.kpi && (
+                            <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-[8px] uppercase text-muted-foreground/60">
+                              {st.performance_objective.kpi}{st.performance_objective.value != null ? `: ${st.performance_objective.value}` : ''}
+                            </span>
+                          )}
+                          {st.audience_control?.location?.map((l) => (
+                            <span key={l} className="rounded bg-muted px-1.5 py-0.5 font-mono text-[8px] text-muted-foreground/60">{l}</span>
+                          ))}
+                          {st.audience_control?.in_market_interests?.map((i) => (
+                            <span key={i} className="rounded bg-muted px-1.5 py-0.5 font-mono text-[8px] text-muted-foreground/60">{i}</span>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="px-3 py-2 text-[10px] text-muted-foreground/40">
+                    No strategies for this campaign.
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
 

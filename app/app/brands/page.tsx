@@ -475,6 +475,16 @@ export default function BrandsPage() {
     }
   };
 
+  const handleToggleBrandDone = async (brand: Brand) => {
+    try {
+      const newStatus = brand.status === 'done' ? 'active' : 'done';
+      await updateBrand(brand._id, { status: newStatus } as Partial<Brand>);
+      await load();
+    } catch (err) {
+      console.error('Failed to update brand status:', err);
+    }
+  };
+
   const toggleBrand = (brandId: string) => {
     setExpandedBrands((prev) => {
       const next = new Set(prev);
@@ -577,6 +587,16 @@ export default function BrandsPage() {
 
                     {/* Counts + actions */}
                     <div className="flex items-center gap-1 shrink-0">
+                      {brand.status === 'done' && (
+                        <span className="rounded bg-green-500/10 px-1.5 py-0.5 font-mono text-[8px] uppercase text-green-600 dark:text-green-400">Done</span>
+                      )}
+                      <button
+                        onClick={() => handleToggleBrandDone(brand)}
+                        className={`flex h-6 w-6 items-center justify-center rounded transition-all ${brand.status === 'done' ? 'text-green-500 hover:text-muted-foreground hover:bg-muted' : 'opacity-0 group-hover/brand:opacity-100 text-muted-foreground/30 hover:text-green-500 hover:bg-muted'}`}
+                        title={brand.status === 'done' ? 'Mark active' : 'Mark done'}
+                      >
+                        <Check className="h-3.5 w-3.5" />
+                      </button>
                       <button
                         onClick={() => openEditBrand(brand)}
                         className="opacity-0 group-hover/brand:opacity-100 flex h-6 w-6 items-center justify-center rounded text-muted-foreground/30 hover:text-foreground hover:bg-muted transition-all"

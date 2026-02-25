@@ -255,9 +255,10 @@ export async function sendContentChat(workflowId: string, message: string, role:
 export async function generateConcepts(
   workflowId: string,
   num: number,
-  tone: string
-): Promise<{ concepts: Array<{ title: string; hook: string; script: string; messaging: string[] }> }> {
-  const res = await apiPost(`/api/content/workflows/${workflowId}/generate-concepts`, { num, tone });
+  tone: string,
+  content_type: string = 'reel'
+): Promise<{ concepts: Array<Record<string, unknown>> }> {
+  const res = await apiPost(`/api/content/workflows/${workflowId}/generate-concepts`, { num, tone, content_type });
   if (!res.ok) throw new Error('Failed to generate concepts');
   return res.json();
 }
@@ -273,6 +274,29 @@ export async function getImageModels(): Promise<{ id: string; name: string; prov
   } catch {
     return [];
   }
+}
+
+// --- Concept Image Generation ---
+
+export async function generateConceptImage(
+  workflowId: string,
+  conceptIndex: number,
+  imageModel?: string,
+  slideIndex?: number,
+  contentPieceKey?: string,
+): Promise<{ task_id: string }> {
+  const body: Record<string, unknown> = { concept_index: conceptIndex };
+  if (imageModel) body.image_model = imageModel;
+  if (slideIndex != null) body.slide_index = slideIndex;
+  if (contentPieceKey) body.content_piece_key = contentPieceKey;
+  const res = await apiPost(`/api/content/workflows/${workflowId}/generate-concept-image`, body);
+  if (!res.ok) {
+    const text = await res.text();
+    let detail = text;
+    try { detail = JSON.parse(text).detail || text; } catch { /* */ }
+    throw new Error(detail);
+  }
+  return res.json();
 }
 
 // --- Storyboard ---
@@ -420,6 +444,58 @@ export async function deleteVideoJob(
 ): Promise<{ ok: boolean }> {
   const res = await apiDelete(`/api/content/workflows/${workflowId}/video-job/${taskId}`);
   if (!res.ok) throw new Error('Failed to delete video job');
+  return res.json();
+}
+
+// --- Personas ---
+
+export interface Persona {
+  id: string;
+  campaign_id?: string;
+  name: string;
+  demographics: {
+    age?: string[];
+    gender?: string[];
+    locations?: string[];
+    careers?: string[];
+    education?: string[];
+    income_level?: string[];
+    [key: string]: unknown;
+  };
+  description?: string;
+}
+
+export async function getPersonas(campaignId?: string): Promise<Persona[]> {
+  try {
+    const params = campaignId ? `?campaign_id=${campaignId}` : '';
+    const res = await apiGet(`/api/personas${params}`);
+    if (!res.ok) return [];
+    return res.json();
+  } catch {
+    return [];
+  }
+}
+
+// --- Simulation ---
+
+export interface SimulationResult {
+  gender: string;
+  age: string;
+  score: number;
+  reasoning: string;
+}
+
+export async function runContentSimulation(
+  workflowId: string,
+  params: { genders: string[]; ages: string[]; model_provider: string; model_name: string; persona_ids?: string[] },
+): Promise<{ results: SimulationResult[] }> {
+  const res = await apiPost(`/api/content/workflows/${workflowId}/simulate`, params);
+  if (!res.ok) {
+    const text = await res.text();
+    let detail = text;
+    try { detail = JSON.parse(text).detail || text; } catch { /* */ }
+    throw new Error(detail);
+  }
   return res.json();
 }
 

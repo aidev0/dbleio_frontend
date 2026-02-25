@@ -3,13 +3,13 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import {
-  ArrowLeft, Play, ListChecks, GitBranch,
+  Play, ListChecks, GitBranch,
   CheckCircle2, Circle, Loader2, XCircle, Clock,
   MoreHorizontal, CalendarClock, Copy, Download, Star, Trash2,
   ChevronLeft, ChevronRight, Bot, User as UserIcon, Image as ImageIcon,
   Megaphone, Paperclip, Settings2, X, Pencil,
   Film, Music, Type as TypeIconLucide, Eye, Check, Plus, Upload,
-  FileText,
+  FileText, BarChart2, Globe, ExternalLink, Layers, CircleDot, Clapperboard,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -33,6 +33,7 @@ import ContentWorkflowStatusBadge from '../components/ContentWorkflowStatusBadge
 import NavMenu from '@/components/NavMenu';
 import {
   getContentWorkflow,
+  getContentWorkflows,
   getContentNodes,
   runContentPipeline,
   approveContentStage,
@@ -43,10 +44,16 @@ import {
   getContentTimeline,
   createContentTimelineEntry,
   updateContentWorkflow,
+  createContentWorkflow,
+  deleteContentWorkflow,
   getCampaigns,
   getBrands,
+  createBrand,
+  getOrganizations,
+  createOrganization,
   generateConcepts,
   getImageModels,
+  generateConceptImage,
   generateStoryboard,
   generateStoryboardImage,
   getStoryboardImageStatus,
@@ -56,16 +63,162 @@ import {
   getVideoJobs,
   deleteVideoJob,
   deleteVideoVariation,
+  runContentSimulation,
+  getPersonas,
 } from '../lib/api';
-import type { VideoJob } from '../lib/api';
+import type { VideoJob, SimulationResult, Persona } from '../lib/api';
 import type { Campaign } from '../lib/api';
-import { getBrandAssets, createBrandAsset, uploadBrandAsset, deleteBrandAsset, getStrategies } from '../../brands/lib/api';
+import { getBrandAssets, createBrandAsset, uploadBrandAsset, deleteBrandAsset, getStrategies, updateBrand } from '../../brands/lib/api';
 import type { BrandAsset, Strategy } from '../../brands/lib/types';
 import type { Brand } from '../../brands/lib/types';
 import type { ContentWorkflow, ContentWorkflowNode, ContentTimelineEntry } from '../lib/types';
 import { CONTENT_PIPELINE_STAGES, CONTENT_STAGE_LABELS } from '../lib/types';
 
 type TabMode = 'overview' | 'steps' | 'graph' | 'content';
+
+// Platform → Content Type options
+const PLATFORM_OPTIONS = [
+  { id: 'instagram', label: 'Instagram' },
+] as const;
+
+const CONTENT_TYPE_OPTIONS: Record<string, { id: string; label: string }[]> = {
+  instagram: [{ id: 'reel', label: 'Reel' }, { id: 'carousel', label: 'Carousel' }, { id: 'story', label: 'Story' }, { id: 'post', label: 'Post' }],
+};
+
+interface ContentEntry {
+  id: string; // stable UUID — survives reorder / delete
+  platform: string;
+  content_type: string;
+  frequency?: string;
+  days?: number[]; // 0=Sun,1=Mon,...6=Sat
+  start_date?: string;
+  end_date?: string;
+  post_time?: string;
+  timezone?: string;
+}
+
+/** First-class calendar item — individually movable, editable, deletable. */
+interface ContentItem {
+  content_id: string;  // crypto.randomUUID() — stable forever
+  date: string;        // "YYYY-MM-DD" — editable (move)
+  platform: string;
+  content_type: string;
+  post_time?: string;
+  timezone?: string;
+}
+
+/** Group content items by day-of-month for the given month. */
+function getContentItemsByDate(items: ContentItem[], year: number, month: number): Map<number, ContentItem[]> {
+  const map = new Map<number, ContentItem[]>();
+  for (const item of items) {
+    const d = new Date(item.date + 'T00:00:00');
+    if (d.getFullYear() === year && d.getMonth() === month) {
+      const day = d.getDate();
+      map.set(day, [...(map.get(day) || []), item]);
+    }
+  }
+  return map;
+}
+
+/** Expand a scheduling rule into individual ContentItem objects. */
+function materializeItems(entry: ContentEntry): ContentItem[] {
+  const items: ContentItem[] = [];
+  if (!entry.start_date) return items;
+  const start = new Date(entry.start_date + 'T00:00:00');
+  const end = entry.end_date ? new Date(entry.end_date + 'T00:00:00') : start;
+  const freq = entry.frequency || 'once';
+  const selectedDays = entry.days && entry.days.length > 0 ? entry.days : null;
+  const base = { platform: entry.platform, content_type: entry.content_type, post_time: entry.post_time, timezone: entry.timezone };
+  if (freq === 'once') {
+    items.push({ ...base, content_id: crypto.randomUUID(), date: entry.start_date });
+    return items;
+  }
+  const cur = new Date(start);
+  while (cur <= end) {
+    let include = false;
+    if (freq === 'daily') {
+      include = selectedDays ? selectedDays.includes(cur.getDay()) : true;
+    } else if (freq === 'weekly') {
+      include = selectedDays ? selectedDays.includes(cur.getDay()) : cur.getDay() === start.getDay();
+    } else if (freq === '3x_week') {
+      include = selectedDays ? selectedDays.includes(cur.getDay()) : [1, 3, 5].includes(cur.getDay());
+    } else if (freq === 'custom') {
+      include = selectedDays ? selectedDays.includes(cur.getDay()) : false;
+    }
+    if (include) {
+      const y = cur.getFullYear();
+      const m = String(cur.getMonth() + 1).padStart(2, '0');
+      const d = String(cur.getDate()).padStart(2, '0');
+      items.push({ ...base, content_id: crypto.randomUUID(), date: `${y}-${m}-${d}` });
+    }
+    cur.setDate(cur.getDate() + 1);
+  }
+  return items;
+}
+
+/** Migrate old content_entries into content_items (one-time backfill). */
+function migrateEntriesToItems(entries: ContentEntry[]): ContentItem[] {
+  const items: ContentItem[] = [];
+  for (const entry of entries) {
+    items.push(...materializeItems(entry));
+  }
+  return items;
+}
+
+// Content-type-specific concept interfaces
+interface ReelConcept { content_type: 'reel'; title: string; hook: string; script: string | string[]; audio_cues?: string; duration?: string; tone?: string; }
+interface CarouselConcept { content_type: 'carousel'; title: string; slides: Array<{ image_description: string; caption: string }>; messaging?: string[]; tone?: string; }
+interface PostConcept { content_type: 'post'; title: string; image_description: string; caption: string; messaging?: string[]; tone?: string; }
+interface StoryConcept { content_type: 'story'; title: string; frame_description: string; caption: string; cta?: string; tone?: string; }
+type GeneratedConcept = ReelConcept | CarouselConcept | PostConcept | StoryConcept | { content_type?: string; title: string; hook: string; script: string | string[]; messaging?: string[]; tone?: string };
+
+const FREQUENCY_LABELS: Record<string, string> = { once: 'Once', daily: 'Daily', '3x_week': '3x / week', weekly: 'Weekly', custom: 'Custom' };
+const DAY_LABELS = [
+  { id: 0, short: 'S', label: 'Sun' },
+  { id: 1, short: 'M', label: 'Mon' },
+  { id: 2, short: 'T', label: 'Tue' },
+  { id: 3, short: 'W', label: 'Wed' },
+  { id: 4, short: 'T', label: 'Thu' },
+  { id: 5, short: 'F', label: 'Fri' },
+  { id: 6, short: 'S', label: 'Sat' },
+] as const;
+const TIMEZONE_LABELS: Record<string, string> = {
+  'America/New_York': 'Eastern (ET)', 'America/Chicago': 'Central (CT)', 'America/Denver': 'Mountain (MT)',
+  'America/Los_Angeles': 'Pacific (PT)', 'UTC': 'UTC', 'Europe/London': 'London (GMT)',
+  'Europe/Paris': 'Paris (CET)', 'Asia/Tokyo': 'Tokyo (JST)', 'Asia/Dubai': 'Dubai (GST)', 'Australia/Sydney': 'Sydney (AEST)',
+};
+
+function getPlatformLabel(id: string) { return PLATFORM_OPTIONS.find((p) => p.id === id)?.label || id; }
+function getContentTypeLabel(platform: string, ct: string) { return CONTENT_TYPE_OPTIONS[platform]?.find((t) => t.id === ct)?.label || ct; }
+
+const PLATFORM_COLORS: Record<string, string> = {
+  instagram: 'bg-pink-500',
+};
+
+// Content type colors for calendar entries
+const CONTENT_TYPE_COLORS: Record<string, string> = {
+  reel: 'bg-purple-500/15', carousel: 'bg-amber-500/15', story: 'bg-rose-400/15', post: 'bg-emerald-500/15',
+  video: 'bg-indigo-500/15', short: 'bg-red-400/15', thread: 'bg-slate-400/15', article: 'bg-teal-500/15',
+};
+const CONTENT_TYPE_COLORS_TEXT: Record<string, string> = {
+  reel: 'text-purple-600', carousel: 'text-amber-600', story: 'text-rose-500', post: 'text-emerald-600',
+  video: 'text-indigo-600', short: 'text-red-500', thread: 'text-slate-500', article: 'text-teal-600',
+};
+const CONTENT_TYPE_BORDER: Record<string, string> = {
+  reel: 'border-purple-400/40', carousel: 'border-amber-400/40', story: 'border-rose-300/40', post: 'border-emerald-400/40',
+  video: 'border-indigo-400/40', short: 'border-red-300/40', thread: 'border-slate-300/40', article: 'border-teal-400/40',
+};
+const CONTENT_TYPE_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
+  reel: Film, carousel: Layers, story: CircleDot, post: ImageIcon,
+  video: Clapperboard, short: Film, thread: FileText, article: FileText,
+};
+
+
+function getShortPlatformLabel(id: string) {
+  const m: Record<string, string> = { instagram: 'IG' };
+  return m[id] || id.substring(0, 2).toUpperCase();
+}
+
 
 // Notion-style page icon
 function NotionIcon({ className }: { className?: string }) {
@@ -132,7 +285,7 @@ function VariationCard({ variation, index }: { variation: ContentVariation; inde
     <div className="group relative rounded-lg border border-border bg-background overflow-hidden transition-all hover:border-foreground/20 hover:shadow-sm">
       <div className="relative aspect-[4/5] bg-muted">
         {variation.preview ? (
-          variation.type === 'video' ? (
+          variation.type === 'video' || variation.type === 'scene' || variation.type === 'stitched' ? (
             <video src={variation.preview} className="h-full w-full object-contain bg-black" controls playsInline />
           ) : (
             // eslint-disable-next-line @next/next/no-img-element
@@ -259,7 +412,7 @@ function WorkflowStepsList({
           : status === 'failed' ? XCircle
           : status === 'waiting_approval' ? Clock
           : Circle;
-        const TypeIcon = stage.stageType === 'agent' ? Bot : UserIcon;
+        const TypeIcon = stage.stageType === 'agent' ? Bot : stage.stageType === 'auto' ? Settings2 : UserIcon;
         const canToggle = (status === 'pending' || status === 'running' || status === 'completed') && !stage.approvalRequired;
 
         if (!stage.available) {
@@ -275,7 +428,14 @@ function WorkflowStepsList({
                   </span>
                   <p className="text-xs text-muted-foreground/30 mt-0.5 line-clamp-1">{stage.description}</p>
                 </div>
-                <TypeIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground/20" />
+                {stage.stageType === 'both' ? (
+                  <span className="flex items-center gap-0.5 shrink-0">
+                    <UserIcon className="h-3 w-3 text-muted-foreground/20" />
+                    <Bot className="h-3 w-3 text-muted-foreground/20" />
+                  </span>
+                ) : (
+                  <TypeIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground/20" />
+                )}
               </div>
             </div>
           );
@@ -315,11 +475,18 @@ function WorkflowStepsList({
                 )}
                 <p className="text-xs text-muted-foreground/50 mt-0.5 line-clamp-1">{stage.description}</p>
               </div>
-              <TypeIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground/30" />
+              {stage.stageType === 'both' ? (
+                <span className="flex items-center gap-0.5 shrink-0">
+                  <UserIcon className="h-3 w-3 text-muted-foreground/30" />
+                  <Bot className="h-3 w-3 text-muted-foreground/30" />
+                </span>
+              ) : (
+                <TypeIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground/30" />
+              )}
             </div>
 
-            {/* Strategy & Assets readiness indicators */}
-            {stage.key === 'strategy_assets' && isCurrent && (
+            {/* Campaign & Strategy readiness indicators */}
+            {stage.key === 'campaign_strategy' && isCurrent && (
               <div className="px-4 pb-3 bg-muted/50">
                 <div className="ml-10 space-y-1.5">
                   <div className="flex items-center gap-2">
@@ -360,6 +527,33 @@ function WorkflowStepsList({
 }
 
 
+// --- CircleScore (SVG circular progress) ---
+function CircleScore({ score, size = 48, label }: { score: number; size?: number; label?: string }) {
+  const r = size * 0.4;
+  const cx = size / 2;
+  const circumference = 2 * Math.PI * r;
+  const offset = circumference - (score / 100) * circumference;
+  const color = score >= 75 ? '#22c55e' : score >= 50 ? '#eab308' : score >= 25 ? '#f97316' : '#ef4444';
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+      <circle cx={cx} cy={cx} r={r} fill="none" stroke="currentColor" strokeWidth={size * 0.06} className="text-border" />
+      <circle cx={cx} cy={cx} r={r} fill="none" stroke={color} strokeWidth={size * 0.06} strokeDasharray={circumference} strokeDashoffset={offset} strokeLinecap="round" transform={`rotate(-90 ${cx} ${cx})`} style={{ transition: 'stroke-dashoffset 0.6s ease' }} />
+      <text x={cx} y={label ? cx - size * 0.08 : cx} textAnchor="middle" dominantBaseline="central" fill={color} fontSize={size * 0.23} fontWeight="700" fontFamily="monospace">{score}</text>
+      {label && <text x={cx} y={cx + size * 0.13} textAnchor="middle" dominantBaseline="central" fill={color} fontSize={size * 0.14} fontWeight="600" fontFamily="monospace" opacity="0.7">{label}</text>}
+    </svg>
+  );
+}
+
+// --- LLM model options for simulation (same models used across the app) ---
+const SIM_LLM_MODELS = [
+  { label: 'Gemini Pro 3 — Google', value: 'gemini-pro-3' },
+  { label: 'Claude 4.5 Sonnet — Anthropic', value: 'claude-4.5-sonnet' },
+  { label: 'GPT-5.2 — OpenAI', value: 'gpt-5.2' },
+];
+
+const SIM_AGE_RANGES = ['13-17', '18-24', '25-34', '35-44', '45-54', '55-64', '65+'];
+const SIM_GENDERS = ['Male', 'Female'];
+
 export default function ContentWorkflowDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -378,6 +572,11 @@ export default function ContentWorkflowDetailPage() {
   // Concept generation
   const [generatingRows, setGeneratingRows] = useState<Set<number>>(new Set());
   const [editingConceptIdx, setEditingConceptIdx] = useState<number | null>(null);
+  const [editingContentIdx, setEditingContentIdx] = useState<number | null>(null);
+  const [calendarMonth, setCalendarMonth] = useState(() => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1); });
+
+  // Selected content piece for calendar-driven pipeline
+  const [selectedContentPiece, setSelectedContentPiece] = useState<ContentItem | null>(null);
 
   // Storyboard state
   const [imageModels, setImageModels] = useState<{ id: string; name: string; provider: string }[]>([]);
@@ -396,6 +595,13 @@ export default function ContentWorkflowDetailPage() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [strategies, setStrategies] = useState<Strategy[]>([]);
   const [brandAssets, setBrandAssets] = useState<BrandAsset[]>([]);
+
+  // Simulation state
+  const [simRunning, setSimRunning] = useState(false);
+  const [simError, setSimError] = useState<string | null>(null);
+  const [simResults, setSimResults] = useState<SimulationResult[]>([]);
+  const [personas, setPersonas] = useState<Persona[]>([]);
+  const [expandedScoreKey, setExpandedScoreKey] = useState<string | null>(null);
 
   // Asset management (brands-style)
   const [showAddAsset, setShowAddAsset] = useState(false);
@@ -424,6 +630,20 @@ export default function ContentWorkflowDetailPage() {
   const [stageSettings, setStageSettings] = useState<Record<string, Record<string, unknown>>>({});
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Workflow selector & creation
+  const [allWorkflows, setAllWorkflows] = useState<ContentWorkflow[]>([]);
+  const [showCreateWorkflow, setShowCreateWorkflow] = useState(false);
+  const [newWfTitle, setNewWfTitle] = useState('');
+  const [newWfDescription, setNewWfDescription] = useState('');
+  const [creatingWorkflow, setCreatingWorkflow] = useState(false);
+
+  // Brand creation
+  const [showCreateBrand, setShowCreateBrand] = useState(false);
+  const [newBrandName, setNewBrandName] = useState('');
+  const [newBrandUrl, setNewBrandUrl] = useState('');
+  const [creatingBrand, setCreatingBrand] = useState(false);
+  const [allBrands, setAllBrands] = useState<Brand[]>([]);
+
   const isFDM = isTeamMember;
   const isActive = workflow && ['running', 'waiting_approval', 'pending'].includes(workflow.status);
 
@@ -446,6 +666,83 @@ export default function ContentWorkflowDetailPage() {
       if (models.length > 0) setImageModels(models);
     });
   }, []);
+
+  // Load all workflows for the selector
+  useEffect(() => {
+    getContentWorkflows().then(setAllWorkflows).catch(() => {});
+  }, [workflowId]);
+
+  // Load all brands for brand creation context
+  useEffect(() => {
+    getBrands().then(setAllBrands).catch(() => {});
+  }, []);
+
+  // Create new workflow
+  const handleCreateWorkflow = async () => {
+    if (!newWfTitle.trim()) return;
+    setCreatingWorkflow(true);
+    try {
+      const brandId = brand?._id || allBrands[0]?._id;
+      if (!brandId) { setCreatingWorkflow(false); return; }
+      const wf = await createContentWorkflow({
+        brand_id: brandId,
+        title: newWfTitle.trim(),
+        description: newWfDescription.trim() || undefined,
+        config: {},
+      });
+      setShowCreateWorkflow(false);
+      setNewWfTitle('');
+      setNewWfDescription('');
+      router.push(`/app/content-generator/${wf._id}`);
+    } catch (err) {
+      console.error('Failed to create workflow:', err);
+    } finally {
+      setCreatingWorkflow(false);
+    }
+  };
+
+  // Delete current workflow
+  const handleDeleteWorkflow = async () => {
+    if (!workflow || !confirm('Delete this workflow?')) return;
+    try {
+      await deleteContentWorkflow(workflow._id);
+      const remaining = allWorkflows.filter((w) => w._id !== workflow._id);
+      if (remaining.length > 0) {
+        router.replace(`/app/content-generator/${remaining[0]._id}`);
+      } else {
+        router.replace('/app/content-generator');
+      }
+    } catch (err) {
+      console.error('Failed to delete workflow:', err);
+    }
+  };
+
+  // Create new brand
+  const handleCreateBrand = async () => {
+    if (!newBrandName.trim()) return;
+    setCreatingBrand(true);
+    try {
+      const orgs = await getOrganizations();
+      const orgId = orgs[0]?._id;
+      if (!orgId) {
+        const newOrg = await createOrganization({ name: 'Default', slug: 'default' });
+        const b = await createBrand({ organization_id: newOrg._id, name: newBrandName.trim() });
+        setAllBrands((prev) => [...prev, b]);
+        setBrand(b);
+      } else {
+        const b = await createBrand({ organization_id: orgId, name: newBrandName.trim() });
+        setAllBrands((prev) => [...prev, b]);
+        setBrand(b);
+      }
+      setShowCreateBrand(false);
+      setNewBrandName('');
+      setNewBrandUrl('');
+    } catch (err) {
+      console.error('Failed to create brand:', err);
+    } finally {
+      setCreatingBrand(false);
+    }
+  };
 
   // Load workflow + nodes
   const loadWorkflow = useCallback(async () => {
@@ -487,20 +784,28 @@ export default function ContentWorkflowDetailPage() {
       // Load video jobs
       getVideoJobs(workflowId).then(setVideoJobs).catch(() => {});
 
+      // Recover simulation results from node output_data
+      const simNode = nodeList.find((n) => n.stage_key === 'simulation_testing');
+      if (simNode?.output_data?.results) {
+        setSimResults(simNode.output_data.results as SimulationResult[]);
+      }
+
       // Load brand context if available
       if (wf?.brand_id) {
         const campaignId = (wf.config as Record<string, unknown>)?.campaign_id as string | undefined;
-        const [brs, camps, assets, strats] = await Promise.all([
+        const [brs, camps, assets, strats, pers] = await Promise.all([
           getBrands(),
           getCampaigns(wf.brand_id),
           getBrandAssets(wf.brand_id),
           campaignId ? getStrategies(campaignId) : Promise.resolve([]),
+          campaignId ? getPersonas(campaignId) : Promise.resolve([]),
         ]);
         const b = brs.find((br) => br._id === wf.brand_id) || null;
         setBrand(b);
         setCampaigns(camps);
         setBrandAssets(assets);
         setStrategies(strats);
+        setPersonas(pers);
       }
     } catch (err) {
       console.error('Failed to load content workflow:', err);
@@ -582,11 +887,26 @@ export default function ContentWorkflowDetailPage() {
     updateStageSetting(stage, key, next);
   };
 
+  // Content piece scoped helpers (calendar-driven pipeline)
+  const contentPieceKey = selectedContentPiece?.content_id || null;
+
+  const getPieceSetting = (stage: string, field: string) => {
+    if (!contentPieceKey) return undefined;
+    const pieces = getSetting(stage, 'pieces') as Record<string, Record<string, unknown>> | undefined;
+    return pieces?.[contentPieceKey]?.[field];
+  };
+  const updatePieceSetting = (stage: string, field: string, value: unknown) => {
+    if (!contentPieceKey) return;
+    const pieces = (getSetting(stage, 'pieces') as Record<string, Record<string, unknown>>) || {};
+    const entry = pieces[contentPieceKey] || {};
+    updateStageSetting(stage, 'pieces', { ...pieces, [contentPieceKey]: { ...entry, [field]: value } });
+  };
+
   // Derived settings from stage settings (persisted)
-  const selectedAssetIds = new Set((stageSettings['strategy_assets']?.['asset_ids'] as string[] | undefined) || []);
-  const handleToggleAsset = (id: string) => toggleArrayItem('strategy_assets', 'asset_ids', id);
-  const selectedStrategy = (getSetting('strategy_assets', 'strategy') as string) || '';
-  const handleSelectStrategy = (v: string) => updateStageSetting('strategy_assets', 'strategy', v);
+  const selectedAssetIds = new Set((stageSettings['campaign_strategy']?.['asset_ids'] as string[] | undefined) || []);
+  const handleToggleAsset = (id: string) => toggleArrayItem('campaign_strategy', 'asset_ids', id);
+  const selectedStrategy = (getSetting('campaign_strategy', 'strategy') as string) || '';
+  const handleSelectStrategy = (v: string) => updateStageSetting('campaign_strategy', 'strategy', v);
   const selectedCampaignId = ((workflow?.config as Record<string, unknown> | undefined)?.campaign_id as string) || '';
 
   // Combined post time value (e.g. "9:00 AM") derived from individual settings
@@ -617,7 +937,7 @@ export default function ContentWorkflowDetailPage() {
       setStrategies(strats);
       // Clear selected strategy if it doesn't belong to new campaign
       if (selectedStrategy && !strats.find((s) => s._id === selectedStrategy)) {
-        updateStageSetting('strategy_assets', 'strategy', '');
+        updateStageSetting('campaign_strategy', 'strategy', '');
       }
       await loadWorkflow();
     } catch (err) {
@@ -944,19 +1264,65 @@ export default function ContentWorkflowDetailPage() {
     <div className="flex h-screen flex-col">
       {/* Header */}
       <div className="flex items-center gap-2 border-b border-border px-3 md:px-4 py-2">
-        <button
-          onClick={() => router.push('/app/content-generator')}
-          className="shrink-0 rounded p-1 text-muted-foreground hover:text-foreground transition-colors"
-        >
-          <ArrowLeft className="h-4 w-4" />
-        </button>
-
-        <div className="flex-1 min-w-0">
-          <h2 className="text-sm font-medium truncate">{workflow.title}</h2>
-          {brand && (
-            <span className="text-[10px] text-muted-foreground/60">{brand.name}</span>
-          )}
+        {/* Pipeline dropdown */}
+        <div className="flex flex-col min-w-0">
+          <span className="text-[9px] font-medium text-muted-foreground/50 uppercase tracking-wider mb-0.5">Pipeline</span>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="flex items-center gap-1.5 h-7 min-w-[140px] max-w-[220px] rounded-md border border-border px-2.5 text-xs text-left hover:bg-muted transition-colors">
+                <span className="flex-1 truncate">{workflow.title}</span>
+                <ChevronLeft className="h-3 w-3 text-muted-foreground/50 -rotate-90 shrink-0" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-56">
+              {allWorkflows.map((wf) => (
+                <DropdownMenuItem
+                  key={wf._id}
+                  onClick={() => { if (wf._id !== workflowId) router.push(`/app/content-generator/${wf._id}`); }}
+                  className={wf._id === workflowId ? 'bg-muted' : ''}
+                >
+                  <span className="truncate">{wf.title}</span>
+                </DropdownMenuItem>
+              ))}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => setShowCreateWorkflow(true)}>
+                <Plus className="h-3.5 w-3.5" />
+                <span>New Pipeline</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
+
+        {/* Brand dropdown */}
+        <div className="flex flex-col min-w-0">
+          <span className="text-[9px] font-medium text-muted-foreground/50 uppercase tracking-wider mb-0.5">Brand</span>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="flex items-center gap-1.5 h-7 min-w-[100px] max-w-[160px] rounded-md border border-border px-2.5 text-xs text-left hover:bg-muted transition-colors">
+                <span className="flex-1 truncate">{brand?.name || 'No brand'}</span>
+                <ChevronLeft className="h-3 w-3 text-muted-foreground/50 -rotate-90 shrink-0" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-48">
+              {allBrands.map((b) => (
+                <DropdownMenuItem
+                  key={b._id}
+                  onClick={() => { if (b._id !== brand?._id) setBrand(b); }}
+                  className={b._id === brand?._id ? 'bg-muted' : ''}
+                >
+                  <span className="truncate">{b.name}</span>
+                </DropdownMenuItem>
+              ))}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => setShowCreateBrand(true)}>
+                <Plus className="h-3.5 w-3.5" />
+                <span>New Brand</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+
+        <div className="flex-1" />
 
         <ContentWorkflowStatusBadge status={workflow.status} />
 
@@ -977,14 +1343,102 @@ export default function ContentWorkflowDetailPage() {
           ))}
         </div>
 
-        {isFDM && (workflow.status === 'pending' || workflow.status === 'failed') && (
-          <Button size="sm" onClick={handleRun} className="h-7 w-7 p-0" title="Run Pipeline">
-            <Play className="h-3 w-3" />
-          </Button>
-        )}
+        {/* Workflow actions menu */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button className="shrink-0 flex h-7 w-7 items-center justify-center rounded border border-border text-muted-foreground hover:text-foreground transition-colors">
+              <MoreHorizontal className="h-3.5 w-3.5" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-44">
+            {isFDM && (workflow.status === 'pending' || workflow.status === 'failed') && (
+              <DropdownMenuItem onClick={handleRun}>
+                <Play className="h-3.5 w-3.5" />
+                <span>Run Pipeline</span>
+              </DropdownMenuItem>
+            )}
+            <DropdownMenuItem variant="destructive" onClick={handleDeleteWorkflow}>
+              <Trash2 className="h-3.5 w-3.5" />
+              <span>Delete Pipeline</span>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
 
         <NavMenu />
       </div>
+
+      {/* Create Workflow Dialog */}
+      <Dialog open={showCreateWorkflow} onOpenChange={setShowCreateWorkflow}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>New Content Pipeline</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label className="text-xs">Title</Label>
+              <Input
+                value={newWfTitle}
+                onChange={(e) => setNewWfTitle(e.target.value)}
+                placeholder="e.g. Summer campaign video series"
+                className="mt-1"
+                autoFocus
+              />
+            </div>
+            <div>
+              <Label className="text-xs">Description <span className="text-muted-foreground/50">(optional)</span></Label>
+              <Textarea
+                value={newWfDescription}
+                onChange={(e) => setNewWfDescription(e.target.value)}
+                placeholder="Brief description..."
+                className="mt-1"
+                rows={2}
+              />
+            </div>
+            <div className="flex justify-end">
+              <Button onClick={handleCreateWorkflow} disabled={!newWfTitle.trim() || creatingWorkflow} size="sm">
+                {creatingWorkflow && <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />}
+                Create
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create Brand Dialog */}
+      <Dialog open={showCreateBrand} onOpenChange={setShowCreateBrand}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>New Brand</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label className="text-xs">Brand Name</Label>
+              <Input
+                value={newBrandName}
+                onChange={(e) => setNewBrandName(e.target.value)}
+                placeholder="e.g. DBLE"
+                className="mt-1"
+                autoFocus
+              />
+            </div>
+            <div>
+              <Label className="text-xs">Website URL <span className="text-muted-foreground/50">(optional)</span></Label>
+              <Input
+                value={newBrandUrl}
+                onChange={(e) => setNewBrandUrl(e.target.value)}
+                placeholder="https://example.com"
+                className="mt-1"
+              />
+            </div>
+            <div className="flex justify-end">
+              <Button onClick={handleCreateBrand} disabled={!newBrandName.trim() || creatingBrand} size="sm">
+                {creatingBrand && <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />}
+                Create Brand
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Content */}
       <div className="flex-1 overflow-hidden">
@@ -1111,12 +1565,12 @@ export default function ContentWorkflowDetailPage() {
 
           const sceneCharsReadyOverview = (scene: SbScene) => scene.character_ids.every((cid) => { const c = oCharacters.find((ch) => ch.id === cid); return c && c.image_url; });
 
-          const selAssetIds = new Set((stageSettings['strategy_assets']?.['asset_ids'] as string[] | undefined) || []);
+          const selAssetIds = new Set((stageSettings['campaign_strategy']?.['asset_ids'] as string[] | undefined) || []);
           const selAssets = brandAssets.filter((a) => selAssetIds.has(a._id));
 
           return (
           <div className="h-full overflow-auto">
-            <div className="max-w-7xl mx-auto px-3 md:px-6 py-6 space-y-10">
+            <div className="w-full px-[5%] py-6 space-y-10">
 
               {CONTENT_PIPELINE_STAGES.map((stage, i) => {
                 if (!stage.available) {
@@ -1132,22 +1586,143 @@ export default function ContentWorkflowDetailPage() {
                 // Section header for available stages
                 const node = nodes.find((n) => n.stage_key === stage.key);
                 const st = node?.status || 'pending';
+                const StIcon = st === 'completed' ? CheckCircle2 : st === 'running' ? Loader2 : st === 'failed' ? XCircle : st === 'waiting_approval' ? Clock : Circle;
+                const canToggle = (st === 'pending' || st === 'running' || st === 'completed') && !stage.approvalRequired;
 
                 return (
                   <section key={stage.key}>
                     <div className="flex items-center gap-3 mb-4">
                       <span className="font-mono text-[10px] text-muted-foreground/40 w-5 shrink-0 text-right">{i + 1}</span>
+                      <button
+                        onClick={() => canToggle && handleToggleStage(stage.key, st)}
+                        disabled={!canToggle}
+                        className={`shrink-0 ${canToggle ? 'cursor-pointer hover:scale-110 transition-transform' : ''}`}
+                        title={canToggle ? (st === 'completed' ? 'Click to undo' : 'Click to mark done') : undefined}
+                      >
+                        <StIcon className={`h-5 w-5 ${
+                          st === 'running' ? 'animate-spin text-foreground' : ''
+                        } ${st === 'completed' ? 'text-foreground hover:text-muted-foreground/50' : ''
+                        } ${st === 'failed' ? 'text-destructive' : ''
+                        } ${st === 'waiting_approval' ? 'text-yellow-500' : ''
+                        } ${st === 'pending' && canToggle ? 'text-muted-foreground/30 hover:text-foreground' : ''
+                        } ${st === 'pending' && !canToggle ? 'text-muted-foreground/20' : ''}`} />
+                      </button>
                       <h2 className="text-lg font-medium">{stage.label}</h2>
+                      {/* Stage type badge */}
+                      {stage.stageType === 'human' && (
+                        <span className="inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 font-mono text-[8px] uppercase tracking-wider text-muted-foreground">
+                          <UserIcon className="h-2.5 w-2.5" /> FDM
+                        </span>
+                      )}
+                      {stage.stageType === 'agent' && (
+                        <span className="inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 font-mono text-[8px] uppercase tracking-wider text-muted-foreground">
+                          <Bot className="h-2.5 w-2.5" /> Agent
+                        </span>
+                      )}
+                      {stage.stageType === 'both' && (
+                        <span className="inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 font-mono text-[8px] uppercase tracking-wider text-muted-foreground">
+                          <UserIcon className="h-2.5 w-2.5" /> FDM
+                          <span className="text-muted-foreground/30">+</span>
+                          <Bot className="h-2.5 w-2.5" /> Agent
+                        </span>
+                      )}
+                      {stage.stageType === 'auto' && (
+                        <span className="inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 font-mono text-[8px] uppercase tracking-wider text-muted-foreground">
+                          <Settings2 className="h-2.5 w-2.5" /> Auto
+                        </span>
+                      )}
                       {workflow.current_stage === stage.key && (
                         <span className="inline-flex rounded-full bg-foreground px-2 py-0.5 font-mono text-[8px] uppercase tracking-wider text-background">current</span>
                       )}
-                      <span className={`inline-flex items-center rounded-full px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider ${st === 'completed' ? 'bg-foreground text-background' : st === 'running' ? 'bg-foreground text-background' : st === 'failed' ? 'bg-destructive/10 text-destructive' : 'bg-muted text-muted-foreground'}`}>{st}</span>
                     </div>
                     <p className="text-xs text-muted-foreground mb-4">{stage.description}</p>
                     <div className="space-y-4">
 
-                    {/* ── Strategy & Assets ── */}
-                    {stage.key === 'strategy_assets' && (
+                    {/* ── Brand ── */}
+                    {stage.key === 'brand' && (() => {
+                      const saveBrandField = async (field: string, value: unknown) => {
+                        if (!brand) return;
+                        try {
+                          const updated = await updateBrand(brand._id, { [field]: value } as Partial<typeof brand>);
+                          setBrand(updated);
+                        } catch (err) { console.error('Failed to save brand:', err); }
+                      };
+                      const socialUrls = brand?.social_urls || {};
+                      const SOCIAL_PLATFORMS = [
+                        { id: 'instagram', label: 'Instagram', placeholder: 'https://instagram.com/...' },
+                      ];
+                      return brand ? (
+                        <div className="rounded-lg border border-border p-4 space-y-4">
+                          <div className="flex items-start gap-4">
+                            {brand.logo_url ? (
+                              <img src={brand.logo_url} alt={brand.name} className="h-14 w-14 rounded-lg object-cover shrink-0" />
+                            ) : (
+                              <div className="h-14 w-14 rounded-lg bg-muted flex items-center justify-center shrink-0">
+                                <span className="text-xl font-bold text-muted-foreground">{brand.name.charAt(0)}</span>
+                              </div>
+                            )}
+                            <div className="flex-1 min-w-0 space-y-1.5">
+                              <div className="flex items-center gap-2">
+                                <h3 className="text-base font-semibold truncate">{brand.name}</h3>
+                                {brand.industry && <span className="inline-flex rounded-full border border-border px-2 py-0.5 font-mono text-[8px] uppercase tracking-wider text-muted-foreground">{brand.industry}</span>}
+                              </div>
+                              {brand.product_name && <p className="text-xs text-muted-foreground">{brand.product_name}</p>}
+                              {brand.description && <p className="text-xs text-muted-foreground/70 leading-relaxed">{brand.description}</p>}
+                            </div>
+                          </div>
+
+                          {/* Website URL */}
+                          <div className="flex items-center gap-2">
+                            <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/50 flex items-center gap-1.5 w-24 shrink-0">
+                              <Globe className="h-3 w-3" /> Website
+                            </div>
+                            <input
+                              type="url"
+                              defaultValue={brand.url || ''}
+                              placeholder="https://example.com"
+                              onBlur={(e) => { if (e.target.value !== (brand.url || '')) saveBrandField('url', e.target.value || null); }}
+                              className="flex-1 h-8 rounded border border-border bg-background px-3 text-xs text-foreground"
+                            />
+                            {brand.url && (
+                              <a href={brand.url} target="_blank" rel="noopener noreferrer" className="text-muted-foreground/40 hover:text-foreground transition-colors shrink-0">
+                                <ExternalLink className="h-3 w-3" />
+                              </a>
+                            )}
+                          </div>
+
+                          {/* Social Platform URLs */}
+                          {SOCIAL_PLATFORMS.map((sp) => (
+                            <div key={sp.id} className="flex items-center gap-2">
+                              <div className="flex items-center gap-1.5 w-24 shrink-0">
+                                <svg className="h-3.5 w-3.5 shrink-0 text-muted-foreground/50" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/></svg>
+                                <span className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/50">{sp.label}</span>
+                              </div>
+                              <input
+                                type="url"
+                                defaultValue={socialUrls[sp.id] || ''}
+                                placeholder={sp.placeholder}
+                                onBlur={(e) => {
+                                  const newUrls = { ...socialUrls, [sp.id]: e.target.value || undefined };
+                                  Object.keys(newUrls).forEach((k) => { if (!newUrls[k]) delete newUrls[k]; });
+                                  saveBrandField('social_urls', newUrls);
+                                }}
+                                className="flex-1 h-8 rounded border border-border bg-background px-3 text-xs text-foreground"
+                              />
+                              {socialUrls[sp.id] && (
+                                <a href={socialUrls[sp.id]} target="_blank" rel="noopener noreferrer" className="text-muted-foreground/40 hover:text-foreground transition-colors shrink-0">
+                                  <ExternalLink className="h-3 w-3" />
+                                </a>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-xs text-muted-foreground/50">No brand selected</p>
+                      );
+                    })()}
+
+                    {/* ── Campaign & Strategy ── */}
+                    {stage.key === 'campaign_strategy' && (
                       <>
                         <div>
                           <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground mb-1.5 flex items-center gap-1.5"><Megaphone className="h-3 w-3" /> Campaign</div>
@@ -1157,6 +1732,27 @@ export default function ContentWorkflowDetailPage() {
                               <SelectContent>{campaigns.map((c) => (<SelectItem key={c._id} value={c._id}>{c.name}</SelectItem>))}</SelectContent>
                             </Select>
                           ) : <p className="text-xs text-muted-foreground/50">No campaigns for this brand</p>}
+
+                          {/* Campaign details */}
+                          {(() => {
+                            const camp = campaigns.find((c) => c._id === selectedCampaignId);
+                            if (!camp) return null;
+                            return (
+                              <div className="mt-2 rounded-lg border border-border bg-muted/20 p-3 space-y-1.5">
+                                {camp.description && (
+                                  <p className="text-[11px] text-muted-foreground/70 leading-relaxed">{camp.description}</p>
+                                )}
+                                <div className="flex flex-wrap items-center gap-1.5">
+                                  {camp.platform && (
+                                    <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-[8px] uppercase text-muted-foreground/60">{camp.platform}</span>
+                                  )}
+                                  {camp.campaign_goal && (
+                                    <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-[8px] uppercase text-muted-foreground/60">{camp.campaign_goal}</span>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })()}
                         </div>
                         <div>
                           <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground mb-1.5 flex items-center gap-1.5"><Settings2 className="h-3 w-3" /> Strategy</div>
@@ -1166,6 +1762,44 @@ export default function ContentWorkflowDetailPage() {
                               <SelectContent>{strategies.map((s) => (<SelectItem key={s._id} value={s._id}>{s.name}{s.budget_amount ? ` ($${s.budget_amount} ${s.budget_type || ''})` : ''}</SelectItem>))}</SelectContent>
                             </Select>
                           ) : <p className="text-xs text-muted-foreground/50">{selectedCampaignId ? 'No strategies for this campaign' : 'Select a campaign first'}</p>}
+
+                          {/* Strategy details */}
+                          {(() => {
+                            const strat = strategies.find((s) => s._id === selectedStrategy);
+                            if (!strat) return null;
+                            return (
+                              <div className="mt-2 rounded-lg border border-border bg-muted/20 p-3 space-y-1.5">
+                                <div className="flex flex-wrap items-center gap-1.5">
+                                  {strat.budget_amount != null && (
+                                    <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-[8px] text-muted-foreground/60">
+                                      ${strat.budget_amount.toLocaleString()}{strat.budget_type ? `/${strat.budget_type}` : ''}
+                                    </span>
+                                  )}
+                                  {strat.performance_objective?.kpi && (
+                                    <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-[8px] uppercase text-muted-foreground/60">
+                                      {strat.performance_objective.kpi}{strat.performance_objective.value != null ? `: ${strat.performance_objective.value}` : ''}
+                                    </span>
+                                  )}
+                                </div>
+                                {strat.audience_control?.location && strat.audience_control.location.length > 0 && (
+                                  <div className="flex flex-wrap items-center gap-1.5">
+                                    <span className="font-mono text-[8px] text-muted-foreground/40">Locations:</span>
+                                    {strat.audience_control.location.map((l) => (
+                                      <span key={l} className="rounded bg-muted px-1.5 py-0.5 font-mono text-[8px] text-muted-foreground/60">{l}</span>
+                                    ))}
+                                  </div>
+                                )}
+                                {strat.audience_control?.in_market_interests && strat.audience_control.in_market_interests.length > 0 && (
+                                  <div className="flex flex-wrap items-center gap-1.5">
+                                    <span className="font-mono text-[8px] text-muted-foreground/40">Interests:</span>
+                                    {strat.audience_control.in_market_interests.map((i) => (
+                                      <span key={i} className="rounded bg-muted px-1.5 py-0.5 font-mono text-[8px] text-muted-foreground/60">{i}</span>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })()}
                         </div>
                         <div>
                           {renderAssetList()}
@@ -1174,59 +1808,479 @@ export default function ContentWorkflowDetailPage() {
                     )}
 
                     {/* ── Scheduling ── */}
-                    {stage.key === 'scheduling' && (
-                      <div className="flex flex-wrap items-end gap-3">
+                    {stage.key === 'scheduling' && (() => {
+                      const contentEntries = (getSetting('scheduling', 'content_entries') as ContentEntry[] | undefined) || [];
+                      // Content items: migrate from old content_entries if needed
+                      let calendarItems = (getSetting('scheduling', 'content_items') as ContentItem[] | undefined) || [];
+                      if (calendarItems.length === 0 && contentEntries.length > 0) {
+                        calendarItems = migrateEntriesToItems(contentEntries);
+                        updateStageSetting('scheduling', 'content_items', calendarItems);
+                      }
+                      const addPlatform = (getSetting('scheduling', 'add_platform') as string) || '';
+                      const addContentType = (getSetting('scheduling', 'add_content_type') as string) || '';
+                      const addFrequency = (getSetting('scheduling', 'add_frequency') as string) || '';
+                      const addDays = (getSetting('scheduling', 'add_days') as number[] | undefined) || [];
+                      const addStartDate = (getSetting('scheduling', 'add_start_date') as string) || '';
+                      const addEndDate = (getSetting('scheduling', 'add_end_date') as string) || '';
+                      const addPostTime = (getSetting('scheduling', 'add_post_time') as string) || '';
+                      const addTimezone = (getSetting('scheduling', 'add_timezone') as string) || '';
+                      const toggleAddDay = (dayId: number) => {
+                        const next = addDays.includes(dayId) ? addDays.filter((d) => d !== dayId) : [...addDays, dayId].sort();
+                        updateStageSetting('scheduling', 'add_days', next.length > 0 ? next : []);
+                      };
+                      const addEntry = () => {
+                        if (!addPlatform || !addContentType) return;
+                        const newRule: ContentEntry = {
+                          id: crypto.randomUUID(),
+                          platform: addPlatform, content_type: addContentType,
+                          frequency: addFrequency || undefined, days: addDays.length > 0 ? addDays : undefined,
+                          start_date: addStartDate || undefined,
+                          end_date: addEndDate || undefined, post_time: addPostTime || undefined,
+                          timezone: addTimezone || undefined,
+                        };
+                        updateStageSetting('scheduling', 'content_entries', [...contentEntries, newRule]);
+                        // Materialize individual content items
+                        const newItems = materializeItems(newRule);
+                        updateStageSetting('scheduling', 'content_items', [...calendarItems, ...newItems]);
+                        updateStageSetting('scheduling', 'add_platform', '');
+                        updateStageSetting('scheduling', 'add_content_type', '');
+                        updateStageSetting('scheduling', 'add_frequency', '');
+                        updateStageSetting('scheduling', 'add_days', []);
+                        updateStageSetting('scheduling', 'add_start_date', '');
+                        updateStageSetting('scheduling', 'add_end_date', '');
+                        updateStageSetting('scheduling', 'add_post_time', '');
+                        updateStageSetting('scheduling', 'add_timezone', '');
+                      };
+                      const removeEntry = (idx: number) => {
+                        updateStageSetting('scheduling', 'content_entries', contentEntries.filter((_, i) => i !== idx));
+                        if (editingContentIdx === idx) setEditingContentIdx(null);
+                      };
+                      const updateEntry = (idx: number, field: keyof ContentEntry, value: string | number[] | undefined) => {
+                        const next = contentEntries.map((e, i) => i === idx ? { ...e, [field]: value || undefined } : e);
+                        if (field === 'platform') {
+                          next[idx] = { ...next[idx], content_type: '' };
+                        }
+                        updateStageSetting('scheduling', 'content_entries', next);
+                      };
+                      const toggleEntryDay = (idx: number, dayId: number) => {
+                        const current = contentEntries[idx].days || [];
+                        const next = current.includes(dayId) ? current.filter((d) => d !== dayId) : [...current, dayId].sort();
+                        updateEntry(idx, 'days', next.length > 0 ? next : undefined);
+                      };
+                      const formatDate = (d?: string) => { if (!d) return ''; try { return new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); } catch { return d; } };
+                      const showDayPicker = (freq?: string) => freq && freq !== 'once';
+                      const deleteContentItem = (itemId: string) => {
+                        updateStageSetting('scheduling', 'content_items', calendarItems.filter((i) => i.content_id !== itemId));
+                        if (selectedContentPiece?.content_id === itemId) setSelectedContentPiece(null);
+                      };
+                      const moveContentItem = (itemId: string, newDate: string) => {
+                        updateStageSetting('scheduling', 'content_items', calendarItems.map((i) => i.content_id === itemId ? { ...i, date: newDate } : i));
+                        if (selectedContentPiece?.content_id === itemId) setSelectedContentPiece({ ...selectedContentPiece, date: newDate });
+                      };
+                      const updateContentItem = (itemId: string, field: keyof ContentItem, value: string | undefined) => {
+                        updateStageSetting('scheduling', 'content_items', calendarItems.map((i) => i.content_id === itemId ? { ...i, [field]: value } : i));
+                        if (selectedContentPiece?.content_id === itemId) setSelectedContentPiece({ ...selectedContentPiece, [field]: value });
+                      };
+                      return (
+                      <div className="space-y-4">
                         <div>
-                          <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground mb-1.5">Frequency</div>
-                          <Select value={(getSetting('scheduling', 'frequency') as string) || ''} onValueChange={(v) => updateStageSetting('scheduling', 'frequency', v)}><SelectTrigger className="h-8 w-[120px] text-xs"><SelectValue placeholder="Frequency" /></SelectTrigger>
-                            <SelectContent><SelectItem value="daily">Daily</SelectItem><SelectItem value="3x_week">3x / week</SelectItem><SelectItem value="weekly">Weekly</SelectItem></SelectContent>
-                          </Select>
+                          <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5"><Globe className="h-3 w-3" /> Content</div>
+
+                          {/* Existing entries */}
+                          {contentEntries.length > 0 && (
+                            <div className="space-y-2 mb-4">
+                              {contentEntries.map((entry, idx) => {
+                                const isEditing = editingContentIdx === idx;
+                                return (
+                                <div key={idx} className={`rounded-lg border bg-muted/20 px-4 py-3 space-y-2 ${isEditing ? 'border-foreground/40' : 'border-border'}`}>
+                                  <div className="flex items-center gap-2">
+                                    <span className="rounded bg-foreground px-2 py-0.5 font-mono text-[9px] uppercase text-background">{getPlatformLabel(entry.platform)}</span>
+                                    <span className="text-xs font-semibold">{getContentTypeLabel(entry.platform, entry.content_type)}</span>
+                                    <div className="ml-auto flex items-center gap-1">
+                                      <button onClick={() => setEditingContentIdx(isEditing ? null : idx)} className={`transition-colors ${isEditing ? 'text-foreground' : 'text-muted-foreground/30 hover:text-foreground'}`}><Pencil className="h-3 w-3" /></button>
+                                      <button onClick={() => removeEntry(idx)} className="text-muted-foreground/30 hover:text-destructive transition-colors"><X className="h-3.5 w-3.5" /></button>
+                                    </div>
+                                  </div>
+
+                                  {isEditing ? (
+                                    <div className="space-y-2 pt-1">
+                                      <div className="flex flex-wrap items-end gap-2">
+                                        <div>
+                                          <div className="font-mono text-[8px] uppercase text-muted-foreground/40 mb-1">Platform</div>
+                                          <Select value={entry.platform || undefined} onValueChange={(v) => updateEntry(idx, 'platform', v)}>
+                                            <SelectTrigger className="h-8 w-[140px] text-xs"><SelectValue placeholder="Platform" /></SelectTrigger>
+                                            <SelectContent>{PLATFORM_OPTIONS.map((p) => (<SelectItem key={p.id} value={p.id}>{p.label}</SelectItem>))}</SelectContent>
+                                          </Select>
+                                        </div>
+                                        <div>
+                                          <div className="font-mono text-[8px] uppercase text-muted-foreground/40 mb-1">Content Type</div>
+                                          <Select value={entry.content_type || undefined} onValueChange={(v) => updateEntry(idx, 'content_type', v)} disabled={!entry.platform}>
+                                            <SelectTrigger className="h-8 w-[140px] text-xs"><SelectValue placeholder="Type" /></SelectTrigger>
+                                            <SelectContent>{(CONTENT_TYPE_OPTIONS[entry.platform] || []).map((t) => (<SelectItem key={t.id} value={t.id}>{t.label}</SelectItem>))}</SelectContent>
+                                          </Select>
+                                        </div>
+                                        <div>
+                                          <div className="font-mono text-[8px] uppercase text-muted-foreground/40 mb-1">Frequency</div>
+                                          <Select value={entry.frequency || undefined} onValueChange={(v) => updateEntry(idx, 'frequency', v)}>
+                                            <SelectTrigger className="h-8 w-[120px] text-xs"><SelectValue placeholder="Frequency" /></SelectTrigger>
+                                            <SelectContent><SelectItem value="once">Once</SelectItem><SelectItem value="daily">Daily</SelectItem><SelectItem value="3x_week">3x / week</SelectItem><SelectItem value="weekly">Weekly</SelectItem><SelectItem value="custom">Custom</SelectItem></SelectContent>
+                                          </Select>
+                                        </div>
+                                      </div>
+                                      {showDayPicker(entry.frequency) && (
+                                        <div>
+                                          <div className="font-mono text-[8px] uppercase text-muted-foreground/40 mb-1">Days</div>
+                                          <div className="flex gap-1">
+                                            {DAY_LABELS.map((d) => {
+                                              const selected = (entry.days || []).includes(d.id);
+                                              return (
+                                                <button key={d.id} type="button" onClick={() => toggleEntryDay(idx, d.id)}
+                                                  className={`flex h-7 w-7 items-center justify-center rounded-full text-[10px] font-medium transition-colors ${selected ? 'bg-foreground text-background' : 'border border-border text-muted-foreground hover:border-foreground/40'}`}
+                                                  title={d.label}
+                                                >{d.short}</button>
+                                              );
+                                            })}
+                                          </div>
+                                        </div>
+                                      )}
+                                      <div className="flex flex-wrap items-end gap-2">
+                                        <div>
+                                          <div className="font-mono text-[8px] uppercase text-muted-foreground/40 mb-1">Start</div>
+                                          <input type="date" value={entry.start_date || ''} onChange={(e) => updateEntry(idx, 'start_date', e.target.value)} className="h-8 rounded border border-border bg-background px-3 text-xs text-foreground" />
+                                        </div>
+                                        <div>
+                                          <div className="font-mono text-[8px] uppercase text-muted-foreground/40 mb-1">End</div>
+                                          <input type="date" value={entry.end_date || ''} onChange={(e) => updateEntry(idx, 'end_date', e.target.value)} className="h-8 rounded border border-border bg-background px-3 text-xs text-foreground" />
+                                        </div>
+                                        <div>
+                                          <div className="font-mono text-[8px] uppercase text-muted-foreground/40 mb-1">Post Time</div>
+                                          <Select value={entry.post_time || undefined} onValueChange={(v) => updateEntry(idx, 'post_time', v)}>
+                                            <SelectTrigger className="h-8 w-[110px] text-xs"><SelectValue placeholder="Time" /></SelectTrigger>
+                                            <SelectContent className="max-h-[240px]">
+                                              {['AM', 'PM'].flatMap((p) => [12, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].flatMap((h) => ['00', '15', '30', '45'].map((m) => {
+                                                const val = `${h}:${m} ${p}`;
+                                                return <SelectItem key={val} value={val}>{val}</SelectItem>;
+                                              })))}
+                                            </SelectContent>
+                                          </Select>
+                                        </div>
+                                        <div>
+                                          <div className="font-mono text-[8px] uppercase text-muted-foreground/40 mb-1">Timezone</div>
+                                          <Select value={entry.timezone || undefined} onValueChange={(v) => updateEntry(idx, 'timezone', v)}>
+                                            <SelectTrigger className="h-8 w-[150px] text-xs"><SelectValue placeholder="Timezone" /></SelectTrigger>
+                                            <SelectContent>{Object.entries(TIMEZONE_LABELS).map(([k, v]) => (<SelectItem key={k} value={k}>{v}</SelectItem>))}</SelectContent>
+                                          </Select>
+                                        </div>
+                                      </div>
+                                      <button onClick={() => setEditingContentIdx(null)} className="text-xs font-medium text-foreground hover:underline mt-1">Done</button>
+                                    </div>
+                                  ) : (
+                                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 cursor-pointer" onClick={() => setEditingContentIdx(idx)}>
+                                      {entry.frequency && (
+                                        <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                                          <span className="font-mono text-[8px] uppercase text-muted-foreground/50">Freq</span> {FREQUENCY_LABELS[entry.frequency] || entry.frequency}
+                                        </span>
+                                      )}
+                                      {entry.days && entry.days.length > 0 && (
+                                        <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                                          <span className="font-mono text-[8px] uppercase text-muted-foreground/50">Days</span> {entry.days.map((d) => DAY_LABELS[d]?.label).join(', ')}
+                                        </span>
+                                      )}
+                                      {entry.start_date && (
+                                        <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                                          <span className="font-mono text-[8px] uppercase text-muted-foreground/50">Start</span> {formatDate(entry.start_date)}
+                                        </span>
+                                      )}
+                                      {entry.end_date && (
+                                        <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                                          <span className="font-mono text-[8px] uppercase text-muted-foreground/50">End</span> {formatDate(entry.end_date)}
+                                        </span>
+                                      )}
+                                      {entry.post_time && (
+                                        <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                                          <span className="font-mono text-[8px] uppercase text-muted-foreground/50">Time</span> {entry.post_time}
+                                        </span>
+                                      )}
+                                      {entry.timezone && (
+                                        <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                                          <span className="font-mono text-[8px] uppercase text-muted-foreground/50">TZ</span> {TIMEZONE_LABELS[entry.timezone] || entry.timezone}
+                                        </span>
+                                      )}
+                                      {!entry.frequency && !entry.start_date && !entry.post_time && (
+                                        <span className="text-[10px] text-muted-foreground/40">Click to edit schedule</span>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                                );
+                              })}
+                            </div>
+                          )}
+
+                          {/* Add new entry */}
+                          <div className="rounded-lg border border-dashed border-border p-4 space-y-3">
+                            <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/60">Add Content</div>
+                            <div className="flex flex-wrap items-end gap-2">
+                              <div>
+                                <div className="font-mono text-[8px] uppercase text-muted-foreground/40 mb-1">Platform</div>
+                                <Select value={addPlatform || undefined} onValueChange={(v) => { updateStageSetting('scheduling', 'add_platform', v); updateStageSetting('scheduling', 'add_content_type', ''); }}>
+                                  <SelectTrigger className="h-8 w-[140px] text-xs"><SelectValue placeholder="Platform" /></SelectTrigger>
+                                  <SelectContent>{PLATFORM_OPTIONS.map((p) => (<SelectItem key={p.id} value={p.id}>{p.label}</SelectItem>))}</SelectContent>
+                                </Select>
+                              </div>
+                              <div>
+                                <div className="font-mono text-[8px] uppercase text-muted-foreground/40 mb-1">Content Type</div>
+                                <Select value={addContentType || undefined} onValueChange={(v) => updateStageSetting('scheduling', 'add_content_type', v)} disabled={!addPlatform}>
+                                  <SelectTrigger className="h-8 w-[140px] text-xs"><SelectValue placeholder="Type" /></SelectTrigger>
+                                  <SelectContent>{(CONTENT_TYPE_OPTIONS[addPlatform] || []).map((t) => (<SelectItem key={t.id} value={t.id}>{t.label}</SelectItem>))}</SelectContent>
+                                </Select>
+                              </div>
+                              <div>
+                                <div className="font-mono text-[8px] uppercase text-muted-foreground/40 mb-1">Frequency</div>
+                                <Select value={addFrequency || undefined} onValueChange={(v) => updateStageSetting('scheduling', 'add_frequency', v)}>
+                                  <SelectTrigger className="h-8 w-[120px] text-xs"><SelectValue placeholder="Frequency" /></SelectTrigger>
+                                  <SelectContent><SelectItem value="once">Once</SelectItem><SelectItem value="daily">Daily</SelectItem><SelectItem value="3x_week">3x / week</SelectItem><SelectItem value="weekly">Weekly</SelectItem><SelectItem value="custom">Custom</SelectItem></SelectContent>
+                                </Select>
+                              </div>
+                            </div>
+                            {showDayPicker(addFrequency) && (
+                              <div>
+                                <div className="font-mono text-[8px] uppercase text-muted-foreground/40 mb-1">Days</div>
+                                <div className="flex gap-1">
+                                  {DAY_LABELS.map((d) => {
+                                    const selected = addDays.includes(d.id);
+                                    return (
+                                      <button key={d.id} type="button" onClick={() => toggleAddDay(d.id)}
+                                        className={`flex h-7 w-7 items-center justify-center rounded-full text-[10px] font-medium transition-colors ${selected ? 'bg-foreground text-background' : 'border border-border text-muted-foreground hover:border-foreground/40'}`}
+                                        title={d.label}
+                                      >{d.short}</button>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
+                            <div className="flex flex-wrap items-end gap-2">
+                              <div>
+                                <div className="font-mono text-[8px] uppercase text-muted-foreground/40 mb-1">Start</div>
+                                <input type="date" value={addStartDate} onChange={(e) => updateStageSetting('scheduling', 'add_start_date', e.target.value)} className="h-8 rounded border border-border bg-background px-3 text-xs text-foreground" />
+                              </div>
+                              <div>
+                                <div className="font-mono text-[8px] uppercase text-muted-foreground/40 mb-1">End</div>
+                                <input type="date" value={addEndDate} onChange={(e) => updateStageSetting('scheduling', 'add_end_date', e.target.value)} className="h-8 rounded border border-border bg-background px-3 text-xs text-foreground" />
+                              </div>
+                              <div>
+                                <div className="font-mono text-[8px] uppercase text-muted-foreground/40 mb-1">Post Time</div>
+                                <Select value={addPostTime || undefined} onValueChange={(v) => updateStageSetting('scheduling', 'add_post_time', v)}>
+                                  <SelectTrigger className="h-8 w-[110px] text-xs"><SelectValue placeholder="Time" /></SelectTrigger>
+                                  <SelectContent className="max-h-[240px]">
+                                    {['AM', 'PM'].flatMap((p) => [12, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].flatMap((h) => ['00', '15', '30', '45'].map((m) => {
+                                      const val = `${h}:${m} ${p}`;
+                                      return <SelectItem key={val} value={val}>{val}</SelectItem>;
+                                    })))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div>
+                                <div className="font-mono text-[8px] uppercase text-muted-foreground/40 mb-1">Timezone</div>
+                                <Select value={addTimezone || undefined} onValueChange={(v) => updateStageSetting('scheduling', 'add_timezone', v)}>
+                                  <SelectTrigger className="h-8 w-[150px] text-xs"><SelectValue placeholder="Timezone" /></SelectTrigger>
+                                  <SelectContent>
+                                    {Object.entries(TIMEZONE_LABELS).map(([k, v]) => (<SelectItem key={k} value={k}>{v}</SelectItem>))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <button onClick={addEntry} disabled={!addPlatform || !addContentType} className="flex h-8 items-center gap-1.5 rounded-md bg-foreground px-3 text-xs font-medium text-background hover:bg-foreground/90 disabled:opacity-30 transition-colors">
+                                <Plus className="h-3.5 w-3.5" /> Add
+                              </button>
+                            </div>
+                          </div>
                         </div>
-                        <div>
-                          <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground mb-1.5">Start</div>
-                          <input type="date" value={(getSetting('scheduling', 'start_date') as string) || ''} onChange={(e) => updateStageSetting('scheduling', 'start_date', e.target.value)} className="h-8 rounded border border-border bg-background px-3 text-xs text-foreground" />
-                        </div>
-                        <div>
-                          <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground mb-1.5">End</div>
-                          <input type="date" value={(getSetting('scheduling', 'end_date') as string) || ''} onChange={(e) => updateStageSetting('scheduling', 'end_date', e.target.value)} className="h-8 rounded border border-border bg-background px-3 text-xs text-foreground" />
-                        </div>
-                        <div>
-                          <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground mb-1.5">Post Time</div>
-                          <Select value={postTimeValue || undefined} onValueChange={handlePostTimeChange}>
-                            <SelectTrigger className="h-8 w-[120px] text-xs"><SelectValue placeholder="Select time" /></SelectTrigger>
-                            <SelectContent className="max-h-[240px]">
-                              {['AM', 'PM'].flatMap((p) => [12, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].flatMap((h) => ['00', '15', '30', '45'].map((m) => {
-                                const val = `${h}:${m} ${p}`;
-                                return <SelectItem key={val} value={val}>{val}</SelectItem>;
-                              })))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div>
-                          <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground mb-1.5">Timezone</div>
-                          <Select value={(getSetting('scheduling', 'timezone') as string) || ''} onValueChange={(v) => updateStageSetting('scheduling', 'timezone', v)}>
-                            <SelectTrigger className="h-8 w-[160px] text-xs"><SelectValue placeholder="Timezone" /></SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="America/New_York">Eastern (ET)</SelectItem>
-                              <SelectItem value="America/Chicago">Central (CT)</SelectItem>
-                              <SelectItem value="America/Denver">Mountain (MT)</SelectItem>
-                              <SelectItem value="America/Los_Angeles">Pacific (PT)</SelectItem>
-                              <SelectItem value="UTC">UTC</SelectItem>
-                              <SelectItem value="Europe/London">London (GMT)</SelectItem>
-                              <SelectItem value="Europe/Paris">Paris (CET)</SelectItem>
-                              <SelectItem value="Asia/Tokyo">Tokyo (JST)</SelectItem>
-                              <SelectItem value="Asia/Dubai">Dubai (GST)</SelectItem>
-                              <SelectItem value="Australia/Sydney">Sydney (AEST)</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
+
+                        {/* ── Calendar View ── */}
+                        {calendarItems.length > 0 && (() => {
+                          const yr = calendarMonth.getFullYear();
+                          const mo = calendarMonth.getMonth();
+                          const daysInMonth = new Date(yr, mo + 1, 0).getDate();
+                          const firstDayOfWeek = new Date(yr, mo, 1).getDay();
+                          const itemsByDate = getContentItemsByDate(calendarItems, yr, mo);
+                          const today = new Date();
+                          const isToday = (d: number) => today.getFullYear() === yr && today.getMonth() === mo && today.getDate() === d;
+                          const weeks: (number | null)[][] = [];
+                          let week: (number | null)[] = Array(firstDayOfWeek).fill(null);
+                          for (let d = 1; d <= daysInMonth; d++) {
+                            week.push(d);
+                            if (week.length === 7) { weeks.push(week); week = []; }
+                          }
+                          if (week.length > 0) { while (week.length < 7) week.push(null); weeks.push(week); }
+                          return (
+                            <div className="mt-6">
+                              <div className="flex items-center justify-between mb-3">
+                                <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                                  <CalendarClock className="h-3 w-3" /> Content Calendar
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <button onClick={() => setCalendarMonth(new Date(yr, mo - 1, 1))} className="rounded p-1 hover:bg-muted transition-colors"><ChevronLeft className="h-3.5 w-3.5 text-muted-foreground" /></button>
+                                  <span className="text-xs font-medium min-w-[120px] text-center">
+                                    {calendarMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                                  </span>
+                                  <button onClick={() => setCalendarMonth(new Date(yr, mo + 1, 1))} className="rounded p-1 hover:bg-muted transition-colors"><ChevronRight className="h-3.5 w-3.5 text-muted-foreground" /></button>
+                                </div>
+                              </div>
+                              <div className="rounded-lg border border-border overflow-hidden">
+                                <div className="grid grid-cols-7 border-b border-border bg-muted/30">
+                                  {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d) => (
+                                    <div key={d} className="px-1 py-1.5 text-center font-mono text-[8px] uppercase tracking-wider text-muted-foreground/60">{d}</div>
+                                  ))}
+                                </div>
+                                {weeks.map((w, wi) => (
+                                  <div key={wi} className="grid grid-cols-7 border-b border-border last:border-b-0">
+                                    {w.map((day, di) => {
+                                      const dayItems = day ? itemsByDate.get(day) || [] : [];
+                                      const dateStr = day ? `${yr}-${String(mo + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}` : '';
+                                      return (
+                                        <div
+                                          key={di}
+                                          onDragOver={day ? (ev) => { ev.preventDefault(); ev.currentTarget.classList.add('ring-2', 'ring-inset', 'ring-foreground/40'); } : undefined}
+                                          onDragLeave={day ? (ev) => { ev.currentTarget.classList.remove('ring-2', 'ring-inset', 'ring-foreground/40'); } : undefined}
+                                          onDrop={day ? (ev) => { ev.preventDefault(); ev.currentTarget.classList.remove('ring-2', 'ring-inset', 'ring-foreground/40'); const id = ev.dataTransfer.getData('text/plain'); if (id) moveContentItem(id, dateStr); } : undefined}
+                                          className={`min-h-[96px] px-0.5 py-1 border-r border-border last:border-r-0 ${day ? 'bg-background' : 'bg-muted/10'} ${isToday(day || 0) ? 'ring-1 ring-inset ring-foreground/20' : ''}`}
+                                        >
+                                          {day && (
+                                            <>
+                                              <div className="flex items-center justify-between px-0.5 mb-0.5">
+                                                <span className={`text-[10px] ${isToday(day) ? 'font-bold text-foreground' : 'text-muted-foreground/60'}`}>{day}</span>
+                                                <button
+                                                  onClick={() => {
+                                                    const newItem: ContentItem = { content_id: crypto.randomUUID(), date: dateStr, platform: 'instagram', content_type: 'reel' };
+                                                    updateStageSetting('scheduling', 'content_items', [...calendarItems, newItem]);
+                                                  }}
+                                                  className="opacity-0 group-hover:opacity-100 hover:!opacity-100 text-muted-foreground/30 hover:text-foreground transition-opacity"
+                                                  title="Add content item"
+                                                >
+                                                  <Plus className="h-2.5 w-2.5" />
+                                                </button>
+                                              </div>
+                                              <div className="flex flex-col gap-0.5">
+                                                {dayItems.slice(0, 3).map((item) => {
+                                                  const isSelected = selectedContentPiece?.content_id === item.content_id;
+                                                  return (
+                                                  <div
+                                                    key={item.content_id}
+                                                    draggable
+                                                    onDragStart={(ev) => { ev.dataTransfer.setData('text/plain', item.content_id); ev.dataTransfer.effectAllowed = 'move'; }}
+                                                    onClick={() => setSelectedContentPiece(item)}
+                                                    className={`group/item rounded-md border px-1.5 py-1 cursor-pointer hover:ring-1 hover:ring-foreground/30 transition-all ${isSelected ? 'ring-2 ring-foreground' : ''} ${CONTENT_TYPE_COLORS[item.content_type] || 'bg-muted/50'} ${CONTENT_TYPE_BORDER[item.content_type] || 'border-border'} flex items-center gap-1`}
+                                                  >
+                                                    {(() => { const Icon = CONTENT_TYPE_ICONS[item.content_type]; return Icon ? <Icon className={`h-3 w-3 shrink-0 ${CONTENT_TYPE_COLORS_TEXT[item.content_type] || 'text-muted-foreground'}`} /> : null; })()}
+                                                    <span className={`text-[9px] font-medium leading-tight truncate flex-1 ${CONTENT_TYPE_COLORS_TEXT[item.content_type] || 'text-muted-foreground'}`}>
+                                                      {getContentTypeLabel(item.platform, item.content_type)}
+                                                    </span>
+                                                    <button
+                                                      onClick={(ev) => { ev.stopPropagation(); deleteContentItem(item.content_id); }}
+                                                      className="opacity-0 group-hover/item:opacity-100 text-muted-foreground/50 hover:text-destructive shrink-0"
+                                                    >
+                                                      <X className="h-2.5 w-2.5" />
+                                                    </button>
+                                                  </div>
+                                                  );
+                                                })}
+                                                {dayItems.length > 3 && (
+                                                  <span className="text-[7px] text-muted-foreground/50 px-1">+{dayItems.length - 3} more</span>
+                                                )}
+                                              </div>
+                                            </>
+                                          )}
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                ))}
+                              </div>
+                              {/* Legend */}
+                              <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 mt-2.5">
+                                {(() => {
+                                  const seen = new Set<string>();
+                                  return calendarItems.map((e) => {
+                                    const key = `${e.platform}_${e.content_type}`;
+                                    if (seen.has(key)) return null;
+                                    seen.add(key);
+                                    return (
+                                      <div key={key} className="flex items-center gap-1.5">
+                                        {(() => { const Icon = CONTENT_TYPE_ICONS[e.content_type]; return Icon ? <Icon className={`h-2.5 w-2.5 ${CONTENT_TYPE_COLORS_TEXT[e.content_type] || 'text-muted-foreground'}`} /> : <div className={`h-2 w-2 rounded-sm ${CONTENT_TYPE_COLORS[e.content_type] || 'bg-muted-foreground'}`} />; })()}
+                                        <span className="text-[10px] text-muted-foreground">{getPlatformLabel(e.platform)} {getContentTypeLabel(e.platform, e.content_type)}</span>
+                                      </div>
+                                    );
+                                  });
+                                })()}
+                              </div>
+
+                              {/* Selected content piece header */}
+                              {selectedContentPiece && (
+                                <div className="mt-4 rounded-lg border-2 border-foreground/20 bg-muted/30 p-4">
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex-1 min-w-0">
+                                      <div className="flex items-center gap-2">
+                                        <div className="text-lg font-bold">
+                                          {new Date(selectedContentPiece.date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
+                                          {selectedContentPiece.post_time && ` · ${selectedContentPiece.post_time}`}
+                                        </div>
+                                        <input
+                                          type="date"
+                                          value={selectedContentPiece.date}
+                                          onChange={(ev) => moveContentItem(selectedContentPiece.content_id, ev.target.value)}
+                                          className="h-7 rounded border border-border bg-background px-2 text-xs text-foreground"
+                                          title="Move to date"
+                                        />
+                                      </div>
+                                      <div className="flex items-center gap-2 mt-1">
+                                        <span className="flex items-center gap-1.5 text-sm font-semibold">
+                                          <span className={`h-2.5 w-2.5 rounded-sm shrink-0 ${CONTENT_TYPE_COLORS[selectedContentPiece.content_type] || 'bg-muted-foreground'}`} />
+                                          {getPlatformLabel(selectedContentPiece.platform)} {getContentTypeLabel(selectedContentPiece.platform, selectedContentPiece.content_type)}
+                                        </span>
+                                      </div>
+                                      <div className="flex flex-wrap items-end gap-2 mt-2">
+                                        <div>
+                                          <div className="font-mono text-[8px] uppercase text-muted-foreground/40 mb-0.5">Platform</div>
+                                          <Select value={selectedContentPiece.platform} onValueChange={(v) => updateContentItem(selectedContentPiece.content_id, 'platform', v)}>
+                                            <SelectTrigger className="h-7 w-[120px] text-xs"><SelectValue /></SelectTrigger>
+                                            <SelectContent>{PLATFORM_OPTIONS.map((p) => (<SelectItem key={p.id} value={p.id}>{p.label}</SelectItem>))}</SelectContent>
+                                          </Select>
+                                        </div>
+                                        <div>
+                                          <div className="font-mono text-[8px] uppercase text-muted-foreground/40 mb-0.5">Type</div>
+                                          <Select value={selectedContentPiece.content_type} onValueChange={(v) => updateContentItem(selectedContentPiece.content_id, 'content_type', v)}>
+                                            <SelectTrigger className="h-7 w-[120px] text-xs"><SelectValue /></SelectTrigger>
+                                            <SelectContent>{(CONTENT_TYPE_OPTIONS[selectedContentPiece.platform] || []).map((t) => (<SelectItem key={t.id} value={t.id}>{t.label}</SelectItem>))}</SelectContent>
+                                          </Select>
+                                        </div>
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center gap-1 ml-2">
+                                      <button onClick={() => deleteContentItem(selectedContentPiece.content_id)} className="text-muted-foreground hover:text-destructive" title="Delete item">
+                                        <Trash2 className="h-4 w-4" />
+                                      </button>
+                                      <button onClick={() => setSelectedContentPiece(null)} className="text-muted-foreground hover:text-foreground">
+                                        <X className="h-4 w-4" />
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </div>
-                    )}
+                      );
+                    })()}
 
                     {/* ── Concepts ── */}
                     {stage.key === 'concepts' && (() => {
+                      if (!selectedContentPiece) {
+                        return <div className="text-center py-8 text-muted-foreground/50"><CalendarClock className="h-8 w-8 mx-auto mb-2 opacity-30" /><p className="text-xs">Select a content piece from the calendar to generate concepts</p></div>;
+                      }
                       const conceptRows = (getSetting('concepts', 'concept_allocations') as Array<{ num: string; tone: string; model?: string }>) || [{ num: '3', tone: '', model: '' }];
                       const totalConcepts = conceptRows.reduce((sum, r) => sum + (parseInt(r.num) || 0), 0);
+                      const pieceConcepts = ((getPieceSetting('concepts', 'generated_concepts') as GeneratedConcept[]) || []) as GeneratedConcept[];
 
                       const updateConceptRowsO = (next: Array<{ num: string; tone: string; model?: string }>) => {
                         updateStageSetting('concepts', 'concept_allocations', next);
@@ -1238,35 +2292,133 @@ export default function ContentWorkflowDetailPage() {
                       const removeConceptRowO = (idx: number) => updateConceptRowsO(conceptRows.filter((_, i) => i !== idx));
 
                       const deleteConceptO = (idx: number) => {
-                        updateStageSetting('concepts', 'generated_concepts', oGeneratedConcepts.filter((_, i) => i !== idx));
+                        updatePieceSetting('concepts', 'generated_concepts', pieceConcepts.filter((_, i) => i !== idx));
                         if (editingConceptIdx === idx) setEditingConceptIdx(null);
                       };
-                      const updateConceptO = (idx: number, field: string, value: string) => {
-                        const parsed = field === 'messaging' ? value.split('\n') : value;
-                        updateStageSetting('concepts', 'generated_concepts', oGeneratedConcepts.map((c, i) => i === idx ? { ...c, [field]: parsed } : c));
+                      const updateConceptO = (idx: number, field: string, value: unknown) => {
+                        updatePieceSetting('concepts', 'generated_concepts', pieceConcepts.map((c, i) => i === idx ? { ...c, [field]: value } : c));
                       };
 
                       const handleGenerateO = async (idx: number) => {
                         const row = conceptRows[idx];
-                        if (!row.tone || !row.num) return;
+                        if (!selectedContentPiece) return;
+                        const num = parseInt(row.num) || 3;
+                        const tone = row.tone || 'engaging';
                         setGeneratingRows((prev) => new Set(prev).add(idx));
                         try {
-                          const result = await generateConcepts(workflowId, parseInt(row.num) || 3, row.tone);
-                          const taggedConcepts = result.concepts.map((c) => ({ ...c, tone: row.tone }));
-                          setStageSettings((prev) => {
-                            const existing = (prev['concepts']?.['generated_concepts'] as Array<{ title: string; hook: string; script: string; messaging: string[]; tone?: string }>) || [];
-                            const next = { ...prev, concepts: { ...prev['concepts'], generated_concepts: [...existing, ...taggedConcepts] } };
-                            if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
-                            saveTimeoutRef.current = setTimeout(async () => {
-                              if (!workflow) return;
-                              try {
-                                await updateContentWorkflow(workflow._id, { config: { ...workflow.config, stage_settings: next } } as Partial<ContentWorkflow>);
-                              } catch (err) { console.error('Failed to save settings:', err); }
-                            }, 500);
-                            return next;
-                          });
+                          const result = await generateConcepts(workflowId, num, tone, selectedContentPiece.content_type);
+                          const taggedConcepts = result.concepts.map((c: Record<string, unknown>) => ({ ...c, tone: row.tone, content_type: selectedContentPiece.content_type }));
+                          const existing = pieceConcepts;
+                          updatePieceSetting('concepts', 'generated_concepts', [...existing, ...taggedConcepts]);
                         } catch (err) { console.error('Concept generation failed:', err); }
                         finally { setGeneratingRows((prev) => { const next = new Set(prev); next.delete(idx); return next; }); }
+                      };
+
+                      // Type-specific concept card renderer
+                      const renderConceptCard = (concept: GeneratedConcept, idx: number) => {
+                        const ct = (concept as Record<string, unknown>).content_type as string | undefined;
+                        const isEditing = editingConceptIdx === idx;
+                        return (
+                          <div key={idx} className="relative group/card rounded border border-border p-3 space-y-2">
+                            <div className="absolute top-2 right-2 flex items-center gap-1">
+                              <span className="inline-flex items-center rounded-full border border-border bg-background px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider text-foreground/70">{(concept as Record<string, unknown>).tone as string || 'general'}</span>
+                              {ct && <span className="inline-flex items-center rounded-full border border-border bg-background px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider text-foreground/70">{ct}</span>}
+                              <button onClick={() => setEditingConceptIdx(isEditing ? null : idx)} className="opacity-0 group-hover/card:opacity-100 rounded p-1 text-muted-foreground hover:text-foreground transition-all"><Pencil className="h-3 w-3" /></button>
+                              <button onClick={() => deleteConceptO(idx)} className="opacity-0 group-hover/card:opacity-100 rounded p-1 text-muted-foreground hover:text-destructive transition-all"><Trash2 className="h-3 w-3" /></button>
+                            </div>
+                            <h4 className="text-xs font-semibold pr-28">{concept.title}</h4>
+
+                            {/* Reel layout */}
+                            {ct === 'reel' && (() => {
+                              const rc = concept as ReelConcept;
+                              if (isEditing) return (<>
+                                <div><div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/60 mb-0.5">Hook</div><textarea value={rc.hook} onChange={(e) => updateConceptO(idx, 'hook', e.target.value)} rows={2} className="w-full rounded border border-border bg-background px-2 py-1 text-xs text-foreground resize-none" /></div>
+                                <div><div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/60 mb-0.5">Script</div><textarea value={typeof rc.script === 'string' ? rc.script : (rc.script as string[]).join('\n')} onChange={(e) => updateConceptO(idx, 'script', e.target.value.split('\n'))} rows={4} className="w-full rounded border border-border bg-background px-2 py-1 text-xs text-foreground resize-none" /></div>
+                                <div><div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/60 mb-0.5">Audio Cues</div><input value={rc.audio_cues || ''} onChange={(e) => updateConceptO(idx, 'audio_cues', e.target.value)} className="w-full h-7 rounded border border-border bg-background px-2 text-xs text-foreground" /></div>
+                                <div><div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/60 mb-0.5">Duration</div><input value={rc.duration || ''} onChange={(e) => updateConceptO(idx, 'duration', e.target.value)} className="w-full h-7 rounded border border-border bg-background px-2 text-xs text-foreground" /></div>
+                              </>);
+                              return (<>
+                                <div><div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/60 mb-0.5">Hook</div><p className="text-[10px] text-muted-foreground leading-relaxed whitespace-pre-line">{rc.hook}</p></div>
+                                <div><div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/60 mb-0.5">Script</div>
+                                  {Array.isArray(rc.script) ? <ul className="space-y-0.5">{rc.script.map((line, li) => (<li key={li} className="text-[10px] text-muted-foreground flex items-start gap-1.5"><span className="text-muted-foreground/40 shrink-0">&#x2022;</span><span className="whitespace-pre-line">{line}</span></li>))}</ul>
+                                  : <p className="text-[10px] text-muted-foreground leading-relaxed whitespace-pre-line">{rc.script}</p>}
+                                </div>
+                                {rc.audio_cues && <div><div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/60 mb-0.5">Audio Cues</div><p className="text-[10px] text-muted-foreground">{rc.audio_cues}</p></div>}
+                                {rc.duration && <div><div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/60 mb-0.5">Duration</div><p className="text-[10px] text-muted-foreground">{rc.duration}</p></div>}
+                              </>);
+                            })()}
+
+                            {/* Carousel layout */}
+                            {ct === 'carousel' && (() => {
+                              const cc = concept as CarouselConcept;
+                              if (isEditing) return (<>
+                                {(cc.slides || []).map((slide, si) => (
+                                  <div key={si} className="border-l-2 border-border pl-2 space-y-1">
+                                    <div className="font-mono text-[8px] uppercase text-muted-foreground/40">Slide {si + 1}</div>
+                                    <div><div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/60 mb-0.5">Image Description</div><textarea value={slide.image_description} onChange={(e) => { const slides = [...cc.slides]; slides[si] = { ...slides[si], image_description: e.target.value }; updateConceptO(idx, 'slides', slides); }} rows={2} className="w-full rounded border border-border bg-background px-2 py-1 text-xs text-foreground resize-none" /></div>
+                                    <div><div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/60 mb-0.5">Caption</div><textarea value={slide.caption} onChange={(e) => { const slides = [...cc.slides]; slides[si] = { ...slides[si], caption: e.target.value }; updateConceptO(idx, 'slides', slides); }} rows={2} className="w-full rounded border border-border bg-background px-2 py-1 text-xs text-foreground resize-none" /></div>
+                                  </div>
+                                ))}
+                              </>);
+                              return (<>
+                                <div><div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/60 mb-0.5">Slides ({(cc.slides || []).length})</div>
+                                  {(cc.slides || []).map((slide, si) => (
+                                    <div key={si} className="border-l-2 border-border pl-2 py-1 space-y-0.5">
+                                      <div className="font-mono text-[8px] uppercase text-muted-foreground/40">Slide {si + 1}</div>
+                                      <p className="text-[10px] text-muted-foreground"><span className="font-medium">Image:</span> {slide.image_description}</p>
+                                      <p className="text-[10px] text-muted-foreground"><span className="font-medium">Caption:</span> {slide.caption}</p>
+                                    </div>
+                                  ))}
+                                </div>
+                                {cc.messaging && cc.messaging.length > 0 && <div><div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/60 mb-0.5">Key Messaging</div><ul className="space-y-0.5">{cc.messaging.map((msg, mi) => (<li key={mi} className="text-[10px] text-muted-foreground flex items-start gap-1.5"><span className="text-muted-foreground/40 shrink-0">&#x2022;</span><span>{msg}</span></li>))}</ul></div>}
+                              </>);
+                            })()}
+
+                            {/* Post layout */}
+                            {ct === 'post' && (() => {
+                              const pc = concept as PostConcept;
+                              if (isEditing) return (<>
+                                <div><div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/60 mb-0.5">Image Description</div><textarea value={pc.image_description} onChange={(e) => updateConceptO(idx, 'image_description', e.target.value)} rows={3} className="w-full rounded border border-border bg-background px-2 py-1 text-xs text-foreground resize-none" /></div>
+                                <div><div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/60 mb-0.5">Caption</div><textarea value={pc.caption} onChange={(e) => updateConceptO(idx, 'caption', e.target.value)} rows={3} className="w-full rounded border border-border bg-background px-2 py-1 text-xs text-foreground resize-none" /></div>
+                              </>);
+                              return (<>
+                                <div><div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/60 mb-0.5">Image Description</div><p className="text-[10px] text-muted-foreground leading-relaxed whitespace-pre-line">{pc.image_description}</p></div>
+                                <div><div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/60 mb-0.5">Caption</div><p className="text-[10px] text-muted-foreground leading-relaxed whitespace-pre-line">{pc.caption}</p></div>
+                                {pc.messaging && pc.messaging.length > 0 && <div><div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/60 mb-0.5">Key Messaging</div><ul className="space-y-0.5">{pc.messaging.map((msg, mi) => (<li key={mi} className="text-[10px] text-muted-foreground flex items-start gap-1.5"><span className="text-muted-foreground/40 shrink-0">&#x2022;</span><span>{msg}</span></li>))}</ul></div>}
+                              </>);
+                            })()}
+
+                            {/* Story layout */}
+                            {ct === 'story' && (() => {
+                              const sc = concept as StoryConcept;
+                              if (isEditing) return (<>
+                                <div><div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/60 mb-0.5">Frame Description</div><textarea value={sc.frame_description} onChange={(e) => updateConceptO(idx, 'frame_description', e.target.value)} rows={3} className="w-full rounded border border-border bg-background px-2 py-1 text-xs text-foreground resize-none" /></div>
+                                <div><div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/60 mb-0.5">Caption</div><textarea value={sc.caption} onChange={(e) => updateConceptO(idx, 'caption', e.target.value)} rows={2} className="w-full rounded border border-border bg-background px-2 py-1 text-xs text-foreground resize-none" /></div>
+                                <div><div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/60 mb-0.5">CTA</div><input value={sc.cta || ''} onChange={(e) => updateConceptO(idx, 'cta', e.target.value)} className="w-full h-7 rounded border border-border bg-background px-2 text-xs text-foreground" /></div>
+                              </>);
+                              return (<>
+                                <div><div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/60 mb-0.5">Frame Description</div><p className="text-[10px] text-muted-foreground leading-relaxed whitespace-pre-line">{sc.frame_description}</p></div>
+                                <div><div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/60 mb-0.5">Caption</div><p className="text-[10px] text-muted-foreground leading-relaxed whitespace-pre-line">{sc.caption}</p></div>
+                                {sc.cta && <div><div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/60 mb-0.5">CTA</div><p className="text-[10px] text-muted-foreground font-medium">{sc.cta}</p></div>}
+                              </>);
+                            })()}
+
+                            {/* Fallback for legacy/unknown content types */}
+                            {(!ct || !['reel', 'carousel', 'post', 'story'].includes(ct)) && (() => {
+                              const fc = concept as { hook?: string; script?: string | string[]; messaging?: string[] };
+                              if (isEditing) return (<>
+                                <div><div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/60 mb-0.5">Hook</div><textarea value={fc.hook || ''} onChange={(e) => updateConceptO(idx, 'hook', e.target.value)} rows={2} className="w-full rounded border border-border bg-background px-2 py-1 text-xs text-foreground resize-none" /></div>
+                                <div><div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/60 mb-0.5">Script</div><textarea value={typeof fc.script === 'string' ? fc.script : (fc.script as string[] || []).join('\n')} onChange={(e) => updateConceptO(idx, 'script', e.target.value)} rows={4} className="w-full rounded border border-border bg-background px-2 py-1 text-xs text-foreground resize-none" /></div>
+                                <div><div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/60 mb-0.5">Key Messaging (one per line)</div><textarea value={(fc.messaging || []).join('\n')} onChange={(e) => updateConceptO(idx, 'messaging', e.target.value.split('\n'))} rows={3} className="w-full rounded border border-border bg-background px-2 py-1 text-xs text-foreground resize-none" /></div>
+                              </>);
+                              return (<>
+                                {fc.hook && <div><div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/60 mb-0.5">Hook</div><p className="text-[10px] text-muted-foreground leading-relaxed whitespace-pre-line">{fc.hook}</p></div>}
+                                {fc.script && <div><div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/60 mb-0.5">Script</div>{typeof fc.script === 'string' ? <p className="text-[10px] text-muted-foreground leading-relaxed whitespace-pre-line">{fc.script}</p> : <ul className="space-y-0.5">{(fc.script as string[]).map((line, li) => (<li key={li} className="text-[10px] text-muted-foreground flex items-start gap-1.5"><span className="text-muted-foreground/40 shrink-0">&#x2022;</span><span className="whitespace-pre-line">{line}</span></li>))}</ul>}</div>}
+                                {fc.messaging && fc.messaging.length > 0 && <div><div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/60 mb-0.5">Key Messaging</div><ul className="space-y-0.5">{fc.messaging.map((msg, mi) => (<li key={mi} className="text-[10px] text-muted-foreground flex items-start gap-1.5"><span className="text-muted-foreground/40 shrink-0">&#x2022;</span><span className="whitespace-pre-line">{msg}</span></li>))}</ul></div>}
+                              </>);
+                            })()}
+                          </div>
+                        );
                       };
 
                       return (
@@ -1274,7 +2426,17 @@ export default function ContentWorkflowDetailPage() {
                           <div>
                             <div className="flex items-center justify-between mb-1.5">
                               <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground">Generate &middot; {totalConcepts} total</div>
-                              <button onClick={addConceptRowO} className="font-mono text-[10px] text-muted-foreground hover:text-foreground transition-colors">+ Add Variation</button>
+                              <div className="flex items-center gap-3">
+                                <button
+                                  onClick={async () => { for (let i = 0; i < conceptRows.length; i++) { await handleGenerateO(i); } }}
+                                  disabled={generatingRows.size > 0}
+                                  className="font-mono text-[10px] text-muted-foreground hover:text-foreground disabled:opacity-30 transition-colors inline-flex items-center gap-1"
+                                >
+                                  {generatingRows.size > 0 ? <Loader2 className="h-3 w-3 animate-spin" /> : <Bot className="h-3 w-3" />}
+                                  Generate All
+                                </button>
+                                <button onClick={addConceptRowO} className="font-mono text-[10px] text-muted-foreground hover:text-foreground transition-colors">+ Add Variation</button>
+                              </div>
                             </div>
                             <div className="space-y-1.5">
                               {conceptRows.map((row, idx) => (
@@ -1294,7 +2456,7 @@ export default function ContentWorkflowDetailPage() {
                                       <SelectItem value="gemini-pro-3">Gemini Pro 3</SelectItem>
                                     </SelectContent>
                                   </Select>
-                                  <button onClick={() => handleGenerateO(idx)} disabled={generatingRows.has(idx) || !row.tone} className="shrink-0 rounded p-1 text-muted-foreground/60 hover:text-foreground disabled:opacity-30 transition-colors">
+                                  <button onClick={() => handleGenerateO(idx)} disabled={generatingRows.has(idx)} className="shrink-0 rounded p-1 text-muted-foreground/60 hover:text-foreground disabled:opacity-30 transition-colors">
                                     {generatingRows.has(idx) ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Bot className="h-3.5 w-3.5" />}
                                   </button>
                                   {conceptRows.length > 1 && (
@@ -1305,43 +2467,11 @@ export default function ContentWorkflowDetailPage() {
                             </div>
                           </div>
 
-                          {oGeneratedConcepts.length > 0 && (
+                          {pieceConcepts.length > 0 && (
                             <div>
-                              <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground mb-1.5">Generated Concepts ({oGeneratedConcepts.length})</div>
-                              <div className="space-y-2">
-                                {oGeneratedConcepts.map((concept, idx) => (
-                                  <div key={idx} className="relative group/card rounded border border-border p-3 space-y-2">
-                                    <div className="absolute top-2 right-2 flex items-center gap-1">
-                                      <span className="inline-flex items-center rounded-full border border-border bg-background px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider text-foreground/70">{concept.tone || 'general'}</span>
-                                      <button onClick={() => setEditingConceptIdx(editingConceptIdx === idx ? null : idx)} className="opacity-0 group-hover/card:opacity-100 rounded p-1 text-muted-foreground hover:text-foreground transition-all"><Pencil className="h-3 w-3" /></button>
-                                      <button onClick={() => deleteConceptO(idx)} className="opacity-0 group-hover/card:opacity-100 rounded p-1 text-muted-foreground hover:text-destructive transition-all"><Trash2 className="h-3 w-3" /></button>
-                                    </div>
-                                    {editingConceptIdx === idx ? (
-                                      <>
-                                        <div><div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/60 mb-0.5">Title</div><input value={concept.title} onChange={(e) => updateConceptO(idx, 'title', e.target.value)} className="w-full h-7 rounded border border-border bg-background px-2 text-xs text-foreground" /></div>
-                                        <div><div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/60 mb-0.5">Hook</div><textarea value={concept.hook} onChange={(e) => updateConceptO(idx, 'hook', e.target.value)} rows={2} className="w-full rounded border border-border bg-background px-2 py-1 text-xs text-foreground resize-none" /></div>
-                                        <div><div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/60 mb-0.5">Script</div><textarea value={typeof concept.script === 'string' ? concept.script : (concept.script as string[]).join('\n')} onChange={(e) => updateConceptO(idx, 'script', e.target.value)} rows={4} className="w-full rounded border border-border bg-background px-2 py-1 text-xs text-foreground resize-none" /></div>
-                                        <div><div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/60 mb-0.5">Key Messaging (one per line)</div><textarea value={(concept.messaging || []).join('\n')} onChange={(e) => updateConceptO(idx, 'messaging', e.target.value)} rows={3} className="w-full rounded border border-border bg-background px-2 py-1 text-xs text-foreground resize-none" /></div>
-                                      </>
-                                    ) : (
-                                      <>
-                                        <h4 className="text-xs font-semibold pr-28">{concept.title}</h4>
-                                        <div><div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/60 mb-0.5">Hook</div><p className="text-[10px] text-muted-foreground leading-relaxed whitespace-pre-line">{concept.hook}</p></div>
-                                        <div>
-                                          <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/60 mb-0.5">Script</div>
-                                          {typeof concept.script === 'string' ? (
-                                            <p className="text-[10px] text-muted-foreground leading-relaxed whitespace-pre-line">{concept.script}</p>
-                                          ) : Array.isArray(concept.script) ? (
-                                            <ul className="space-y-0.5">{(concept.script as string[]).map((line, li) => (<li key={li} className="text-[10px] text-muted-foreground flex items-start gap-1.5"><span className="text-muted-foreground/40 shrink-0">&#x2022;</span><span className="whitespace-pre-line">{line}</span></li>))}</ul>
-                                          ) : null}
-                                        </div>
-                                        {concept.messaging && concept.messaging.length > 0 && (
-                                          <div><div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/60 mb-0.5">Key Messaging</div><ul className="space-y-0.5">{concept.messaging.map((msg, mi) => (<li key={mi} className="text-[10px] text-muted-foreground flex items-start gap-1.5"><span className="text-muted-foreground/40 shrink-0">&#x2022;</span><span className="whitespace-pre-line">{msg}</span></li>))}</ul></div>
-                                        )}
-                                      </>
-                                    )}
-                                  </div>
-                                ))}
+                              <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground mb-1.5">Generated Concepts ({pieceConcepts.length})</div>
+                              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                                {pieceConcepts.map((concept, idx) => renderConceptCard(concept, idx))}
                               </div>
                             </div>
                           )}
@@ -1350,7 +2480,12 @@ export default function ContentWorkflowDetailPage() {
                     })()}
 
                     {/* ── Image Generation ── */}
-                    {stage.key === 'image_generation' && (
+                    {stage.key === 'image_generation' && (() => {
+                      if (!selectedContentPiece) {
+                        return <div className="text-center py-8 text-muted-foreground/50"><CalendarClock className="h-8 w-8 mx-auto mb-2 opacity-30" /><p className="text-xs">Select a content piece from the calendar first</p></div>;
+                      }
+                      const pieceConcepts = ((getPieceSetting('concepts', 'generated_concepts') as GeneratedConcept[]) || []) as GeneratedConcept[];
+                      return (
                       <>
                         <div>
                           <div className="flex items-center justify-between mb-1.5">
@@ -1365,8 +2500,8 @@ export default function ContentWorkflowDetailPage() {
                                   <Select value={String(row.conceptIdx)} onValueChange={(v) => updateImgRow(idx, 'conceptIdx', Number(v))}>
                                     <SelectTrigger className="h-7 text-xs"><SelectValue placeholder="Concept" /></SelectTrigger>
                                     <SelectContent>
-                                      {oGeneratedConcepts.map((c, ci) => (<SelectItem key={ci} value={String(ci)}>{c.title}</SelectItem>))}
-                                      {oGeneratedConcepts.length === 0 && <SelectItem value="0" disabled>No concepts yet</SelectItem>}
+                                      {pieceConcepts.map((c, ci) => (<SelectItem key={ci} value={String(ci)}>{c.title}</SelectItem>))}
+                                      {pieceConcepts.length === 0 && <SelectItem value="0" disabled>No concepts yet</SelectItem>}
                                     </SelectContent>
                                   </Select>
                                 </div>
@@ -1389,7 +2524,7 @@ export default function ContentWorkflowDetailPage() {
                                 </div>
                                 <div className="shrink-0 flex flex-col justify-end">
                                   <div className="font-mono text-[8px] uppercase tracking-wider text-transparent mb-0.5 select-none">Go</div>
-                                  <button disabled={oGeneratedConcepts.length === 0} className="h-7 w-7 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-30 disabled:cursor-not-allowed transition-colors" title="Generate">
+                                  <button disabled={pieceConcepts.length === 0} className="h-7 w-7 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-30 disabled:cursor-not-allowed transition-colors" title="Generate">
                                     <Bot className="h-3.5 w-3.5" />
                                   </button>
                                 </div>
@@ -1400,12 +2535,17 @@ export default function ContentWorkflowDetailPage() {
                             ))}
                           </div>
                         </div>
-                        {oGeneratedConcepts.length === 0 && <div className="text-center py-4 text-muted-foreground/50"><p className="text-xs">Generate concepts first in the Concepts stage</p></div>}
+                        {pieceConcepts.length === 0 && <div className="text-center py-4 text-muted-foreground/50"><p className="text-xs">Generate concepts first in the Concepts stage</p></div>}
                       </>
-                    )}
+                      );
+                    })()}
 
                     {/* ── Storyboard ── */}
-                    {stage.key === 'storyboard' && (
+                    {stage.key === 'storyboard' && (() => {
+                      if (!selectedContentPiece) {
+                        return <div className="text-center py-8 text-muted-foreground/50"><CalendarClock className="h-8 w-8 mx-auto mb-2 opacity-30" /><p className="text-xs">Select a content piece from the calendar first</p></div>;
+                      }
+                      return (
                       <>
                         {(() => {
                           type SbRow = { conceptIdx: number; chars: string; scenes: string; duration: string; llm: string; imageModel: string };
@@ -1641,10 +2781,15 @@ export default function ContentWorkflowDetailPage() {
                         )}
                         {oGeneratedConcepts.length === 0 && <div className="text-center py-6 text-muted-foreground/50"><p className="text-xs">Generate concepts first in the Concepts stage</p></div>}
                       </>
-                    )}
+                      );
+                    })()}
 
                     {/* ── Video Generation ── */}
-                    {stage.key === 'video_generation' && (
+                    {stage.key === 'video_generation' && (() => {
+                      if (!selectedContentPiece) {
+                        return <div className="text-center py-8 text-muted-foreground/50"><CalendarClock className="h-8 w-8 mx-auto mb-2 opacity-30" /><p className="text-xs">Select a content piece from the calendar first</p></div>;
+                      }
+                      return (
                       <>
                         {/* Storyboard selector */}
                         {oStoryboards.length > 0 && (
@@ -1866,7 +3011,224 @@ export default function ContentWorkflowDetailPage() {
                           </div>
                         )}
                       </>
-                    )}
+                      );
+                    })()}
+
+                    {/* ── Simulation & Testing ── */}
+                    {stage.key === 'simulation_testing' && (() => {
+                      if (!selectedContentPiece) {
+                        return <div className="text-center py-8 text-muted-foreground/50"><CalendarClock className="h-8 w-8 mx-auto mb-2 opacity-30" /><p className="text-xs">Select a content piece from the calendar first</p></div>;
+                      }
+                      type SimTest = { id: string; persona_ids: string[]; genders: string[]; ages: string[]; llm: string; results?: SimulationResult[]; error?: string; running?: boolean };
+                      const simNode = nodes.find((n) => n.stage_key === 'simulation_testing');
+                      const savedTests = ((simNode?.output_data?.tests || []) as SimTest[]);
+                      const tests = ((getSetting('simulation_testing', 'tests') as SimTest[]) || savedTests);
+
+                      // Get video preview
+                      const vidNode = nodes.find((n) => n.stage_key === 'video_generation');
+                      const allVars = (vidNode?.output_data?.variations || []) as Array<{ id: string; preview?: string; type: string }>;
+                      const firstVideo = allVars.find((v) => v.preview && (v.type === 'video' || v.type === 'stitched'));
+
+                      const updateTests = (next: SimTest[]) => updateStageSetting('simulation_testing', 'tests', next);
+                      const addTest = () => {
+                        const newTest: SimTest = { id: `t${Date.now()}`, persona_ids: [], genders: ['Male', 'Female'], ages: ['18-24', '25-34'], llm: 'gemini-pro-3' };
+                        updateTests([...tests, newTest]);
+                      };
+                      const removeTest = (id: string) => updateTests(tests.filter((t) => t.id !== id));
+                      const updateTest = (id: string, field: string, value: unknown) => {
+                        updateTests(tests.map((t) => t.id === id ? { ...t, [field]: value } : t));
+                      };
+                      const toggleTestArray = (id: string, field: string, item: string) => {
+                        const test = tests.find((t) => t.id === id);
+                        if (!test) return;
+                        const arr = (test[field as keyof SimTest] as string[]) || [];
+                        const next = arr.includes(item) ? arr.filter((i) => i !== item) : [...arr, item];
+                        updateTest(id, field, next);
+                      };
+
+                      const runTest = async (testId: string) => {
+                        const test = tests.find((t) => t.id === testId);
+                        if (!test) return;
+                        updateTests(tests.map((t) => t.id === testId ? { ...t, running: true, error: undefined } : t));
+                        try {
+                          const res = await runContentSimulation(workflowId, {
+                            genders: test.genders,
+                            ages: test.ages,
+                            model_provider: '',
+                            model_name: test.llm,
+                            persona_ids: test.persona_ids.length > 0 ? test.persona_ids : undefined,
+                          });
+                          updateTests(tests.map((t) => t.id === testId ? { ...t, results: res.results, running: false } : t));
+                          loadWorkflow();
+                        } catch (err) {
+                          updateTests(tests.map((t) => t.id === testId ? { ...t, error: err instanceof Error ? err.message : 'Failed', running: false } : t));
+                        }
+                      };
+
+                      return (
+                        <div className="space-y-4">
+                          {/* Header + Add Test */}
+                          <div className="flex items-center justify-between">
+                            <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground">{tests.length} test{tests.length !== 1 ? 's' : ''}</div>
+                            <button onClick={addTest} className="flex items-center gap-1 font-mono text-[10px] text-muted-foreground hover:text-foreground transition-colors">
+                              <Plus className="h-3 w-3" /> Add Test
+                            </button>
+                          </div>
+
+                          {/* Test Cards */}
+                          {tests.length === 0 && (
+                            <div className="flex flex-col items-center justify-center py-10 text-muted-foreground/50">
+                              <BarChart2 className="h-10 w-10 mb-3 opacity-30" />
+                              <p className="text-sm font-medium text-muted-foreground/70">No tests yet</p>
+                              <p className="text-xs mt-1 mb-3">Add a test to score content against demographic segments</p>
+                              <Button size="sm" variant="outline" className="h-8 font-mono text-[10px] uppercase tracking-wider" onClick={addTest}>
+                                <Plus className="h-3 w-3 mr-1.5" /> Add Test
+                              </Button>
+                            </div>
+                          )}
+
+                          <div className="space-y-4">
+                            {tests.map((test, tIdx) => {
+                              const tCombos = test.genders.length * test.ages.length;
+                              const tResults = test.results || [];
+                              const tGenders = [...new Set(tResults.map((r) => r.gender))];
+                              const tAges = [...new Set(tResults.map((r) => r.age))];
+                              const tPersonaNames = test.persona_ids.map((pid) => personas.find((p) => p.id === pid)?.name).filter(Boolean);
+
+                              return (
+                                <div key={test.id} className="rounded-lg border border-border overflow-hidden">
+                                  {/* Card header */}
+                                  <div className="flex items-center justify-between px-4 py-2.5 bg-muted/30 border-b border-border">
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-mono text-[10px] font-semibold">Test {tIdx + 1}</span>
+                                      {tResults.length > 0 && <span className="inline-flex rounded-full bg-foreground/10 px-1.5 py-0.5 font-mono text-[8px] text-muted-foreground">{tResults.length} results</span>}
+                                      {test.running && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
+                                    </div>
+                                    <button onClick={() => removeTest(test.id)} className="rounded p-1 text-muted-foreground/40 hover:text-destructive transition-colors"><X className="h-3 w-3" /></button>
+                                  </div>
+
+                                  <div className="p-4 space-y-4">
+                                    {/* Config row */}
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                                      {/* Personas */}
+                                      {personas.length > 0 && (
+                                        <div className="space-y-1.5">
+                                          <div className="font-mono text-[8px] uppercase tracking-wider text-muted-foreground">Personas</div>
+                                          <div className="space-y-1">
+                                            {personas.map((p) => (
+                                              <label key={p.id} className={`flex items-center gap-2 text-xs cursor-pointer rounded px-1.5 py-1 transition-colors ${test.persona_ids.includes(p.id) ? 'bg-muted/80' : 'hover:bg-muted/30'}`}>
+                                                <input type="checkbox" className="rounded border-border" checked={test.persona_ids.includes(p.id)} onChange={() => toggleTestArray(test.id, 'persona_ids', p.id)} />
+                                                <span className="truncate">{p.name}</span>
+                                              </label>
+                                            ))}
+                                          </div>
+                                        </div>
+                                      )}
+
+                                      {/* Gender */}
+                                      <div className="space-y-1.5">
+                                        <div className="font-mono text-[8px] uppercase tracking-wider text-muted-foreground">Gender</div>
+                                        {SIM_GENDERS.map((g) => (
+                                          <label key={g} className="flex items-center gap-2 text-xs cursor-pointer">
+                                            <input type="checkbox" className="rounded border-border" checked={test.genders.includes(g)} onChange={() => toggleTestArray(test.id, 'genders', g)} />
+                                            <span>{g}</span>
+                                          </label>
+                                        ))}
+                                      </div>
+
+                                      {/* Age Ranges */}
+                                      <div className="space-y-1.5">
+                                        <div className="font-mono text-[8px] uppercase tracking-wider text-muted-foreground">Age Ranges</div>
+                                        <div className="columns-2 gap-x-3">
+                                          {SIM_AGE_RANGES.map((a) => (
+                                            <label key={a} className="flex items-center gap-2 text-xs cursor-pointer mb-1">
+                                              <input type="checkbox" className="rounded border-border" checked={test.ages.includes(a)} onChange={() => toggleTestArray(test.id, 'ages', a)} />
+                                              <span>{a}</span>
+                                            </label>
+                                          ))}
+                                        </div>
+                                      </div>
+
+                                      {/* LLM */}
+                                      <div className="space-y-1.5">
+                                        <div className="font-mono text-[8px] uppercase tracking-wider text-muted-foreground">LLM</div>
+                                        <Select value={test.llm} onValueChange={(v) => updateTest(test.id, 'llm', v)}>
+                                          <SelectTrigger className="h-7 text-[10px]"><SelectValue /></SelectTrigger>
+                                          <SelectContent>
+                                            {SIM_LLM_MODELS.map((m) => (
+                                              <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+                                            ))}
+                                          </SelectContent>
+                                        </Select>
+                                      </div>
+                                    </div>
+
+                                    {/* Run row */}
+                                    <div className="flex items-center gap-3">
+                                      <Button size="sm" className="h-7 font-mono text-[10px] uppercase tracking-wider" disabled={test.running || test.genders.length === 0 || test.ages.length === 0} onClick={() => runTest(test.id)}>
+                                        {test.running ? <><Loader2 className="h-3 w-3 animate-spin mr-1.5" />Running...</> : <><BarChart2 className="h-3 w-3 mr-1.5" />Run</>}
+                                      </Button>
+                                      <span className="text-[10px] text-muted-foreground/60 font-mono">
+                                        {test.genders.length}g &times; {test.ages.length}a = {tCombos}
+                                        {tPersonaNames.length > 0 && <> &middot; {tPersonaNames.join(', ')}</>}
+                                      </span>
+                                      {test.error && <span className="text-[10px] text-destructive">{test.error}</span>}
+                                    </div>
+
+                                    {/* Results — 2 cols: video (left) + score cards (right) */}
+                                    {tResults.length > 0 && (() => {
+                                      const selectedResult = expandedScoreKey ? tResults.find((r) => `${test.id}-${r.gender}-${r.age}` === expandedScoreKey) : null;
+                                      return (
+                                        <div className="grid gap-4" style={{ gridTemplateColumns: '1fr 2fr' }}>
+                                          {/* Left col — video */}
+                                          <div className="rounded-lg overflow-hidden bg-black sticky top-4" style={{ height: '80vh' }}>
+                                            <div className="relative h-full">
+                                              {firstVideo?.preview ? (
+                                                <video src={firstVideo.preview} className="w-full h-full object-contain" controls playsInline />
+                                              ) : (
+                                                <div className="flex items-center justify-center h-full"><Film className="h-8 w-8 text-white/20" /></div>
+                                              )}
+                                              {selectedResult && (
+                                                <div className="absolute top-3 right-3">
+                                                  <div className="rounded-full bg-black/70 backdrop-blur-sm p-1">
+                                                    <CircleScore score={selectedResult.score} size={80} />
+                                                  </div>
+                                                </div>
+                                              )}
+                                            </div>
+                                          </div>
+
+                                          {/* Right col — score cards, evenly distributed to match video height */}
+                                          <div className="flex flex-col gap-1.5" style={{ height: '80vh' }}>
+                                            {[...tResults].sort((a, b) => {
+                                              const ageOrder = SIM_AGE_RANGES.indexOf(a.age) - SIM_AGE_RANGES.indexOf(b.age);
+                                              return ageOrder !== 0 ? ageOrder : a.gender.localeCompare(b.gender);
+                                            }).map((result) => {
+                                              const cardKey = `${test.id}-${result.gender}-${result.age}`;
+                                              const isActive = expandedScoreKey === cardKey;
+                                              const scoreColor = result.score >= 75 ? 'border-l-green-500' : result.score >= 50 ? 'border-l-yellow-500' : result.score >= 25 ? 'border-l-orange-500' : 'border-l-red-500';
+                                              return (
+                                                <button key={cardKey} onClick={() => setExpandedScoreKey(isActive ? null : cardKey)} className={`w-full flex-1 min-h-0 text-left rounded-lg border border-l-[3px] ${scoreColor} px-4 transition-colors flex items-center ${isActive ? 'border-foreground bg-muted/50' : 'border-border hover:bg-muted/30'}`}>
+                                                  <div className="grid items-center gap-4 w-full" style={{ gridTemplateColumns: 'auto auto 1fr' }}>
+                                                    <CircleScore score={result.score} />
+                                                    <div className="font-mono text-sm font-semibold whitespace-nowrap">{result.gender}, {result.age}</div>
+                                                    <p className="text-sm text-muted-foreground/70 leading-relaxed line-clamp-2">{result.reasoning}</p>
+                                                  </div>
+                                                </button>
+                                              );
+                                            })}
+                                          </div>
+                                        </div>
+                                      );
+                                    })()}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })()}
 
                     </div>
                     <div className="mt-6 border-b border-border" />
@@ -1950,6 +3312,26 @@ export default function ContentWorkflowDetailPage() {
                 <div className="flex items-center gap-2">
                   <span className="font-mono text-[10px] text-muted-foreground/50">{String(stageIndex + 1).padStart(2, '0')}</span>
                   <h3 className="text-sm font-semibold">{stageDef.label}</h3>
+                  {stageDef.stageType === 'human' && (
+                    <span className="inline-flex items-center gap-1 rounded-full border border-border px-1.5 py-0.5 font-mono text-[7px] uppercase tracking-wider text-muted-foreground">
+                      <UserIcon className="h-2 w-2" /> FDM
+                    </span>
+                  )}
+                  {stageDef.stageType === 'agent' && (
+                    <span className="inline-flex items-center gap-1 rounded-full border border-border px-1.5 py-0.5 font-mono text-[7px] uppercase tracking-wider text-muted-foreground">
+                      <Bot className="h-2 w-2" /> Agent
+                    </span>
+                  )}
+                  {stageDef.stageType === 'both' && (
+                    <span className="inline-flex items-center gap-1 rounded-full border border-border px-1.5 py-0.5 font-mono text-[7px] uppercase tracking-wider text-muted-foreground">
+                      <UserIcon className="h-2 w-2" /> FDM <span className="text-muted-foreground/30">+</span> <Bot className="h-2 w-2" /> Agent
+                    </span>
+                  )}
+                  {stageDef.stageType === 'auto' && (
+                    <span className="inline-flex items-center gap-1 rounded-full border border-border px-1.5 py-0.5 font-mono text-[7px] uppercase tracking-wider text-muted-foreground">
+                      <Settings2 className="h-2 w-2" /> Auto
+                    </span>
+                  )}
                   <span className={`inline-flex items-center rounded-full px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider ${
                     node?.status === 'completed' ? 'bg-foreground text-background'
                     : node?.status === 'running' ? 'bg-foreground text-background'
@@ -1967,8 +3349,82 @@ export default function ContentWorkflowDetailPage() {
               <div className="px-5 py-4 space-y-4">
                 <p className="text-xs text-muted-foreground leading-relaxed">{stageDef.description}</p>
 
-                {/* ── Strategy & Assets ── */}
-                {openStageKey === 'strategy_assets' && (
+                {/* ── Brand ── */}
+                {openStageKey === 'brand' && (() => {
+                  const saveBrandField = async (field: string, value: unknown) => {
+                    if (!brand) return;
+                    try {
+                      const updated = await updateBrand(brand._id, { [field]: value } as Partial<typeof brand>);
+                      setBrand(updated);
+                    } catch (err) { console.error('Failed to save brand:', err); }
+                  };
+                  const socialUrls = brand?.social_urls || {};
+                  const SOCIAL_PLATFORMS = [
+                    { id: 'instagram', label: 'Instagram', placeholder: 'https://instagram.com/...' },
+                    { id: 'tiktok', label: 'TikTok', placeholder: 'https://tiktok.com/@...' },
+                    { id: 'youtube', label: 'YouTube', placeholder: 'https://youtube.com/...' },
+                    { id: 'facebook', label: 'Facebook', placeholder: 'https://facebook.com/...' },
+                    { id: 'x', label: 'X (Twitter)', placeholder: 'https://x.com/...' },
+                    { id: 'linkedin', label: 'LinkedIn', placeholder: 'https://linkedin.com/company/...' },
+                  ];
+                  return brand ? (
+                    <div className="space-y-3">
+                      <div className="flex items-start gap-3">
+                        {brand.logo_url ? (
+                          <img src={brand.logo_url} alt={brand.name} className="h-12 w-12 rounded-lg object-cover shrink-0" />
+                        ) : (
+                          <div className="h-12 w-12 rounded-lg bg-muted flex items-center justify-center shrink-0">
+                            <span className="text-lg font-bold text-muted-foreground">{brand.name.charAt(0)}</span>
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0 space-y-1">
+                          <div className="flex items-center gap-2">
+                            <h3 className="text-sm font-semibold truncate">{brand.name}</h3>
+                            {brand.industry && <span className="inline-flex rounded-full border border-border px-1.5 py-0.5 font-mono text-[7px] uppercase tracking-wider text-muted-foreground">{brand.industry}</span>}
+                          </div>
+                          {brand.product_name && <p className="text-[11px] text-muted-foreground">{brand.product_name}</p>}
+                          {brand.description && <p className="text-[11px] text-muted-foreground/70 leading-relaxed">{brand.description}</p>}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-mono text-[8px] uppercase text-muted-foreground/50 w-20 shrink-0 flex items-center gap-1"><Globe className="h-2.5 w-2.5" /> Website</span>
+                        <input type="url" defaultValue={brand.url || ''} placeholder="https://example.com"
+                          onBlur={(e) => { if (e.target.value !== (brand.url || '')) saveBrandField('url', e.target.value || null); }}
+                          className="flex-1 h-7 rounded border border-border bg-background px-2 text-xs text-foreground" />
+                        {brand.url && (
+                          <a href={brand.url} target="_blank" rel="noopener noreferrer" className="text-muted-foreground/40 hover:text-foreground transition-colors shrink-0">
+                            <ExternalLink className="h-2.5 w-2.5" />
+                          </a>
+                        )}
+                      </div>
+                      {SOCIAL_PLATFORMS.map((sp) => (
+                        <div key={sp.id} className="flex items-center gap-1.5">
+                          <span className="font-mono text-[8px] uppercase text-muted-foreground/50 w-20 shrink-0 flex items-center gap-1">
+                            <svg className="h-3 w-3 shrink-0" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/></svg>
+                            {sp.label}
+                          </span>
+                          <input type="url" defaultValue={socialUrls[sp.id] || ''} placeholder={sp.placeholder}
+                            onBlur={(e) => {
+                              const newUrls = { ...socialUrls, [sp.id]: e.target.value || undefined };
+                              Object.keys(newUrls).forEach((k) => { if (!newUrls[k]) delete newUrls[k]; });
+                              saveBrandField('social_urls', newUrls);
+                            }}
+                            className="flex-1 h-7 rounded border border-border bg-background px-2 text-[10px] text-foreground" />
+                          {socialUrls[sp.id] && (
+                            <a href={socialUrls[sp.id]} target="_blank" rel="noopener noreferrer" className="text-muted-foreground/40 hover:text-foreground transition-colors shrink-0">
+                              <ExternalLink className="h-2.5 w-2.5" />
+                            </a>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground/50">No brand selected</p>
+                  );
+                })()}
+
+                {/* ── Campaign & Strategy ── */}
+                {openStageKey === 'campaign_strategy' && (
                   <>
                     {/* Campaign selector */}
                     <div>
@@ -1989,6 +3445,27 @@ export default function ContentWorkflowDetailPage() {
                           </SelectContent>
                         </Select>
                       ) : <p className="text-xs text-muted-foreground/50">No campaigns for this brand</p>}
+
+                      {/* Campaign details */}
+                      {(() => {
+                        const camp = campaigns.find((c) => c._id === selectedCampaignId);
+                        if (!camp) return null;
+                        return (
+                          <div className="mt-2 rounded-lg border border-border bg-muted/20 p-3 space-y-1.5">
+                            {camp.description && (
+                              <p className="text-[11px] text-muted-foreground/70 leading-relaxed">{camp.description}</p>
+                            )}
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              {camp.platform && (
+                                <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-[8px] uppercase text-muted-foreground/60">{camp.platform}</span>
+                              )}
+                              {camp.campaign_goal && (
+                                <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-[8px] uppercase text-muted-foreground/60">{camp.campaign_goal}</span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })()}
                     </div>
 
                     {/* Strategy selector */}
@@ -2010,6 +3487,44 @@ export default function ContentWorkflowDetailPage() {
                           </SelectContent>
                         </Select>
                       ) : <p className="text-xs text-muted-foreground/50">{selectedCampaignId ? 'No strategies for this campaign' : 'Select a campaign first'}</p>}
+
+                      {/* Strategy details */}
+                      {(() => {
+                        const strat = strategies.find((s) => s._id === selectedStrategy);
+                        if (!strat) return null;
+                        return (
+                          <div className="mt-2 rounded-lg border border-border bg-muted/20 p-3 space-y-1.5">
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              {strat.budget_amount != null && (
+                                <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-[8px] text-muted-foreground/60">
+                                  ${strat.budget_amount.toLocaleString()}{strat.budget_type ? `/${strat.budget_type}` : ''}
+                                </span>
+                              )}
+                              {strat.performance_objective?.kpi && (
+                                <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-[8px] uppercase text-muted-foreground/60">
+                                  {strat.performance_objective.kpi}{strat.performance_objective.value != null ? `: ${strat.performance_objective.value}` : ''}
+                                </span>
+                              )}
+                            </div>
+                            {strat.audience_control?.location && strat.audience_control.location.length > 0 && (
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                <span className="font-mono text-[8px] text-muted-foreground/40">Locations:</span>
+                                {strat.audience_control.location.map((l) => (
+                                  <span key={l} className="rounded bg-muted px-1.5 py-0.5 font-mono text-[8px] text-muted-foreground/60">{l}</span>
+                                ))}
+                              </div>
+                            )}
+                            {strat.audience_control?.in_market_interests && strat.audience_control.in_market_interests.length > 0 && (
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                <span className="font-mono text-[8px] text-muted-foreground/40">Interests:</span>
+                                {strat.audience_control.in_market_interests.map((i) => (
+                                  <span key={i} className="rounded bg-muted px-1.5 py-0.5 font-mono text-[8px] text-muted-foreground/60">{i}</span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </div>
 
                     {/* Assets — brands-style list */}
@@ -2020,58 +3535,405 @@ export default function ContentWorkflowDetailPage() {
                 )}
 
                 {/* ── Scheduling ── */}
-                {openStageKey === 'scheduling' && (
-                  <div className="flex flex-wrap items-end gap-3">
+                {openStageKey === 'scheduling' && (() => {
+                  const contentEntries = (getSetting('scheduling', 'content_entries') as ContentEntry[] | undefined) || [];
+                  let calendarItems = (getSetting('scheduling', 'content_items') as ContentItem[] | undefined) || [];
+                  if (calendarItems.length === 0 && contentEntries.length > 0) {
+                    calendarItems = migrateEntriesToItems(contentEntries);
+                    updateStageSetting('scheduling', 'content_items', calendarItems);
+                  }
+                  const addPlatform = (getSetting('scheduling', 'add_platform') as string) || '';
+                  const addContentType = (getSetting('scheduling', 'add_content_type') as string) || '';
+                  const addFrequency = (getSetting('scheduling', 'add_frequency') as string) || '';
+                  const addDays = (getSetting('scheduling', 'add_days') as number[] | undefined) || [];
+                  const addStartDate = (getSetting('scheduling', 'add_start_date') as string) || '';
+                  const addEndDate = (getSetting('scheduling', 'add_end_date') as string) || '';
+                  const addPostTime = (getSetting('scheduling', 'add_post_time') as string) || '';
+                  const addTimezone = (getSetting('scheduling', 'add_timezone') as string) || '';
+                  const toggleAddDay = (dayId: number) => {
+                    const next = addDays.includes(dayId) ? addDays.filter((d) => d !== dayId) : [...addDays, dayId].sort();
+                    updateStageSetting('scheduling', 'add_days', next.length > 0 ? next : []);
+                  };
+                  const addEntry = () => {
+                    if (!addPlatform || !addContentType) return;
+                    const newRule: ContentEntry = {
+                      id: crypto.randomUUID(),
+                      platform: addPlatform, content_type: addContentType,
+                      frequency: addFrequency || undefined, days: addDays.length > 0 ? addDays : undefined,
+                      start_date: addStartDate || undefined,
+                      end_date: addEndDate || undefined, post_time: addPostTime || undefined,
+                      timezone: addTimezone || undefined,
+                    };
+                    updateStageSetting('scheduling', 'content_entries', [...contentEntries, newRule]);
+                    const newItems = materializeItems(newRule);
+                    updateStageSetting('scheduling', 'content_items', [...calendarItems, ...newItems]);
+                    updateStageSetting('scheduling', 'add_platform', '');
+                    updateStageSetting('scheduling', 'add_content_type', '');
+                    updateStageSetting('scheduling', 'add_frequency', '');
+                    updateStageSetting('scheduling', 'add_days', []);
+                    updateStageSetting('scheduling', 'add_start_date', '');
+                    updateStageSetting('scheduling', 'add_end_date', '');
+                    updateStageSetting('scheduling', 'add_post_time', '');
+                    updateStageSetting('scheduling', 'add_timezone', '');
+                  };
+                  const removeEntry = (idx: number) => {
+                    updateStageSetting('scheduling', 'content_entries', contentEntries.filter((_, i) => i !== idx));
+                    if (editingContentIdx === idx) setEditingContentIdx(null);
+                  };
+                  const updateEntry = (idx: number, field: keyof ContentEntry, value: string | number[] | undefined) => {
+                    const next = contentEntries.map((e, i) => i === idx ? { ...e, [field]: value || undefined } : e);
+                    if (field === 'platform') {
+                      next[idx] = { ...next[idx], content_type: '' };
+                    }
+                    updateStageSetting('scheduling', 'content_entries', next);
+                  };
+                  const toggleEntryDay = (idx: number, dayId: number) => {
+                    const current = contentEntries[idx].days || [];
+                    const next = current.includes(dayId) ? current.filter((d) => d !== dayId) : [...current, dayId].sort();
+                    updateEntry(idx, 'days', next.length > 0 ? next : undefined);
+                  };
+                  const showDayPicker = (freq?: string) => freq && freq !== 'once';
+                  const formatDate = (d?: string) => { if (!d) return ''; try { return new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); } catch { return d; } };
+                  const deleteContentItem = (itemId: string) => {
+                    updateStageSetting('scheduling', 'content_items', calendarItems.filter((i) => i.content_id !== itemId));
+                    if (selectedContentPiece?.content_id === itemId) setSelectedContentPiece(null);
+                  };
+                  const moveContentItem = (itemId: string, newDate: string) => {
+                    updateStageSetting('scheduling', 'content_items', calendarItems.map((i) => i.content_id === itemId ? { ...i, date: newDate } : i));
+                    if (selectedContentPiece?.content_id === itemId) setSelectedContentPiece({ ...selectedContentPiece, date: newDate });
+                  };
+                  const updateContentItem = (itemId: string, field: keyof ContentItem, value: string | undefined) => {
+                    updateStageSetting('scheduling', 'content_items', calendarItems.map((i) => i.content_id === itemId ? { ...i, [field]: value } : i));
+                    if (selectedContentPiece?.content_id === itemId) setSelectedContentPiece({ ...selectedContentPiece, [field]: value });
+                  };
+                  return (
+                  <div className="space-y-4">
                     <div>
-                      <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground mb-1.5">Frequency</div>
-                      <Select value={(getSetting('scheduling', 'frequency') as string) || ''} onValueChange={(v) => updateStageSetting('scheduling', 'frequency', v)}><SelectTrigger className="h-8 w-[120px] text-xs"><SelectValue placeholder="Frequency" /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="daily">Daily</SelectItem>
-                          <SelectItem value="3x_week">3x / week</SelectItem>
-                          <SelectItem value="weekly">Weekly</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground mb-1.5">Start</div>
-                      <input type="date" value={(getSetting('scheduling', 'start_date') as string) || ''} onChange={(e) => updateStageSetting('scheduling', 'start_date', e.target.value)} className="h-8 rounded border border-border bg-background px-3 text-xs text-foreground" />
-                    </div>
-                    <div>
-                      <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground mb-1.5">End</div>
-                      <input type="date" value={(getSetting('scheduling', 'end_date') as string) || ''} onChange={(e) => updateStageSetting('scheduling', 'end_date', e.target.value)} className="h-8 rounded border border-border bg-background px-3 text-xs text-foreground" />
-                    </div>
-                    <div>
-                      <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground mb-1.5">Post Time</div>
-                      <Select value={postTimeValue || undefined} onValueChange={handlePostTimeChange}>
-                        <SelectTrigger className="h-8 w-[120px] text-xs"><SelectValue placeholder="Select time" /></SelectTrigger>
-                        <SelectContent className="max-h-[240px]">
-                          {['AM', 'PM'].flatMap((p) => [12, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].flatMap((h) => ['00', '15', '30', '45'].map((m) => {
-                            const val = `${h}:${m} ${p}`;
-                            return <SelectItem key={val} value={val}>{val}</SelectItem>;
-                          })))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground mb-1.5">Timezone</div>
-                      <Select value={(getSetting('scheduling', 'timezone') as string) || ''} onValueChange={(v) => updateStageSetting('scheduling', 'timezone', v)}>
-                        <SelectTrigger className="h-8 w-[160px] text-xs"><SelectValue placeholder="Timezone" /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="America/New_York">Eastern (ET)</SelectItem>
-                          <SelectItem value="America/Chicago">Central (CT)</SelectItem>
-                          <SelectItem value="America/Denver">Mountain (MT)</SelectItem>
-                          <SelectItem value="America/Los_Angeles">Pacific (PT)</SelectItem>
-                          <SelectItem value="UTC">UTC</SelectItem>
-                          <SelectItem value="Europe/London">London (GMT)</SelectItem>
-                          <SelectItem value="Europe/Paris">Paris (CET)</SelectItem>
-                          <SelectItem value="Asia/Tokyo">Tokyo (JST)</SelectItem>
-                          <SelectItem value="Asia/Dubai">Dubai (GST)</SelectItem>
-                          <SelectItem value="Australia/Sydney">Sydney (AEST)</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5"><Globe className="h-3 w-3" /> Content</div>
+
+                      {contentEntries.length > 0 && (
+                        <div className="space-y-2 mb-4">
+                          {contentEntries.map((entry, idx) => {
+                            const isEditing = editingContentIdx === idx;
+                            return (
+                            <div key={idx} className={`rounded-lg border bg-muted/20 px-3 py-2.5 space-y-2 ${isEditing ? 'border-foreground/40' : 'border-border'}`}>
+                              <div className="flex items-center gap-2">
+                                <span className="rounded bg-foreground px-2 py-0.5 font-mono text-[9px] uppercase text-background">{getPlatformLabel(entry.platform)}</span>
+                                <span className="text-xs font-semibold">{getContentTypeLabel(entry.platform, entry.content_type)}</span>
+                                <div className="ml-auto flex items-center gap-1">
+                                  <button onClick={() => setEditingContentIdx(isEditing ? null : idx)} className={`transition-colors ${isEditing ? 'text-foreground' : 'text-muted-foreground/30 hover:text-foreground'}`}><Pencil className="h-3 w-3" /></button>
+                                  <button onClick={() => removeEntry(idx)} className="text-muted-foreground/30 hover:text-destructive transition-colors"><X className="h-3.5 w-3.5" /></button>
+                                </div>
+                              </div>
+
+                              {isEditing ? (
+                                <div className="space-y-2 pt-1">
+                                  <div className="flex flex-wrap items-end gap-2">
+                                    <div>
+                                      <div className="font-mono text-[8px] uppercase text-muted-foreground/40 mb-1">Platform</div>
+                                      <Select value={entry.platform || undefined} onValueChange={(v) => updateEntry(idx, 'platform', v)}>
+                                        <SelectTrigger className="h-8 w-[130px] text-xs"><SelectValue placeholder="Platform" /></SelectTrigger>
+                                        <SelectContent>{PLATFORM_OPTIONS.map((p) => (<SelectItem key={p.id} value={p.id}>{p.label}</SelectItem>))}</SelectContent>
+                                      </Select>
+                                    </div>
+                                    <div>
+                                      <div className="font-mono text-[8px] uppercase text-muted-foreground/40 mb-1">Type</div>
+                                      <Select value={entry.content_type || undefined} onValueChange={(v) => updateEntry(idx, 'content_type', v)} disabled={!entry.platform}>
+                                        <SelectTrigger className="h-8 w-[120px] text-xs"><SelectValue placeholder="Type" /></SelectTrigger>
+                                        <SelectContent>{(CONTENT_TYPE_OPTIONS[entry.platform] || []).map((t) => (<SelectItem key={t.id} value={t.id}>{t.label}</SelectItem>))}</SelectContent>
+                                      </Select>
+                                    </div>
+                                    <div>
+                                      <div className="font-mono text-[8px] uppercase text-muted-foreground/40 mb-1">Frequency</div>
+                                      <Select value={entry.frequency || undefined} onValueChange={(v) => updateEntry(idx, 'frequency', v)}>
+                                        <SelectTrigger className="h-8 w-[110px] text-xs"><SelectValue placeholder="Freq" /></SelectTrigger>
+                                        <SelectContent><SelectItem value="once">Once</SelectItem><SelectItem value="daily">Daily</SelectItem><SelectItem value="3x_week">3x / week</SelectItem><SelectItem value="weekly">Weekly</SelectItem><SelectItem value="custom">Custom</SelectItem></SelectContent>
+                                      </Select>
+                                    </div>
+                                  </div>
+                                  {showDayPicker(entry.frequency) && (
+                                    <div>
+                                      <div className="font-mono text-[8px] uppercase text-muted-foreground/40 mb-1">Days</div>
+                                      <div className="flex gap-1">
+                                        {DAY_LABELS.map((d) => {
+                                          const selected = (entry.days || []).includes(d.id);
+                                          return (
+                                            <button key={d.id} type="button" onClick={() => toggleEntryDay(idx, d.id)}
+                                              className={`flex h-6 w-6 items-center justify-center rounded-full text-[9px] font-medium transition-colors ${selected ? 'bg-foreground text-background' : 'border border-border text-muted-foreground hover:border-foreground/40'}`}
+                                              title={d.label}
+                                            >{d.short}</button>
+                                          );
+                                        })}
+                                      </div>
+                                    </div>
+                                  )}
+                                  <div className="flex flex-wrap items-end gap-2">
+                                    <div>
+                                      <div className="font-mono text-[8px] uppercase text-muted-foreground/40 mb-1">Start</div>
+                                      <input type="date" value={entry.start_date || ''} onChange={(e) => updateEntry(idx, 'start_date', e.target.value)} className="h-8 rounded border border-border bg-background px-2 text-xs text-foreground" />
+                                    </div>
+                                    <div>
+                                      <div className="font-mono text-[8px] uppercase text-muted-foreground/40 mb-1">End</div>
+                                      <input type="date" value={entry.end_date || ''} onChange={(e) => updateEntry(idx, 'end_date', e.target.value)} className="h-8 rounded border border-border bg-background px-2 text-xs text-foreground" />
+                                    </div>
+                                    <div>
+                                      <div className="font-mono text-[8px] uppercase text-muted-foreground/40 mb-1">Time</div>
+                                      <Select value={entry.post_time || undefined} onValueChange={(v) => updateEntry(idx, 'post_time', v)}>
+                                        <SelectTrigger className="h-8 w-[100px] text-xs"><SelectValue placeholder="Time" /></SelectTrigger>
+                                        <SelectContent className="max-h-[240px]">
+                                          {['AM', 'PM'].flatMap((p) => [12, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].flatMap((h) => ['00', '15', '30', '45'].map((m) => {
+                                            const val = `${h}:${m} ${p}`;
+                                            return <SelectItem key={val} value={val}>{val}</SelectItem>;
+                                          })))}
+                                        </SelectContent>
+                                      </Select>
+                                    </div>
+                                    <div>
+                                      <div className="font-mono text-[8px] uppercase text-muted-foreground/40 mb-1">Timezone</div>
+                                      <Select value={entry.timezone || undefined} onValueChange={(v) => updateEntry(idx, 'timezone', v)}>
+                                        <SelectTrigger className="h-8 w-[130px] text-xs"><SelectValue placeholder="TZ" /></SelectTrigger>
+                                        <SelectContent>{Object.entries(TIMEZONE_LABELS).map(([k, v]) => (<SelectItem key={k} value={k}>{v}</SelectItem>))}</SelectContent>
+                                      </Select>
+                                    </div>
+                                  </div>
+                                  <button onClick={() => setEditingContentIdx(null)} className="text-xs font-medium text-foreground hover:underline mt-1">Done</button>
+                                </div>
+                              ) : (
+                                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 cursor-pointer" onClick={() => setEditingContentIdx(idx)}>
+                                  {entry.frequency && <span className="flex items-center gap-1 text-[10px] text-muted-foreground"><span className="font-mono text-[8px] uppercase text-muted-foreground/50">Freq</span> {FREQUENCY_LABELS[entry.frequency] || entry.frequency}</span>}
+                                  {entry.days && entry.days.length > 0 && <span className="flex items-center gap-1 text-[10px] text-muted-foreground"><span className="font-mono text-[8px] uppercase text-muted-foreground/50">Days</span> {entry.days.map((d) => DAY_LABELS[d]?.label).join(', ')}</span>}
+                                  {entry.start_date && <span className="flex items-center gap-1 text-[10px] text-muted-foreground"><span className="font-mono text-[8px] uppercase text-muted-foreground/50">Start</span> {formatDate(entry.start_date)}</span>}
+                                  {entry.end_date && <span className="flex items-center gap-1 text-[10px] text-muted-foreground"><span className="font-mono text-[8px] uppercase text-muted-foreground/50">End</span> {formatDate(entry.end_date)}</span>}
+                                  {entry.post_time && <span className="flex items-center gap-1 text-[10px] text-muted-foreground"><span className="font-mono text-[8px] uppercase text-muted-foreground/50">Time</span> {entry.post_time}</span>}
+                                  {entry.timezone && <span className="flex items-center gap-1 text-[10px] text-muted-foreground"><span className="font-mono text-[8px] uppercase text-muted-foreground/50">TZ</span> {TIMEZONE_LABELS[entry.timezone] || entry.timezone}</span>}
+                                  {!entry.frequency && !entry.start_date && !entry.post_time && <span className="text-[10px] text-muted-foreground/40">Click to edit schedule</span>}
+                                </div>
+                              )}
+                            </div>
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      <div className="rounded-lg border border-dashed border-border p-3 space-y-2">
+                        <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/60">Add Content</div>
+                        <div className="flex flex-wrap items-end gap-2">
+                          <div>
+                            <div className="font-mono text-[8px] uppercase text-muted-foreground/40 mb-1">Platform</div>
+                            <Select value={addPlatform || undefined} onValueChange={(v) => { updateStageSetting('scheduling', 'add_platform', v); updateStageSetting('scheduling', 'add_content_type', ''); }}>
+                              <SelectTrigger className="h-8 w-[130px] text-xs"><SelectValue placeholder="Platform" /></SelectTrigger>
+                              <SelectContent>{PLATFORM_OPTIONS.map((p) => (<SelectItem key={p.id} value={p.id}>{p.label}</SelectItem>))}</SelectContent>
+                            </Select>
+                          </div>
+                          <div>
+                            <div className="font-mono text-[8px] uppercase text-muted-foreground/40 mb-1">Type</div>
+                            <Select value={addContentType || undefined} onValueChange={(v) => updateStageSetting('scheduling', 'add_content_type', v)} disabled={!addPlatform}>
+                              <SelectTrigger className="h-8 w-[120px] text-xs"><SelectValue placeholder="Type" /></SelectTrigger>
+                              <SelectContent>{(CONTENT_TYPE_OPTIONS[addPlatform] || []).map((t) => (<SelectItem key={t.id} value={t.id}>{t.label}</SelectItem>))}</SelectContent>
+                            </Select>
+                          </div>
+                          <div>
+                            <div className="font-mono text-[8px] uppercase text-muted-foreground/40 mb-1">Frequency</div>
+                            <Select value={addFrequency || undefined} onValueChange={(v) => updateStageSetting('scheduling', 'add_frequency', v)}>
+                              <SelectTrigger className="h-8 w-[110px] text-xs"><SelectValue placeholder="Freq" /></SelectTrigger>
+                              <SelectContent><SelectItem value="once">Once</SelectItem><SelectItem value="daily">Daily</SelectItem><SelectItem value="3x_week">3x / week</SelectItem><SelectItem value="weekly">Weekly</SelectItem><SelectItem value="custom">Custom</SelectItem></SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                        {showDayPicker(addFrequency) && (
+                          <div>
+                            <div className="font-mono text-[8px] uppercase text-muted-foreground/40 mb-1">Days</div>
+                            <div className="flex gap-1">
+                              {DAY_LABELS.map((d) => {
+                                const selected = addDays.includes(d.id);
+                                return (
+                                  <button key={d.id} type="button" onClick={() => toggleAddDay(d.id)}
+                                    className={`flex h-6 w-6 items-center justify-center rounded-full text-[9px] font-medium transition-colors ${selected ? 'bg-foreground text-background' : 'border border-border text-muted-foreground hover:border-foreground/40'}`}
+                                    title={d.label}
+                                  >{d.short}</button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+                        <div className="flex flex-wrap items-end gap-2">
+                          <div>
+                            <div className="font-mono text-[8px] uppercase text-muted-foreground/40 mb-1">Start</div>
+                            <input type="date" value={addStartDate} onChange={(e) => updateStageSetting('scheduling', 'add_start_date', e.target.value)} className="h-8 rounded border border-border bg-background px-2 text-xs text-foreground" />
+                          </div>
+                          <div>
+                            <div className="font-mono text-[8px] uppercase text-muted-foreground/40 mb-1">End</div>
+                            <input type="date" value={addEndDate} onChange={(e) => updateStageSetting('scheduling', 'add_end_date', e.target.value)} className="h-8 rounded border border-border bg-background px-2 text-xs text-foreground" />
+                          </div>
+                          <div>
+                            <div className="font-mono text-[8px] uppercase text-muted-foreground/40 mb-1">Time</div>
+                            <Select value={addPostTime || undefined} onValueChange={(v) => updateStageSetting('scheduling', 'add_post_time', v)}>
+                              <SelectTrigger className="h-8 w-[100px] text-xs"><SelectValue placeholder="Time" /></SelectTrigger>
+                              <SelectContent className="max-h-[240px]">
+                                {['AM', 'PM'].flatMap((p) => [12, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].flatMap((h) => ['00', '15', '30', '45'].map((m) => {
+                                  const val = `${h}:${m} ${p}`;
+                                  return <SelectItem key={val} value={val}>{val}</SelectItem>;
+                                })))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div>
+                            <div className="font-mono text-[8px] uppercase text-muted-foreground/40 mb-1">Timezone</div>
+                            <Select value={addTimezone || undefined} onValueChange={(v) => updateStageSetting('scheduling', 'add_timezone', v)}>
+                              <SelectTrigger className="h-8 w-[130px] text-xs"><SelectValue placeholder="TZ" /></SelectTrigger>
+                              <SelectContent>{Object.entries(TIMEZONE_LABELS).map(([k, v]) => (<SelectItem key={k} value={k}>{v}</SelectItem>))}</SelectContent>
+                            </Select>
+                          </div>
+                          <button onClick={addEntry} disabled={!addPlatform || !addContentType} className="flex h-8 items-center gap-1.5 rounded-md bg-foreground px-3 text-xs font-medium text-background hover:bg-foreground/90 disabled:opacity-30 transition-colors">
+                            <Plus className="h-3.5 w-3.5" /> Add
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* ── Calendar View ── */}
+                      {calendarItems.length > 0 && (() => {
+                        const yr = calendarMonth.getFullYear();
+                        const mo = calendarMonth.getMonth();
+                        const daysInMonth = new Date(yr, mo + 1, 0).getDate();
+                        const firstDayOfWeek = new Date(yr, mo, 1).getDay();
+                        const itemsByDate = getContentItemsByDate(calendarItems, yr, mo);
+                        const today = new Date();
+                        const isToday = (d: number) => today.getFullYear() === yr && today.getMonth() === mo && today.getDate() === d;
+                        const weeks: (number | null)[][] = [];
+                        let week: (number | null)[] = Array(firstDayOfWeek).fill(null);
+                        for (let d = 1; d <= daysInMonth; d++) {
+                          week.push(d);
+                          if (week.length === 7) { weeks.push(week); week = []; }
+                        }
+                        if (week.length > 0) { while (week.length < 7) week.push(null); weeks.push(week); }
+                        return (
+                          <div className="mt-4">
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                                <CalendarClock className="h-3 w-3" /> Calendar
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <button onClick={() => setCalendarMonth(new Date(yr, mo - 1, 1))} className="rounded p-0.5 hover:bg-muted transition-colors"><ChevronLeft className="h-3 w-3 text-muted-foreground" /></button>
+                                <span className="text-[10px] font-medium min-w-[100px] text-center">
+                                  {calendarMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                                </span>
+                                <button onClick={() => setCalendarMonth(new Date(yr, mo + 1, 1))} className="rounded p-0.5 hover:bg-muted transition-colors"><ChevronRight className="h-3 w-3 text-muted-foreground" /></button>
+                              </div>
+                            </div>
+                            <div className="rounded-lg border border-border overflow-hidden">
+                              <div className="grid grid-cols-7 border-b border-border bg-muted/30">
+                                {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, i) => (
+                                  <div key={i} className="px-0.5 py-1 text-center font-mono text-[7px] uppercase tracking-wider text-muted-foreground/60">{d}</div>
+                                ))}
+                              </div>
+                              {weeks.map((w, wi) => (
+                                <div key={wi} className="grid grid-cols-7 border-b border-border last:border-b-0">
+                                  {w.map((day, di) => {
+                                    const dayItems = day ? itemsByDate.get(day) || [] : [];
+                                    const dateStr = day ? `${yr}-${String(mo + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}` : '';
+                                    return (
+                                      <div
+                                        key={di}
+                                        onDragOver={day ? (ev) => { ev.preventDefault(); ev.currentTarget.classList.add('ring-2', 'ring-inset', 'ring-foreground/40'); } : undefined}
+                                        onDragLeave={day ? (ev) => { ev.currentTarget.classList.remove('ring-2', 'ring-inset', 'ring-foreground/40'); } : undefined}
+                                        onDrop={day ? (ev) => { ev.preventDefault(); ev.currentTarget.classList.remove('ring-2', 'ring-inset', 'ring-foreground/40'); const id = ev.dataTransfer.getData('text/plain'); if (id) moveContentItem(id, dateStr); } : undefined}
+                                        className={`min-h-[40px] px-0.5 py-0.5 border-r border-border last:border-r-0 ${day ? 'bg-background' : 'bg-muted/10'} ${isToday(day || 0) ? 'ring-1 ring-inset ring-foreground/20' : ''}`}
+                                      >
+                                        {day && (
+                                          <>
+                                            <div className={`text-[8px] ${isToday(day) ? 'font-bold text-foreground' : 'text-muted-foreground/60'}`}>{day}</div>
+                                            <div className="flex flex-col gap-px">
+                                              {dayItems.slice(0, 2).map((item) => {
+                                                const isSelected = selectedContentPiece?.content_id === item.content_id;
+                                                return (
+                                                <div
+                                                  key={item.content_id}
+                                                  draggable
+                                                  onDragStart={(ev) => { ev.dataTransfer.setData('text/plain', item.content_id); ev.dataTransfer.effectAllowed = 'move'; }}
+                                                  onClick={() => setSelectedContentPiece(item)}
+                                                  className={`group/item rounded px-0.5 cursor-pointer hover:ring-1 hover:ring-foreground/30 transition-all ${isSelected ? 'ring-2 ring-foreground' : ''} ${CONTENT_TYPE_COLORS[item.content_type] || 'bg-muted-foreground'} bg-opacity-15 flex items-center gap-0.5`}
+                                                >
+                                                  <span className={`text-[6px] leading-tight truncate flex-1 ${CONTENT_TYPE_COLORS_TEXT[item.content_type] || 'text-muted-foreground'}`}>
+                                                    {getShortPlatformLabel(item.platform)} {getContentTypeLabel(item.platform, item.content_type)}
+                                                  </span>
+                                                  <button
+                                                    onClick={(ev) => { ev.stopPropagation(); deleteContentItem(item.content_id); }}
+                                                    className="opacity-0 group-hover/item:opacity-100 text-muted-foreground/50 hover:text-destructive shrink-0"
+                                                  >
+                                                    <X className="h-2 w-2" />
+                                                  </button>
+                                                </div>
+                                                );
+                                              })}
+                                              {dayItems.length > 2 && <span className="text-[6px] text-muted-foreground/50">+{dayItems.length - 2}</span>}
+                                            </div>
+                                          </>
+                                        )}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              ))}
+                            </div>
+                            <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                              {(() => {
+                                const seen = new Set<string>();
+                                return calendarItems.map((e) => {
+                                  const key = `${e.platform}_${e.content_type}`;
+                                  if (seen.has(key)) return null;
+                                  seen.add(key);
+                                  return (
+                                    <div key={key} className="flex items-center gap-1">
+                                      <div className={`h-1.5 w-1.5 rounded-sm ${CONTENT_TYPE_COLORS[e.content_type] || 'bg-muted-foreground'}`} />
+                                      <span className="text-[8px] text-muted-foreground">{getPlatformLabel(e.platform)} {getContentTypeLabel(e.platform, e.content_type)}</span>
+                                    </div>
+                                  );
+                                });
+                              })()}
+                            </div>
+
+                            {/* Selected content piece header */}
+                            {selectedContentPiece && (
+                              <div className="mt-3 rounded-lg border-2 border-foreground/20 bg-muted/30 p-3">
+                                <div className="flex items-center justify-between">
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2">
+                                      <div className="text-sm font-bold">
+                                        {new Date(selectedContentPiece.date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
+                                        {selectedContentPiece.post_time && ` · ${selectedContentPiece.post_time}`}
+                                      </div>
+                                      <input
+                                        type="date"
+                                        value={selectedContentPiece.date}
+                                        onChange={(ev) => moveContentItem(selectedContentPiece.content_id, ev.target.value)}
+                                        className="h-6 rounded border border-border bg-background px-1.5 text-[10px] text-foreground"
+                                        title="Move to date"
+                                      />
+                                    </div>
+                                    <div className="flex items-center gap-2 mt-0.5">
+                                      <span className="text-xs font-semibold">
+                                        {getPlatformLabel(selectedContentPiece.platform)} {getContentTypeLabel(selectedContentPiece.platform, selectedContentPiece.content_type)}
+                                      </span>
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-1 ml-2">
+                                    <button onClick={() => deleteContentItem(selectedContentPiece.content_id)} className="text-muted-foreground hover:text-destructive" title="Delete item">
+                                      <Trash2 className="h-3.5 w-3.5" />
+                                    </button>
+                                    <button onClick={() => setSelectedContentPiece(null)} className="text-muted-foreground hover:text-foreground">
+                                      <X className="h-3.5 w-3.5" />
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </div>
                   </div>
-                )}
+                  );
+                })()}
 
                 {/* ── Research ── */}
                 {openStageKey === 'research' && (
@@ -2100,9 +3962,12 @@ export default function ContentWorkflowDetailPage() {
 
                 {/* ── Concepts ── */}
                 {openStageKey === 'concepts' && (() => {
+                  if (!selectedContentPiece) {
+                    return <div className="text-center py-8 text-muted-foreground/50"><CalendarClock className="h-8 w-8 mx-auto mb-2 opacity-30" /><p className="text-xs">Select a content piece from the calendar to generate concepts</p></div>;
+                  }
                   const conceptRows = (getSetting('concepts', 'concept_allocations') as Array<{ num: string; tone: string; model?: string }>) || [{ num: '3', tone: '', model: '' }];
                   const totalConcepts = conceptRows.reduce((sum, r) => sum + (parseInt(r.num) || 0), 0);
-                  const generatedConcepts = (getSetting('concepts', 'generated_concepts') as Array<{ title: string; hook: string; script: string; messaging: string[]; tone?: string }>) || [];
+                  const pieceConcepts = ((getPieceSetting('concepts', 'generated_concepts') as GeneratedConcept[]) || []) as GeneratedConcept[];
 
                   const updateConceptRows = (next: Array<{ num: string; tone: string; model?: string }>) => {
                     updateStageSetting('concepts', 'concept_allocations', next);
@@ -2115,40 +3980,24 @@ export default function ContentWorkflowDetailPage() {
                   const removeConceptRow = (idx: number) => updateConceptRows(conceptRows.filter((_, i) => i !== idx));
 
                   const deleteGeneratedConcept = (idx: number) => {
-                    const next = generatedConcepts.filter((_, i) => i !== idx);
-                    updateStageSetting('concepts', 'generated_concepts', next);
+                    updatePieceSetting('concepts', 'generated_concepts', pieceConcepts.filter((_, i) => i !== idx));
                     if (editingConceptIdx === idx) setEditingConceptIdx(null);
                   };
-                  const updateGeneratedConcept = (idx: number, field: string, value: string) => {
-                    const parsed = field === 'messaging' ? value.split('\n') : value;
-                    const next = generatedConcepts.map((c, i) => i === idx ? { ...c, [field]: parsed } : c);
-                    updateStageSetting('concepts', 'generated_concepts', next);
+                  const updateGeneratedConcept = (idx: number, field: string, value: unknown) => {
+                    updatePieceSetting('concepts', 'generated_concepts', pieceConcepts.map((c, i) => i === idx ? { ...c, [field]: value } : c));
                   };
 
                   const handleGenerate = async (idx: number) => {
                     const row = conceptRows[idx];
-                    if (!row.tone || !row.num) return;
+                    if (!selectedContentPiece) return;
+                    const num = parseInt(row.num) || 3;
+                    const tone = row.tone || 'engaging';
                     setGeneratingRows((prev) => new Set(prev).add(idx));
                     try {
-                      const result = await generateConcepts(workflowId, parseInt(row.num) || 3, row.tone);
-                      const taggedConcepts = result.concepts.map((c) => ({ ...c, tone: row.tone }));
-                      // Use functional update to safely merge with concurrent results
-                      setStageSettings((prev) => {
-                        const existing = (prev['concepts']?.['generated_concepts'] as Array<{ title: string; hook: string; script: string; messaging: string[]; tone?: string }>) || [];
-                        const next = { ...prev, concepts: { ...prev['concepts'], generated_concepts: [...existing, ...taggedConcepts] } };
-                        if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
-                        saveTimeoutRef.current = setTimeout(async () => {
-                          if (!workflow) return;
-                          try {
-                            await updateContentWorkflow(workflow._id, {
-                              config: { ...workflow.config, stage_settings: next },
-                            } as Partial<ContentWorkflow>);
-                          } catch (err) {
-                            console.error('Failed to save settings:', err);
-                          }
-                        }, 500);
-                        return next;
-                      });
+                      const result = await generateConcepts(workflowId, num, tone, selectedContentPiece.content_type);
+                      const taggedConcepts = result.concepts.map((c: Record<string, unknown>) => ({ ...c, tone: row.tone, content_type: selectedContentPiece.content_type }));
+                      const existing = pieceConcepts;
+                      updatePieceSetting('concepts', 'generated_concepts', [...existing, ...taggedConcepts]);
                     } catch (err) {
                       console.error('Concept generation failed:', err);
                     } finally {
@@ -2196,7 +4045,7 @@ export default function ContentWorkflowDetailPage() {
                             </Select>
                             <button
                               onClick={() => handleGenerate(idx)}
-                              disabled={generatingRows.has(idx) || !row.tone}
+                              disabled={generatingRows.has(idx)}
                               title="Generate concepts with AI"
                               className="shrink-0 rounded p-1 text-muted-foreground/60 hover:text-foreground disabled:opacity-30 transition-colors"
                             >
@@ -2214,92 +4063,52 @@ export default function ContentWorkflowDetailPage() {
                       </div>
                     </div>
 
-                    {/* Generated concepts */}
-                    {generatedConcepts.length > 0 && (
+                    {/* Generated concepts (scoped to selected piece) */}
+                    {pieceConcepts.length > 0 && (
                       <div>
-                        <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground mb-1.5">Generated Concepts ({generatedConcepts.length})</div>
+                        <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground mb-1.5">Generated Concepts ({pieceConcepts.length})</div>
                         <div className="space-y-2">
-                          {generatedConcepts.map((concept, idx) => (
+                          {pieceConcepts.map((concept, idx) => {
+                            const ct = (concept as Record<string, unknown>).content_type as string | undefined;
+                            const isEditing = editingConceptIdx === idx;
+                            return (
                             <div key={idx} className="relative group/card rounded border border-border p-3 space-y-2">
-                              {/* Top-right: tone badge + edit/delete */}
                               <div className="absolute top-2 right-2 flex items-center gap-1">
-                                <span className="inline-flex items-center rounded-full border border-border bg-background px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider text-foreground/70">
-                                  {concept.tone || 'general'}
-                                </span>
-                                <button
-                                  onClick={() => setEditingConceptIdx(editingConceptIdx === idx ? null : idx)}
-                                  className="opacity-0 group-hover/card:opacity-100 rounded p-1 text-muted-foreground hover:text-foreground transition-all"
-                                  title="Edit"
-                                >
-                                  <Pencil className="h-3 w-3" />
-                                </button>
-                                <button
-                                  onClick={() => deleteGeneratedConcept(idx)}
-                                  className="opacity-0 group-hover/card:opacity-100 rounded p-1 text-muted-foreground hover:text-destructive transition-all"
-                                  title="Delete"
-                                >
-                                  <Trash2 className="h-3 w-3" />
-                                </button>
+                                <span className="inline-flex items-center rounded-full border border-border bg-background px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider text-foreground/70">{(concept as Record<string, unknown>).tone as string || 'general'}</span>
+                                {ct && <span className="inline-flex items-center rounded-full border border-border bg-background px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider text-foreground/70">{ct}</span>}
+                                <button onClick={() => setEditingConceptIdx(isEditing ? null : idx)} className="opacity-0 group-hover/card:opacity-100 rounded p-1 text-muted-foreground hover:text-foreground transition-all"><Pencil className="h-3 w-3" /></button>
+                                <button onClick={() => deleteGeneratedConcept(idx)} className="opacity-0 group-hover/card:opacity-100 rounded p-1 text-muted-foreground hover:text-destructive transition-all"><Trash2 className="h-3 w-3" /></button>
                               </div>
-
-                              {editingConceptIdx === idx ? (
-                                <>
-                                  <div>
-                                    <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/60 mb-0.5">Title</div>
-                                    <input value={concept.title} onChange={(e) => updateGeneratedConcept(idx, 'title', e.target.value)} className="w-full h-7 rounded border border-border bg-background px-2 text-xs text-foreground" />
-                                  </div>
-                                  <div>
-                                    <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/60 mb-0.5">Hook</div>
-                                    <textarea value={concept.hook} onChange={(e) => updateGeneratedConcept(idx, 'hook', e.target.value)} rows={2} className="w-full rounded border border-border bg-background px-2 py-1 text-xs text-foreground resize-none" />
-                                  </div>
-                                  <div>
-                                    <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/60 mb-0.5">Script</div>
-                                    <textarea value={typeof concept.script === 'string' ? concept.script : (concept.script as string[]).join('\n')} onChange={(e) => updateGeneratedConcept(idx, 'script', e.target.value)} rows={4} className="w-full rounded border border-border bg-background px-2 py-1 text-xs text-foreground resize-none" />
-                                  </div>
-                                  <div>
-                                    <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/60 mb-0.5">Key Messaging (one per line)</div>
-                                    <textarea value={(concept.messaging || []).join('\n')} onChange={(e) => updateGeneratedConcept(idx, 'messaging', e.target.value)} rows={3} className="w-full rounded border border-border bg-background px-2 py-1 text-xs text-foreground resize-none" />
-                                  </div>
-                                </>
-                              ) : (
-                                <>
-                                  <h4 className="text-xs font-semibold pr-28">{concept.title}</h4>
-                                  <div>
-                                    <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/60 mb-0.5">Hook</div>
-                                    <p className="text-[10px] text-muted-foreground leading-relaxed whitespace-pre-line">{concept.hook}</p>
-                                  </div>
-                                  <div>
-                                    <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/60 mb-0.5">Script</div>
-                                    {typeof concept.script === 'string' ? (
-                                      <p className="text-[10px] text-muted-foreground leading-relaxed whitespace-pre-line">{concept.script}</p>
-                                    ) : Array.isArray(concept.script) ? (
-                                      <ul className="space-y-0.5">
-                                        {(concept.script as string[]).map((line, li) => (
-                                          <li key={li} className="text-[10px] text-muted-foreground flex items-start gap-1.5">
-                                            <span className="text-muted-foreground/40 shrink-0">&#x2022;</span>
-                                            <span className="whitespace-pre-line">{line}</span>
-                                          </li>
-                                        ))}
-                                      </ul>
-                                    ) : null}
-                                  </div>
-                                  {concept.messaging && concept.messaging.length > 0 && (
-                                    <div>
-                                      <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/60 mb-0.5">Key Messaging</div>
-                                      <ul className="space-y-0.5">
-                                        {concept.messaging.map((msg, mi) => (
-                                          <li key={mi} className="text-[10px] text-muted-foreground flex items-start gap-1.5">
-                                            <span className="text-muted-foreground/40 shrink-0">&#x2022;</span>
-                                            <span className="whitespace-pre-line">{msg}</span>
-                                          </li>
-                                        ))}
-                                      </ul>
-                                    </div>
-                                  )}
-                                </>
-                              )}
+                              <h4 className="text-xs font-semibold pr-28">{concept.title}</h4>
+                              {/* Simplified type-aware rendering for steps tab */}
+                              {ct === 'reel' && (() => { const rc = concept as ReelConcept; return (<>
+                                <div><div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/60 mb-0.5">Hook</div>{isEditing ? <textarea value={rc.hook} onChange={(e) => updateGeneratedConcept(idx, 'hook', e.target.value)} rows={2} className="w-full rounded border border-border bg-background px-2 py-1 text-xs text-foreground resize-none" /> : <p className="text-[10px] text-muted-foreground leading-relaxed whitespace-pre-line">{rc.hook}</p>}</div>
+                                <div><div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/60 mb-0.5">Script</div>{isEditing ? <textarea value={typeof rc.script === 'string' ? rc.script : rc.script.join('\n')} onChange={(e) => updateGeneratedConcept(idx, 'script', e.target.value.split('\n'))} rows={4} className="w-full rounded border border-border bg-background px-2 py-1 text-xs text-foreground resize-none" /> : Array.isArray(rc.script) ? <ul className="space-y-0.5">{rc.script.map((l, li) => <li key={li} className="text-[10px] text-muted-foreground flex items-start gap-1.5"><span className="text-muted-foreground/40 shrink-0">&#x2022;</span><span>{l}</span></li>)}</ul> : <p className="text-[10px] text-muted-foreground">{rc.script}</p>}</div>
+                                {(rc.audio_cues || isEditing) && <div><div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/60 mb-0.5">Audio Cues</div>{isEditing ? <input value={rc.audio_cues || ''} onChange={(e) => updateGeneratedConcept(idx, 'audio_cues', e.target.value)} className="w-full h-7 rounded border border-border bg-background px-2 text-xs text-foreground" /> : <p className="text-[10px] text-muted-foreground">{rc.audio_cues}</p>}</div>}
+                                {(rc.duration || isEditing) && <div><div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/60 mb-0.5">Duration</div>{isEditing ? <input value={rc.duration || ''} onChange={(e) => updateGeneratedConcept(idx, 'duration', e.target.value)} className="w-full h-7 rounded border border-border bg-background px-2 text-xs text-foreground" /> : <p className="text-[10px] text-muted-foreground">{rc.duration}</p>}</div>}
+                              </>); })()}
+                              {ct === 'carousel' && (() => { const cc = concept as CarouselConcept; return (<>
+                                <div><div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/60 mb-0.5">Slides ({(cc.slides || []).length})</div>{(cc.slides || []).map((s, si) => <div key={si} className="border-l-2 border-border pl-2 py-1 space-y-0.5"><div className="font-mono text-[8px] uppercase text-muted-foreground/40">Slide {si + 1}</div><p className="text-[10px] text-muted-foreground"><span className="font-medium">Image:</span> {s.image_description}</p><p className="text-[10px] text-muted-foreground"><span className="font-medium">Caption:</span> {s.caption}</p></div>)}</div>
+                                {cc.messaging && cc.messaging.length > 0 && <div><div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/60 mb-0.5">Key Messaging</div><ul className="space-y-0.5">{cc.messaging.map((m, mi) => <li key={mi} className="text-[10px] text-muted-foreground flex items-start gap-1.5"><span className="text-muted-foreground/40">&#x2022;</span><span>{m}</span></li>)}</ul></div>}
+                              </>); })()}
+                              {ct === 'post' && (() => { const pc = concept as PostConcept; return (<>
+                                <div><div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/60 mb-0.5">Image Description</div>{isEditing ? <textarea value={pc.image_description} onChange={(e) => updateGeneratedConcept(idx, 'image_description', e.target.value)} rows={3} className="w-full rounded border border-border bg-background px-2 py-1 text-xs text-foreground resize-none" /> : <p className="text-[10px] text-muted-foreground">{pc.image_description}</p>}</div>
+                                <div><div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/60 mb-0.5">Caption</div>{isEditing ? <textarea value={pc.caption} onChange={(e) => updateGeneratedConcept(idx, 'caption', e.target.value)} rows={3} className="w-full rounded border border-border bg-background px-2 py-1 text-xs text-foreground resize-none" /> : <p className="text-[10px] text-muted-foreground">{pc.caption}</p>}</div>
+                              </>); })()}
+                              {ct === 'story' && (() => { const sc = concept as StoryConcept; return (<>
+                                <div><div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/60 mb-0.5">Frame Description</div>{isEditing ? <textarea value={sc.frame_description} onChange={(e) => updateGeneratedConcept(idx, 'frame_description', e.target.value)} rows={3} className="w-full rounded border border-border bg-background px-2 py-1 text-xs text-foreground resize-none" /> : <p className="text-[10px] text-muted-foreground">{sc.frame_description}</p>}</div>
+                                <div><div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/60 mb-0.5">Caption</div>{isEditing ? <textarea value={sc.caption} onChange={(e) => updateGeneratedConcept(idx, 'caption', e.target.value)} rows={2} className="w-full rounded border border-border bg-background px-2 py-1 text-xs text-foreground resize-none" /> : <p className="text-[10px] text-muted-foreground">{sc.caption}</p>}</div>
+                                {(sc.cta || isEditing) && <div><div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/60 mb-0.5">CTA</div>{isEditing ? <input value={sc.cta || ''} onChange={(e) => updateGeneratedConcept(idx, 'cta', e.target.value)} className="w-full h-7 rounded border border-border bg-background px-2 text-xs text-foreground" /> : <p className="text-[10px] text-muted-foreground font-medium">{sc.cta}</p>}</div>}
+                              </>); })()}
+                              {/* Fallback for legacy concepts */}
+                              {(!ct || !['reel', 'carousel', 'post', 'story'].includes(ct)) && (() => { const fc = concept as { hook?: string; script?: string | string[]; messaging?: string[] }; return (<>
+                                {fc.hook && <div><div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/60 mb-0.5">Hook</div>{isEditing ? <textarea value={fc.hook} onChange={(e) => updateGeneratedConcept(idx, 'hook', e.target.value)} rows={2} className="w-full rounded border border-border bg-background px-2 py-1 text-xs text-foreground resize-none" /> : <p className="text-[10px] text-muted-foreground">{fc.hook}</p>}</div>}
+                                {fc.script && <div><div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/60 mb-0.5">Script</div>{typeof fc.script === 'string' ? <p className="text-[10px] text-muted-foreground">{fc.script}</p> : <ul className="space-y-0.5">{fc.script.map((l, li) => <li key={li} className="text-[10px] text-muted-foreground flex items-start gap-1.5"><span className="text-muted-foreground/40">&#x2022;</span><span>{l}</span></li>)}</ul>}</div>}
+                                {fc.messaging && fc.messaging.length > 0 && <div><div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/60 mb-0.5">Key Messaging</div><ul className="space-y-0.5">{fc.messaging.map((m, mi) => <li key={mi} className="text-[10px] text-muted-foreground flex items-start gap-1.5"><span className="text-muted-foreground/40">&#x2022;</span><span>{m}</span></li>)}</ul></div>}
+                              </>); })()}
                             </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       </div>
                     )}
@@ -2309,7 +4118,10 @@ export default function ContentWorkflowDetailPage() {
 
                 {/* ── Image Generation (optional, between Concepts & Storyboard) ── */}
                 {openStageKey === 'image_generation' && (() => {
-                  const generatedConcepts = (getSetting('concepts', 'generated_concepts') as Array<{ title: string; hook: string; script: string; messaging: string[]; tone?: string }>) || [];
+                  if (!selectedContentPiece) {
+                    return <div className="text-center py-8 text-muted-foreground/50"><CalendarClock className="h-8 w-8 mx-auto mb-2 opacity-30" /><p className="text-xs">Select a content piece from the calendar first</p></div>;
+                  }
+                  const pieceConcepts = ((getPieceSetting('concepts', 'generated_concepts') as GeneratedConcept[]) || []) as GeneratedConcept[];
                   type ImgGenRow = { conceptIdx: number; llm: string; imageModel: string };
                   const rows = (getSetting('image_generation', 'rows') as ImgGenRow[]) || [{ conceptIdx: 0, llm: 'gemini-pro-3', imageModel: '' }];
 
@@ -2336,10 +4148,10 @@ export default function ContentWorkflowDetailPage() {
                               <Select value={String(row.conceptIdx)} onValueChange={(v) => updateImgRow(idx, 'conceptIdx', Number(v))}>
                                 <SelectTrigger className="h-7 text-xs"><SelectValue placeholder="Concept" /></SelectTrigger>
                                 <SelectContent>
-                                  {generatedConcepts.map((c, i) => (
+                                  {pieceConcepts.map((c, i) => (
                                     <SelectItem key={i} value={String(i)}>{c.title}</SelectItem>
                                   ))}
-                                  {generatedConcepts.length === 0 && <SelectItem value="0" disabled>No concepts yet</SelectItem>}
+                                  {pieceConcepts.length === 0 && <SelectItem value="0" disabled>No concepts yet</SelectItem>}
                                 </SelectContent>
                               </Select>
                             </div>
@@ -2375,7 +4187,7 @@ export default function ContentWorkflowDetailPage() {
                             </div>
                             <div className="shrink-0 flex flex-col justify-end">
                               <div className="font-mono text-[8px] uppercase tracking-wider text-transparent mb-0.5 select-none">Go</div>
-                              <button disabled={generatedConcepts.length === 0} className="h-7 w-7 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-30 disabled:cursor-not-allowed transition-colors" title="Generate">
+                              <button disabled={pieceConcepts.length === 0} className="h-7 w-7 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-30 disabled:cursor-not-allowed transition-colors" title="Generate">
                                 <Bot className="h-3.5 w-3.5" />
                               </button>
                             </div>
@@ -2387,7 +4199,7 @@ export default function ContentWorkflowDetailPage() {
                       </div>
                     </div>
 
-                    {generatedConcepts.length === 0 && (
+                    {pieceConcepts.length === 0 && (
                       <div className="text-center py-8 text-muted-foreground/50">
                         <p className="text-xs">Generate concepts first in the Concepts stage</p>
                       </div>
@@ -2398,6 +4210,9 @@ export default function ContentWorkflowDetailPage() {
 
                 {/* ── Storyboard ── */}
                 {openStageKey === 'storyboard' && (() => {
+                  if (!selectedContentPiece) {
+                    return <div className="text-center py-8 text-muted-foreground/50"><CalendarClock className="h-8 w-8 mx-auto mb-2 opacity-30" /><p className="text-xs">Select a content piece from the calendar first</p></div>;
+                  }
                   // Get concepts from stageSettings or node output
                   const generatedConcepts = (getSetting('concepts', 'generated_concepts') as Array<{ title: string; hook: string; script: string; messaging: string[]; tone?: string }>) || [];
                   // Get storyboard data from nodes
@@ -2819,6 +4634,9 @@ export default function ContentWorkflowDetailPage() {
 
                 {/* ── Video Generation ── */}
                 {openStageKey === 'video_generation' && (() => {
+                  if (!selectedContentPiece) {
+                    return <div className="text-center py-8 text-muted-foreground/50"><CalendarClock className="h-8 w-8 mx-auto mb-2 opacity-30" /><p className="text-xs">Select a content piece from the calendar first</p></div>;
+                  }
                   const rawAlloc = getSetting('video_generation', 'creative_allocations') as Array<{ count: string | number; model: string }> | undefined;
                   const allocations = (rawAlloc && rawAlloc.length > 0 ? rawAlloc : [{ count: '1', model: '' }]).map(a => ({ ...a, count: String(a.count || '1') }));
                   const totalCreatives = allocations.reduce((sum, a) => sum + (parseInt(a.count) || 0), 0);
@@ -3361,42 +5179,86 @@ export default function ContentWorkflowDetailPage() {
                 })()}
 
                 {/* ── Simulation & Testing ── */}
-                {openStageKey === 'simulation_testing' && (
-                  <>
-                    <div>
-                      <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground mb-1.5">Audience Personas</div>
-                      <Select value={(getSetting('simulation_testing', 'audience_persona') as string) || ''} onValueChange={(v) => updateStageSetting('simulation_testing', 'audience_persona', v)}><SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select persona" /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="gen_z">Gen Z (18-24)</SelectItem>
-                          <SelectItem value="millennials">Millennials (25-34)</SelectItem>
-                          <SelectItem value="gen_x">Gen X (35-50)</SelectItem>
-                          <SelectItem value="custom">Custom</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground mb-1.5">Test Metric</div>
-                      <Select value={(getSetting('simulation_testing', 'test_metric') as string) || ''} onValueChange={(v) => updateStageSetting('simulation_testing', 'test_metric', v)}><SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select metric" /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="engagement">Engagement Rate</SelectItem>
-                          <SelectItem value="watch_time">Watch Time</SelectItem>
-                          <SelectItem value="click_through">Click-Through Rate</SelectItem>
-                          <SelectItem value="conversion">Conversion</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground mb-1.5">Sample Size</div>
-                      <Select value={(getSetting('simulation_testing', 'sample_size') as string) || ''} onValueChange={(v) => updateStageSetting('simulation_testing', 'sample_size', v)}><SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select" /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="500">500</SelectItem>
-                          <SelectItem value="1000">1,000</SelectItem>
-                          <SelectItem value="5000">5,000</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </>
-                )}
+                {openStageKey === 'simulation_testing' && (() => {
+                  if (!selectedContentPiece) {
+                    return <div className="text-center py-8 text-muted-foreground/50"><CalendarClock className="h-8 w-8 mx-auto mb-2 opacity-30" /><p className="text-xs">Select a content piece from the calendar first</p></div>;
+                  }
+                  const simGenders = ((getSetting('simulation_testing', 'genders') as string[]) || ['Male', 'Female']);
+                  const simAges = ((getSetting('simulation_testing', 'ages') as string[]) || ['18-24', '25-34']);
+                  const simLlm = (getSetting('simulation_testing', 'llm') as string) || 'gemini-pro-3';
+                  const simPersonaIds = ((getSetting('simulation_testing', 'persona_ids') as string[]) || []);
+                  const simCombos = simGenders.length * simAges.length;
+
+                  const handleRunSim = async () => {
+                    setSimRunning(true);
+                    setSimError(null);
+                    try {
+                      const res = await runContentSimulation(workflowId, {
+                        genders: simGenders,
+                        ages: simAges,
+                        model_provider: '',
+                        model_name: simLlm,
+                        persona_ids: simPersonaIds.length > 0 ? simPersonaIds : undefined,
+                      });
+                      setSimResults(res.results);
+                      loadWorkflow();
+                    } catch (err) {
+                      setSimError(err instanceof Error ? err.message : 'Simulation failed');
+                    } finally {
+                      setSimRunning(false);
+                    }
+                  };
+
+                  return (
+                    <>
+                      {personas.length > 0 && (
+                        <div className="space-y-2">
+                          <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground mb-1.5">Personas</div>
+                          {personas.map((p) => (
+                            <label key={p.id} className="flex items-center gap-2 text-xs cursor-pointer">
+                              <input type="checkbox" className="rounded border-border" checked={simPersonaIds.includes(p.id)} onChange={() => toggleArrayItem('simulation_testing', 'persona_ids', p.id)} />
+                              <span>{p.name}</span>
+                            </label>
+                          ))}
+                        </div>
+                      )}
+                      <div className="space-y-2">
+                        <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground mb-1.5">Gender</div>
+                        {SIM_GENDERS.map((g) => (
+                          <label key={g} className="flex items-center gap-2 text-xs cursor-pointer">
+                            <input type="checkbox" className="rounded border-border" checked={simGenders.includes(g)} onChange={() => toggleArrayItem('simulation_testing', 'genders', g)} />
+                            <span>{g}</span>
+                          </label>
+                        ))}
+                      </div>
+                      <div className="space-y-2">
+                        <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground mb-1.5">Age Ranges</div>
+                        {SIM_AGE_RANGES.map((a) => (
+                          <label key={a} className="flex items-center gap-2 text-xs cursor-pointer">
+                            <input type="checkbox" className="rounded border-border" checked={simAges.includes(a)} onChange={() => toggleArrayItem('simulation_testing', 'ages', a)} />
+                            <span>{a}</span>
+                          </label>
+                        ))}
+                      </div>
+                      <div>
+                        <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground mb-1.5">LLM</div>
+                        <Select value={simLlm} onValueChange={(v) => updateStageSetting('simulation_testing', 'llm', v)}>
+                          <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {SIM_LLM_MODELS.map((m) => (
+                              <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="text-[10px] text-muted-foreground/60 font-mono">{simGenders.length} genders &times; {simAges.length} ages = {simCombos} combos</div>
+                      <Button size="sm" className="w-full h-8 font-mono text-[10px] uppercase tracking-wider" disabled={simRunning || simGenders.length === 0 || simAges.length === 0 || !simLlm} onClick={handleRunSim}>
+                        {simRunning ? <><Loader2 className="h-3 w-3 animate-spin mr-1.5" />Running...</> : <><BarChart2 className="h-3 w-3 mr-1.5" />Run Simulation</>}
+                      </Button>
+                      {simError && <p className="text-[10px] text-destructive">{simError}</p>}
+                    </>
+                  );
+                })()}
 
                 {/* ── Brand QA ── */}
                 {openStageKey === 'brand_qa' && (
@@ -3444,9 +5306,6 @@ export default function ContentWorkflowDetailPage() {
                       <Select value={(getSetting('publish', 'platform') as string) || ''} onValueChange={(v) => updateStageSetting('publish', 'platform', v)}><SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select platform" /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="instagram">Instagram</SelectItem>
-                          <SelectItem value="tiktok">TikTok</SelectItem>
-                          <SelectItem value="youtube">YouTube Shorts</SelectItem>
-                          <SelectItem value="facebook">Facebook</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -3542,9 +5401,6 @@ export default function ContentWorkflowDetailPage() {
                       <Select value={(getSetting('channel_learning', 'platform_focus') as string) || ''} onValueChange={(v) => updateStageSetting('channel_learning', 'platform_focus', v)}><SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select platform" /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="instagram">Instagram</SelectItem>
-                          <SelectItem value="tiktok">TikTok</SelectItem>
-                          <SelectItem value="youtube">YouTube</SelectItem>
-                          <SelectItem value="all">All Platforms</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>

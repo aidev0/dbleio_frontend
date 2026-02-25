@@ -2,7 +2,7 @@
 
 export type ContentWorkflowStatus = 'pending' | 'running' | 'paused' | 'waiting_approval' | 'completed' | 'failed' | 'cancelled';
 
-export type StageType = 'human' | 'agent' | 'auto';
+export type StageType = 'human' | 'agent' | 'auto' | 'both';
 
 export type NodeStatus = 'pending' | 'running' | 'completed' | 'failed' | 'waiting_approval';
 
@@ -97,14 +97,15 @@ export interface StageDefinition {
 }
 
 export const CONTENT_PIPELINE_STAGES: StageDefinition[] = [
-  { key: 'strategy_assets', label: 'Strategy & Assets', stageType: 'human', description: 'Define brand goals and gather Shopify assets to guide content direction.', approvalRequired: false, available: true },
-  { key: 'scheduling', label: 'Scheduling', stageType: 'human', description: 'Plan the content calendar.', approvalRequired: false, available: true },
+  { key: 'brand', label: 'Brand', stageType: 'human', description: 'Review brand details, URLs, and social profiles.', approvalRequired: false, available: true },
+  { key: 'campaign_strategy', label: 'Campaign & Strategy', stageType: 'human', description: 'Select campaign, strategy, and manage brand assets.', approvalRequired: false, available: true },
   { key: 'research', label: 'Research', stageType: 'agent', description: 'Discover trends and identify patterns relevant to your audience.', approvalRequired: false, available: false },
-  { key: 'concepts', label: 'Concepts', stageType: 'agent', description: 'Generate ideas and develop scripts for content pieces.', approvalRequired: false, available: true },
+  { key: 'scheduling', label: 'Scheduling', stageType: 'human', description: 'Plan the content calendar.', approvalRequired: false, available: true },
+  { key: 'concepts', label: 'Concepts', stageType: 'both', description: 'Generate ideas and develop scripts for content pieces.', approvalRequired: false, available: true },
   { key: 'image_generation', label: 'Image Generation', stageType: 'agent', description: 'Generate concept art and reference images for each concept before storyboarding.', approvalRequired: false, available: true },
-  { key: 'storyboard', label: 'Storyboard', stageType: 'agent', description: 'Generate detailed storylines with scenes, characters, and visual assets for each concept.', approvalRequired: false, available: true },
+  { key: 'storyboard', label: 'Storyboard', stageType: 'both', description: 'Generate detailed storylines with scenes, characters, and visual assets for each concept.', approvalRequired: false, available: true },
   { key: 'video_generation', label: 'Video Generation', stageType: 'agent', description: 'Produce videos and voiceovers using AI.', approvalRequired: false, available: true },
-  { key: 'simulation_testing', label: 'Simulation & Testing', stageType: 'agent', description: 'Model audience personas and run A/B testing to predict content performance.', approvalRequired: false, available: false },
+  { key: 'simulation_testing', label: 'Simulation & Testing', stageType: 'both', description: 'Model audience personas and run A/B testing to predict content performance.', approvalRequired: false, available: true },
   { key: 'brand_qa', label: 'Brand QA', stageType: 'human', description: 'Ensure content aligns with brand guidelines and safety requirements.', approvalRequired: true, available: false, rejectTarget: 'concepts' },
   { key: 'fdm_review', label: 'FDM Review', stageType: 'human', description: 'Team members review, edit, or override AI decisions and run compliance checks.', approvalRequired: true, available: false, rejectTarget: 'concepts' },
   { key: 'publish', label: 'Publish', stageType: 'auto', description: 'Deploy content across channels (3 reels/week, daily stories).', approvalRequired: false, available: false },
