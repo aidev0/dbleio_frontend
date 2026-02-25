@@ -22,7 +22,7 @@ import type { ContentWorkflowNode } from '../lib/types';
 import { CONTENT_PIPELINE_STAGES, CONTENT_STAGE_LABELS } from '../lib/types';
 import ContentWorkflowStatusBadge from './ContentWorkflowStatusBadge';
 import { Handle, Position } from '@xyflow/react';
-import { Cog, Bot, User } from 'lucide-react';
+import { Bot, User, Users } from 'lucide-react';
 import {
   Sheet,
   SheetContent,
@@ -40,7 +40,7 @@ const STAGE_TYPE_MAP: Record<string, string> = Object.fromEntries(
 );
 
 // ---- Node type icons -------------------------------------------------------
-const NODE_TYPE_ICON: Record<string, typeof Cog> = { auto: Cog, agent: Bot, human: User };
+const NODE_TYPE_ICON: Record<string, typeof Bot> = { agent: Bot, human: User, both: Users };
 
 // ---- WorkflowGraphNode (inline, same as developer) -------------------------
 interface WorkflowGraphNodeData {
@@ -212,12 +212,11 @@ interface Bundle {
 }
 
 const BUNDLES: Bundle[] = [
-  { id: 'input',          label: 'Input',              row: 0, stages: ['strategy_assets', 'scheduling'] },
-  { id: 'research',       label: 'Research & Creation', row: 1, stages: ['research', 'concepts', 'image_generation', 'storyboard'] },
-  { id: 'generation',     label: 'Generation & Testing', row: 2, stages: ['video_generation', 'simulation_testing'] },
-  { id: 'review',         label: 'Review',             row: 3, stages: ['brand_qa', 'fdm_review'] },
-  { id: 'distribution',   label: 'Distribution',       row: 4, stages: ['publish', 'metrics'] },
-  { id: 'learning',       label: 'Learning',           row: 5, stages: ['analytics', 'channel_learning', 'ab_testing', 'reinforcement_learning'] },
+  { id: 'input',              label: 'Input',              row: 0, stages: ['brand', 'campaign_strategy', 'research', 'scheduling'] },
+  { id: 'content-generation', label: 'Content Generation', row: 1, stages: ['concepts', 'image_generation', 'storyboard', 'video_generation'] },
+  { id: 'simulation',         label: 'Simulation',         row: 2, stages: ['simulation_testing', 'predictive_modeling', 'content_ranking'] },
+  { id: 'review-publish',     label: 'Review & Publish',   row: 3, stages: ['fdm_review', 'brand_qa', 'publish'] },
+  { id: 'analysis',           label: 'Analysis',           row: 4, stages: ['analytics'] },
 ];
 
 // Short feedback loops (same row -- use top handles)
@@ -229,8 +228,7 @@ const SHORT_FEEDBACK_LOOPS: [string, string][] = [];
 const LONG_FEEDBACK_LOOPS: [string, string][] = [
   ['brand_qa', 'concepts'],
   ['fdm_review', 'concepts'],
-  ['analytics', 'scheduling'],
-  ['reinforcement_learning', 'research'],
+  ['analytics', 'research'],
 ];
 
 // ---- Layout constants ------------------------------------------------------
@@ -341,7 +339,7 @@ export default function ContentPipelineGraph({ nodes, currentStageKey, onNodeCli
         data: {
           stageName,
           status: wfNode?.status || 'pending',
-          nodeType: STAGE_TYPE_MAP[stageName] || 'auto',
+          nodeType: STAGE_TYPE_MAP[stageName] || 'agent',
           stepNumber: i + 1,
           isCurrent: stageName === currentStage,
           isUpcoming: i > currentStageIndex,
@@ -401,10 +399,9 @@ export default function ContentPipelineGraph({ nodes, currentStageKey, onNodeCli
 
     // Long feedback loops (cross-row -- custom edge that routes far left)
     const LOOP_LABELS: Record<string, string> = {
-      'brand_qa-concepts': 'reject',
-      'fdm_review-concepts': 'reject',
-      'analytics-scheduling': 'feedback',
-      'reinforcement_learning-research': 'feedback',
+      'brand_qa-concepts': 'Reinforcement Learning',
+      'fdm_review-concepts': 'Reinforcement Learning',
+      'analytics-research': 'Reinforcement Learning',
     };
     for (const [from, to] of LONG_FEEDBACK_LOOPS) {
       const loopLabel = LOOP_LABELS[`${from}-${to}`] || 'feedback';
@@ -432,8 +429,8 @@ export default function ContentPipelineGraph({ nodes, currentStageKey, onNodeCli
   }
 
   const selectedStepNumber = selectedNode ? CONTENT_STAGE_ORDER.indexOf(selectedNode.stage_key) + 1 : 0;
-  const selectedStageType = selectedNode ? STAGE_TYPE_MAP[selectedNode.stage_key] || 'auto' : 'auto';
-  const SelectedIcon = NODE_TYPE_ICON[selectedStageType] || Cog;
+  const selectedStageType = selectedNode ? STAGE_TYPE_MAP[selectedNode.stage_key] || 'agent' : 'agent';
+  const SelectedIcon = NODE_TYPE_ICON[selectedStageType] || Bot;
 
   return (
     <div className="relative h-full w-full">

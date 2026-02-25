@@ -412,7 +412,7 @@ function WorkflowStepsList({
           : status === 'failed' ? XCircle
           : status === 'waiting_approval' ? Clock
           : Circle;
-        const TypeIcon = stage.stageType === 'agent' ? Bot : stage.stageType === 'auto' ? Settings2 : UserIcon;
+        const TypeIcon = stage.stageType === 'agent' ? Bot : stage.stageType === 'both' ? Bot : UserIcon;
         const canToggle = (status === 'pending' || status === 'running' || status === 'completed') && !stage.approvalRequired;
 
         if (!stage.available) {
@@ -1624,11 +1624,6 @@ export default function ContentWorkflowDetailPage() {
                           <UserIcon className="h-2.5 w-2.5" /> FDM
                           <span className="text-muted-foreground/30">+</span>
                           <Bot className="h-2.5 w-2.5" /> Agent
-                        </span>
-                      )}
-                      {stage.stageType === 'auto' && (
-                        <span className="inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 font-mono text-[8px] uppercase tracking-wider text-muted-foreground">
-                          <Settings2 className="h-2.5 w-2.5" /> Auto
                         </span>
                       )}
                       {workflow.current_stage === stage.key && (
@@ -3325,11 +3320,6 @@ export default function ContentWorkflowDetailPage() {
                   {stageDef.stageType === 'both' && (
                     <span className="inline-flex items-center gap-1 rounded-full border border-border px-1.5 py-0.5 font-mono text-[7px] uppercase tracking-wider text-muted-foreground">
                       <UserIcon className="h-2 w-2" /> FDM <span className="text-muted-foreground/30">+</span> <Bot className="h-2 w-2" /> Agent
-                    </span>
-                  )}
-                  {stageDef.stageType === 'auto' && (
-                    <span className="inline-flex items-center gap-1 rounded-full border border-border px-1.5 py-0.5 font-mono text-[7px] uppercase tracking-wider text-muted-foreground">
-                      <Settings2 className="h-2 w-2" /> Auto
                     </span>
                   )}
                   <span className={`inline-flex items-center rounded-full px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider ${
