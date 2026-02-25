@@ -101,7 +101,7 @@ export const CONTENT_PIPELINE_STAGES: StageDefinition[] = [
   // --- Input ---
   { key: 'brand', label: 'Brand', stageType: 'human', description: 'Review brand details, URLs, and social profiles.', category: 'Input', approvalRequired: false, available: true },
   { key: 'campaign_strategy', label: 'Campaign & Strategy & Assets', stageType: 'human', description: 'Select campaign, strategy, and manage brand assets.', category: 'Input', approvalRequired: false, available: true },
-  { key: 'research', label: 'Research', stageType: 'agent', description: 'Discover trends and identify patterns relevant to your audience.', category: 'Input', approvalRequired: false, available: false },
+  { key: 'research', label: 'Research', stageType: 'agent', description: 'Discover trends and identify patterns relevant to your audience.', category: 'Input', approvalRequired: false, available: true },
   { key: 'scheduling', label: 'Scheduling', stageType: 'human', description: 'Plan the content calendar.', category: 'Input', approvalRequired: false, available: true },
   // --- Content Generation ---
   { key: 'concepts', label: 'Concepts', stageType: 'both', description: 'Generate ideas and develop scripts for content pieces.', category: 'Content Generation', approvalRequired: false, available: true },
@@ -110,11 +110,11 @@ export const CONTENT_PIPELINE_STAGES: StageDefinition[] = [
   { key: 'video_generation', label: 'Video Generation', stageType: 'agent', description: 'Produce videos and voiceovers using AI.', category: 'Content Generation', approvalRequired: false, available: true },
   // --- Simulation ---
   { key: 'simulation_testing', label: 'Simulation & Testing', stageType: 'both', description: 'Model audience personas and run A/B testing to predict content performance.', category: 'Simulation', approvalRequired: false, available: true },
-  { key: 'predictive_modeling', label: 'Predictive Modeling', stageType: 'agent', description: 'Build predictive models to forecast content performance across channels.', category: 'Simulation', approvalRequired: false, available: false },
-  { key: 'content_ranking', label: 'Content Ranking', stageType: 'agent', description: 'Rank and prioritize content variants based on predicted performance.', category: 'Simulation', approvalRequired: false, available: false },
+  { key: 'predictive_modeling', label: 'Predictive Modeling', stageType: 'agent', description: 'Build predictive models to forecast content performance across channels.', category: 'Simulation', approvalRequired: false, available: true },
+  { key: 'content_ranking', label: 'Content Ranking', stageType: 'agent', description: 'Rank and prioritize content variants based on predicted performance.', category: 'Simulation', approvalRequired: false, available: true },
   // --- Review & Publish ---
-  { key: 'fdm_review', label: 'FDM Review', stageType: 'human', description: 'Team members review, edit, or override AI decisions and run compliance checks.', category: 'Review & Publish', approvalRequired: true, available: false, rejectTarget: 'concepts' },
-  { key: 'brand_qa', label: 'Brand QA', stageType: 'human', description: 'Ensure content aligns with brand guidelines and safety requirements.', category: 'Review & Publish', approvalRequired: true, available: false, rejectTarget: 'concepts' },
+  { key: 'fdm_review', label: 'FDM Review', stageType: 'human', description: 'Team members review, edit, or override AI decisions and run compliance checks.', category: 'Review & Publish', approvalRequired: true, available: true, rejectTarget: 'concepts' },
+  { key: 'brand_qa', label: 'Brand QA', stageType: 'human', description: 'Ensure content aligns with brand guidelines and safety requirements.', category: 'Review & Publish', approvalRequired: true, available: true, rejectTarget: 'concepts' },
   { key: 'publish', label: 'Publish', stageType: 'agent', description: 'Deploy content across channels (3 reels/week, daily stories).', category: 'Review & Publish', approvalRequired: false, available: false },
   // --- Analysis ---
   { key: 'analytics', label: 'A/B Testing & Analytics', stageType: 'agent', description: 'Run A/B tests, generate insights, and build predictive models from performance data.', category: 'Analysis', approvalRequired: false, available: false, feedbackTarget: 'research' },
@@ -122,3 +122,97 @@ export const CONTENT_PIPELINE_STAGES: StageDefinition[] = [
 
 export const CONTENT_STAGE_MAP = Object.fromEntries(CONTENT_PIPELINE_STAGES.map(s => [s.key, s]));
 export const CONTENT_STAGE_LABELS = Object.fromEntries(CONTENT_PIPELINE_STAGES.map(s => [s.key, s.label]));
+
+// --- Research types ---
+
+export interface ResearchVideoAI {
+  hook_type?: string;
+  hook_text?: string;
+  hook_effectiveness?: string;
+  num_scenes?: number;
+  duration?: number;
+  pacing?: string;
+  characters?: Array<{ age_range: string; gender: string; description: string }>;
+  textures?: string[];
+  objects?: string[];
+  colors?: string[];
+  transcription?: string;
+  music_mood?: string;
+  cta?: string;
+  content_format?: string;
+  success_factors?: string[];
+  improvement_suggestions?: string[];
+  error?: string;
+}
+
+export interface ResearchTopPerformer {
+  id: string;
+  type: 'post' | 'reel';
+  shortCode?: string;
+  engagement_score: number;
+  likesCount: number;
+  commentsCount: number;
+  videoPlayCount: number;
+  caption: string;
+  displayUrl?: string;
+  videoUrl?: string;
+  timestamp?: string;
+  hashtags?: string[];
+  url?: string;
+  videoDuration?: number;
+  ai_analysis?: ResearchVideoAI;
+  extracted_frames?: Array<{ frame_index: number; timestamp_sec: number; signed_url: string; gs_uri: string; gcs_blob_name: string }>;
+}
+
+export interface ResearchInstagramData {
+  username: string;
+  followers: number;
+  total_reels: number;
+  top_count?: number;
+  top_performers: ResearchTopPerformer[];
+  success_analysis?: Record<string, unknown>;
+  error?: string;
+}
+
+export interface ResearchBrandUrlAnalysis {
+  url?: string;
+  products?: string[];
+  style?: string;
+  colors?: string[];
+  fonts?: string[];
+  target_audience?: string;
+  brand_voice?: string;
+  key_messaging?: string[];
+  raw_insights?: string;
+  error?: string;
+}
+
+export interface ResearchTrendPoint {
+  date: string;
+  likes: number;
+  comments: number;
+  views: number;
+  count: number;
+}
+
+export interface ResearchFinancialData {
+  company_name?: string;
+  revenue?: string | null;
+  revenue_yoy_growth?: string | null;
+  active_subscribers?: string | null;
+  market_cap?: string | null;
+  stock_price?: string | null;
+  key_metrics?: Array<{ metric: string; value: string; period: string }>;
+  recent_highlights?: string[];
+  data_date?: string | null;
+  source_quality?: string | null;
+  error?: string;
+}
+
+export interface ResearchData {
+  brand_url_analysis?: ResearchBrandUrlAnalysis;
+  brand_instagram?: ResearchInstagramData;
+  competitor_instagram?: Record<string, ResearchInstagramData>;
+  trends?: Record<string, ResearchTrendPoint[]>;
+  financial?: Record<string, ResearchFinancialData>;
+}

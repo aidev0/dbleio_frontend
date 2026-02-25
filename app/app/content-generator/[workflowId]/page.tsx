@@ -9,7 +9,7 @@ import {
   ChevronLeft, ChevronRight, Bot, User as UserIcon, Image as ImageIcon,
   Megaphone, Paperclip, Settings2, X, Pencil,
   Film, Music, Type as TypeIconLucide, Eye, Check, Plus, Upload,
-  FileText, BarChart2, Globe, ExternalLink, Layers, CircleDot, Clapperboard,
+  FileText, BarChart2, Globe, ExternalLink, Layers, CircleDot, Clapperboard, RefreshCw,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -30,6 +30,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import ContentWorkflowStatusBadge from '../components/ContentWorkflowStatusBadge';
+import ResearchStagePanel from '../components/ResearchStagePanel';
 import NavMenu from '@/components/NavMenu';
 import {
   getContentWorkflow,
@@ -54,6 +55,7 @@ import {
   generateConcepts,
   getImageModels,
   generateConceptImage,
+  pollConceptImageStatus,
   generateStoryboard,
   generateStoryboardImage,
   getStoryboardImageStatus,
@@ -65,8 +67,10 @@ import {
   deleteVideoVariation,
   runContentSimulation,
   getPersonas,
+  runPredictiveModeling,
+  runContentRanking,
 } from '../lib/api';
-import type { VideoJob, SimulationResult, Persona } from '../lib/api';
+import type { VideoJob, SimulationResult, Persona, PredictionResult, PredictionBenchmarks, RankingResult } from '../lib/api';
 import type { Campaign } from '../lib/api';
 import { getBrandAssets, createBrandAsset, uploadBrandAsset, deleteBrandAsset, getStrategies, updateBrand } from '../../brands/lib/api';
 import type { BrandAsset, Strategy } from '../../brands/lib/types';
@@ -575,6 +579,9 @@ export default function ContentWorkflowDetailPage() {
   const [editingContentIdx, setEditingContentIdx] = useState<number | null>(null);
   const [calendarMonth, setCalendarMonth] = useState(() => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1); });
 
+  // Image generation
+  const [imgGenLoading, setImgGenLoading] = useState<Set<number>>(new Set());
+
   // Selected content piece for calendar-driven pipeline
   const [selectedContentPiece, setSelectedContentPiece] = useState<ContentItem | null>(null);
 
@@ -583,7 +590,7 @@ export default function ContentWorkflowDetailPage() {
   const [storyboardConceptIdx, setStoryboardConceptIdx] = useState<number>(0);
   const [storyboardVariationIdx, setStoryboardVariationIdx] = useState<number>(0);
   const [storyboardLlmModel, setStoryboardLlmModel] = useState<string>('gemini-pro-3');
-  const [storyboardImageModel, setStoryboardImageModel] = useState<string>('');
+  const [storyboardImageModel, setStoryboardImageModel] = useState<string>('google/nano-banana');
   const [generatingStoryboard, setGeneratingStoryboard] = useState(false);
   const [storyboardError, setStoryboardError] = useState<string | null>(null);
   const [generatingImages, setGeneratingImages] = useState<Set<string>>(new Set());
@@ -602,6 +609,17 @@ export default function ContentWorkflowDetailPage() {
   const [simResults, setSimResults] = useState<SimulationResult[]>([]);
   const [personas, setPersonas] = useState<Persona[]>([]);
   const [expandedScoreKey, setExpandedScoreKey] = useState<string | null>(null);
+
+  // Predictive modeling state
+  const [predResults, setPredResults] = useState<PredictionResult[]>([]);
+  const [predBenchmarks, setPredBenchmarks] = useState<PredictionBenchmarks>({});
+  const [predRunning, setPredRunning] = useState(false);
+  const [predError, setPredError] = useState<string | null>(null);
+
+  // Content ranking state
+  const [rankResults, setRankResults] = useState<RankingResult[]>([]);
+  const [rankRunning, setRankRunning] = useState(false);
+  const [rankError, setRankError] = useState<string | null>(null);
 
   // Asset management (brands-style)
   const [showAddAsset, setShowAddAsset] = useState(false);
@@ -645,7 +663,7 @@ export default function ContentWorkflowDetailPage() {
   const [allBrands, setAllBrands] = useState<Brand[]>([]);
 
   const isFDM = isTeamMember;
-  const isActive = workflow && ['running', 'waiting_approval', 'pending'].includes(workflow.status);
+  const isActive = workflow && workflow.status === 'running';
 
   // Detect user role
   useEffect(() => {
@@ -751,8 +769,9 @@ export default function ContentWorkflowDetailPage() {
         getContentWorkflow(workflowId),
         getContentNodes(workflowId),
       ]);
-      setWorkflow(wf);
-      setNodes(nodeList);
+      // Only update state when data actually changed to avoid re-rendering videos
+      setWorkflow((prev) => JSON.stringify(prev) === JSON.stringify(wf) ? prev : wf);
+      setNodes((prev) => JSON.stringify(prev) === JSON.stringify(nodeList) ? prev : nodeList);
 
       // Init stage settings from workflow config (skip if a debounced save is pending)
       if (wf?.config?.stage_settings && !saveTimeoutRef.current) {
@@ -761,7 +780,7 @@ export default function ContentWorkflowDetailPage() {
         if (ss.video_generation) {
           ss.video_generation = { ...ss.video_generation, _generating_rows: [], _row_errors: {} };
         }
-        setStageSettings(ss);
+        setStageSettings((prev) => JSON.stringify(prev) === JSON.stringify(ss) ? prev : ss);
       }
 
       // Extract variations from video_generation node output
@@ -769,7 +788,7 @@ export default function ContentWorkflowDetailPage() {
       if (genNode?.output_data) {
         const raw = (genNode.output_data.variations || genNode.output_data.content || []) as ContentVariation[];
         if (Array.isArray(raw) && raw.length > 0) {
-          setVariations(raw.map((v, i) => ({
+          const nextVars = raw.map((v, i) => ({
             id: v.id || `var-${i}`,
             title: v.title || `Variation ${i + 1}`,
             preview: v.preview,
@@ -777,35 +796,57 @@ export default function ContentWorkflowDetailPage() {
             score: v.score,
             scheduled_at: v.scheduled_at,
             status: v.status || 'draft',
-          })));
+          }));
+          setVariations((prev) => JSON.stringify(prev) === JSON.stringify(nextVars) ? prev : nextVars);
         }
       }
 
       // Load video jobs
-      getVideoJobs(workflowId).then(setVideoJobs).catch(() => {});
+      getVideoJobs(workflowId).then((jobs) => setVideoJobs((prev) => JSON.stringify(prev) === JSON.stringify(jobs) ? prev : jobs)).catch(() => {});
 
       // Recover simulation results from node output_data
       const simNode = nodeList.find((n) => n.stage_key === 'simulation_testing');
       if (simNode?.output_data?.results) {
-        setSimResults(simNode.output_data.results as SimulationResult[]);
+        setSimResults((prev) => JSON.stringify(prev) === JSON.stringify(simNode.output_data.results) ? prev : simNode.output_data.results as SimulationResult[]);
       }
 
-      // Load brand context if available
+      // Recover predictive modeling results
+      const predNode = nodeList.find((n) => n.stage_key === 'predictive_modeling');
+      if (predNode?.output_data?.predictions) {
+        setPredResults((prev) => JSON.stringify(prev) === JSON.stringify(predNode.output_data.predictions) ? prev : predNode.output_data.predictions as PredictionResult[]);
+        if (predNode.output_data.benchmarks) {
+          setPredBenchmarks((prev) => JSON.stringify(prev) === JSON.stringify(predNode.output_data.benchmarks) ? prev : predNode.output_data.benchmarks as PredictionBenchmarks);
+        }
+      }
+
+      // Recover content ranking results
+      const rankNode = nodeList.find((n) => n.stage_key === 'content_ranking');
+      if (rankNode?.output_data?.rankings) {
+        setRankResults((prev) => JSON.stringify(prev) === JSON.stringify(rankNode.output_data.rankings) ? prev : rankNode.output_data.rankings as RankingResult[]);
+      }
+
+      // Load brand context if available (only on first load or when brand changes)
       if (wf?.brand_id) {
-        const campaignId = (wf.config as Record<string, unknown>)?.campaign_id as string | undefined;
-        const [brs, camps, assets, strats, pers] = await Promise.all([
-          getBrands(),
-          getCampaigns(wf.brand_id),
-          getBrandAssets(wf.brand_id),
-          campaignId ? getStrategies(campaignId) : Promise.resolve([]),
-          campaignId ? getPersonas(campaignId) : Promise.resolve([]),
-        ]);
-        const b = brs.find((br) => br._id === wf.brand_id) || null;
-        setBrand(b);
-        setCampaigns(camps);
-        setBrandAssets(assets);
-        setStrategies(strats);
-        setPersonas(pers);
+        setBrand((prevBrand) => {
+          if (prevBrand?._id === wf.brand_id) return prevBrand; // already loaded
+          // Kick off brand loading asynchronously
+          const campaignId = (wf.config as Record<string, unknown>)?.campaign_id as string | undefined;
+          Promise.all([
+            getBrands(),
+            getCampaigns(wf.brand_id),
+            getBrandAssets(wf.brand_id),
+            campaignId ? getStrategies(campaignId) : Promise.resolve([]),
+            campaignId ? getPersonas(campaignId) : Promise.resolve([]),
+          ]).then(([brs, camps, assets, strats, pers]) => {
+            const b = brs.find((br: Brand) => br._id === wf.brand_id) || null;
+            setBrand(b);
+            setCampaigns(camps);
+            setBrandAssets(assets);
+            setStrategies(strats);
+            setPersonas(pers);
+          }).catch(() => {});
+          return prevBrand;
+        });
       }
     } catch (err) {
       console.error('Failed to load content workflow:', err);
@@ -816,7 +857,7 @@ export default function ContentWorkflowDetailPage() {
 
   useEffect(() => {
     if (!isActive) return;
-    const interval = setInterval(loadWorkflow, 5000);
+    const interval = setInterval(loadWorkflow, 15000);
     return () => clearInterval(interval);
   }, [isActive, loadWorkflow]);
 
@@ -1446,7 +1487,7 @@ export default function ContentWorkflowDetailPage() {
         {tab === 'overview' && (() => {
           // Pre-compute shared data for inline sections
           const wfConfig = workflow.config as Record<string, unknown> | undefined;
-          const oGeneratedConcepts = (getSetting('concepts', 'generated_concepts') as Array<{ title: string; hook: string; script: string; messaging: string[]; tone?: string }>) || [];
+          const oGeneratedConcepts = ((getPieceSetting('concepts', 'generated_concepts') || getSetting('concepts', 'generated_concepts')) as Array<{ title: string; hook: string; script: string; messaging: string[]; tone?: string }>) || [];
           const oStoryboardNode = nodes.find((n) => n.stage_key === 'storyboard');
           const oStoryboardOutput = (oStoryboardNode?.output_data || {}) as { storyboards?: Array<Record<string, unknown>> };
           const oStoryboards = oStoryboardOutput.storyboards || [];
@@ -1512,7 +1553,7 @@ export default function ContentWorkflowDetailPage() {
                     await loadWorkflow();
                   }
                 } catch { clearInterval(poll); const cur = ((getSetting('video_generation', '_generating_rows') as number[]) || []).filter((r) => r !== idx); updateStageSetting('video_generation', '_generating_rows', cur); }
-              }, 3000);
+              }, 10000);
             } catch (err) {
               const cur = oVidGeneratingRows.filter((r) => r !== idx);
               updateStageSetting('video_generation', '_generating_rows', cur);
@@ -1522,10 +1563,10 @@ export default function ContentWorkflowDetailPage() {
 
           // Image gen rows
           type ImgGenRow = { conceptIdx: number; llm: string; imageModel: string };
-          const oImgRows = (getSetting('image_generation', 'rows') as ImgGenRow[]) || [{ conceptIdx: 0, llm: 'gemini-pro-3', imageModel: '' }];
+          const oImgRows = (getSetting('image_generation', 'rows') as ImgGenRow[]) || [{ conceptIdx: 0, llm: 'gemini-pro-3', imageModel: 'google/nano-banana' }];
           const updateImgRows = (next: ImgGenRow[]) => updateStageSetting('image_generation', 'rows', next);
           const updateImgRow = (idx: number, field: keyof ImgGenRow, value: string | number) => { const next = oImgRows.map((r, i) => i === idx ? { ...r, [field]: value } : r); updateImgRows(next); };
-          const addImgRow = () => updateImgRows([...oImgRows, { conceptIdx: 0, llm: 'gemini-pro-3', imageModel: '' }]);
+          const addImgRow = () => updateImgRows([...oImgRows, { conceptIdx: 0, llm: 'gemini-pro-3', imageModel: 'google/nano-banana' }]);
           const removeImgRow = (idx: number) => updateImgRows(oImgRows.filter((_, i) => i !== idx));
 
           // Storyboard handlers
@@ -1555,7 +1596,7 @@ export default function ContentWorkflowDetailPage() {
                   if (status.status === 'completed') { clearInterval(interval); pollingRef.current.delete(targetId); setGeneratingImages((prev) => { const next = new Set(prev); next.delete(targetId); return next; }); await loadWorkflow(); }
                   else if (status.status === 'failed') { clearInterval(interval); pollingRef.current.delete(targetId); setGeneratingImages((prev) => { const next = new Set(prev); next.delete(targetId); return next; }); setImageErrors((prev) => new Map(prev).set(targetId, (status.message as string) || (status.error as string) || 'Image generation failed')); }
                 } catch { clearInterval(interval); pollingRef.current.delete(targetId); setGeneratingImages((prev) => { const next = new Set(prev); next.delete(targetId); return next; }); }
-              }, 2000);
+              }, 5000);
               pollingRef.current.set(targetId, interval);
             } catch (err) {
               setImageErrors((prev) => new Map(prev).set(targetId, err instanceof Error ? err.message : 'Failed to start image generation'));
@@ -2268,6 +2309,15 @@ export default function ContentWorkflowDetailPage() {
                       );
                     })()}
 
+                    {/* ── Research ── */}
+                    {stage.key === 'research' && (
+                      <ResearchStagePanel
+                        workflowId={workflowId}
+                        getSetting={getSetting}
+                        updateStageSetting={updateStageSetting}
+                      />
+                    )}
+
                     {/* ── Concepts ── */}
                     {stage.key === 'concepts' && (() => {
                       if (!selectedContentPiece) {
@@ -2438,7 +2488,7 @@ export default function ContentWorkflowDetailPage() {
                                 <div key={idx} className="flex items-center gap-1">
                                   <Input type="number" min={1} max={50} className="h-7 w-[48px] text-xs shrink-0 px-2 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" placeholder="#" value={row.num} onChange={(e) => updateConceptRowO(idx, 'num', e.target.value)} />
                                   <span className="text-muted-foreground text-[10px] shrink-0">&times;</span>
-                                  <Combobox value={row.tone} onValueChange={(v) => updateConceptRowO(idx, 'tone', v)} placeholder="Tone" className="flex-1 min-w-0 h-7" options={[
+                                  <Combobox value={row.tone} onValueChange={(v) => updateConceptRowO(idx, 'tone', v)} placeholder="Tone" className="w-[140px] shrink-0 h-7" options={[
                                     { value: 'casual', label: 'Casual' }, { value: 'professional', label: 'Professional' }, { value: 'bold', label: 'Bold' },
                                     { value: 'playful', label: 'Playful' }, { value: 'luxury', label: 'Luxury' }, { value: 'witty', label: 'Witty' },
                                     { value: 'authoritative', label: 'Authoritative' }, { value: 'warm', label: 'Warm' }, { value: 'edgy', label: 'Edgy' }, { value: 'minimalist', label: 'Minimalist' },
@@ -2490,21 +2540,14 @@ export default function ContentWorkflowDetailPage() {
                           <div className="space-y-1.5">
                             {oImgRows.map((row, idx) => (
                               <div key={idx} className="flex items-end gap-1.5">
-                                <div className="flex-1 min-w-0">
+                                <div className="shrink-0">
                                   <div className="font-mono text-[8px] uppercase tracking-wider text-muted-foreground mb-0.5">Concept</div>
                                   <Select value={String(row.conceptIdx)} onValueChange={(v) => updateImgRow(idx, 'conceptIdx', Number(v))}>
-                                    <SelectTrigger className="h-7 text-xs"><SelectValue placeholder="Concept" /></SelectTrigger>
+                                    <SelectTrigger className="h-7 w-[280px] text-xs"><SelectValue placeholder="Concept" /></SelectTrigger>
                                     <SelectContent>
                                       {pieceConcepts.map((c, ci) => (<SelectItem key={ci} value={String(ci)}>{c.title}</SelectItem>))}
                                       {pieceConcepts.length === 0 && <SelectItem value="0" disabled>No concepts yet</SelectItem>}
                                     </SelectContent>
-                                  </Select>
-                                </div>
-                                <div className="shrink-0">
-                                  <div className="font-mono text-[8px] uppercase tracking-wider text-muted-foreground mb-0.5">LLM</div>
-                                  <Select value={row.llm} onValueChange={(v) => updateImgRow(idx, 'llm', v)}>
-                                    <SelectTrigger className="h-7 w-[140px] text-[10px]"><SelectValue placeholder="LLM" /></SelectTrigger>
-                                    <SelectContent><SelectItem value="gemini-pro-3">Gemini Pro 3</SelectItem><SelectItem value="claude-4.5-sonnet">Claude 4.5 Sonnet</SelectItem><SelectItem value="gpt-5.2">GPT-5.2</SelectItem></SelectContent>
                                   </Select>
                                 </div>
                                 <div className="shrink-0">
@@ -2519,8 +2562,44 @@ export default function ContentWorkflowDetailPage() {
                                 </div>
                                 <div className="shrink-0 flex flex-col justify-end">
                                   <div className="font-mono text-[8px] uppercase tracking-wider text-transparent mb-0.5 select-none">Go</div>
-                                  <button disabled={pieceConcepts.length === 0} className="h-7 w-7 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-30 disabled:cursor-not-allowed transition-colors" title="Generate">
-                                    <Bot className="h-3.5 w-3.5" />
+                                  <button
+                                    disabled={pieceConcepts.length === 0 || !row.imageModel}
+                                    onClick={async () => {
+                                      if (!row.imageModel || pieceConcepts.length === 0) return;
+                                      setImgGenLoading(prev => new Set(prev).add(idx));
+                                      try {
+                                        const { task_id } = await generateConceptImage(
+                                          workflowId,
+                                          row.conceptIdx,
+                                          row.imageModel,
+                                          undefined,
+                                          selectedContentPiece?.content_id,
+                                        );
+                                        // Poll until done
+                                        for (let p = 0; p < 120; p++) {
+                                          await new Promise(r => setTimeout(r, 3000));
+                                          try {
+                                            const st = await pollConceptImageStatus(workflowId, task_id);
+                                            if (st.status === 'completed') {
+                                              await loadWorkflow();
+                                              break;
+                                            }
+                                            if (st.status === 'failed') {
+                                              console.error('Image gen failed:', st.message);
+                                              break;
+                                            }
+                                          } catch { break; }
+                                        }
+                                      } catch (err) {
+                                        console.error('Image generation failed:', err);
+                                      } finally {
+                                        setImgGenLoading(prev => { const n = new Set(prev); n.delete(idx); return n; });
+                                      }
+                                    }}
+                                    className="h-7 w-7 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                                    title="Generate"
+                                  >
+                                    {imgGenLoading.has(idx) ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Bot className="h-3.5 w-3.5" />}
                                   </button>
                                 </div>
                                 {oImgRows.length > 1 && (
@@ -2530,6 +2609,26 @@ export default function ContentWorkflowDetailPage() {
                             ))}
                           </div>
                         </div>
+                        {/* Generated images gallery */}
+                        {(() => {
+                          const genImages = (getPieceSetting('image_generation', 'generated_images') as Array<{ concept_index: number; slide_index: number | null; image_url: string; image_model: string }>) || [];
+                          if (genImages.length === 0) return null;
+                          return (
+                            <div className="mt-3">
+                              <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground mb-1.5">Generated Images</div>
+                              <div className="grid grid-cols-3 gap-1.5">
+                                {genImages.map((img, gi) => (
+                                  <div key={gi} className="relative group">
+                                    <img src={img.image_url} alt={`Concept ${img.concept_index}`} className="w-full aspect-square rounded object-cover border border-border" />
+                                    <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-[8px] px-1 py-0.5 rounded-b opacity-0 group-hover:opacity-100 transition-opacity">
+                                      {pieceConcepts[img.concept_index]?.title?.slice(0, 20) || `Concept ${img.concept_index}`} · {img.image_model.split('/').pop()}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })()}
                         {pieceConcepts.length === 0 && <div className="text-center py-4 text-muted-foreground/50"><p className="text-xs">Generate concepts first in the Concepts stage</p></div>}
                       </>
                       );
@@ -2821,13 +2920,15 @@ export default function ContentWorkflowDetailPage() {
                                   const oOutputFmt = (getSetting('video_generation', 'output_format') as string) || 'reel_9_16';
                                   const oAspectMap: Record<string, string> = { 'reel_9_16': 'aspect-[9/16]', 'story_9_16': 'aspect-[9/16]', 'post_1_1': 'aspect-square', 'landscape_16_9': 'aspect-video' };
                                   const oVideoAspect = oAspectMap[oOutputFmt] || 'aspect-[9/16]';
+                                  const oGridCols = oVidScenes.length <= 2 ? `repeat(${oVidScenes.length}, minmax(0, 280px))` : `repeat(${oVidScenes.length}, 1fr)`;
                                   return (
-                                    <div>
-                                      <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground mb-1.5">Scenes</div>
-                                      <div className="grid gap-2 pb-1 items-stretch" style={{ gridTemplateColumns: oVidScenes.length <= 2 ? `repeat(${oVidScenes.length}, minmax(0, 280px))` : `repeat(${oVidScenes.length}, 1fr)` }}>
-                                        {oVidScenes.map((scene) => (
-                                          <div key={scene.id} className="flex flex-col gap-1.5 min-w-0">
-                                            <div className="rounded border border-border overflow-hidden flex flex-col flex-1">
+                                    <div className="space-y-3">
+                                      {/* Scenes row — storyboard images */}
+                                      <div>
+                                        <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground mb-1.5">Scenes</div>
+                                        <div className="grid gap-2 pb-1 items-stretch" style={{ gridTemplateColumns: oGridCols }}>
+                                          {oVidScenes.map((scene) => (
+                                            <div key={scene.id} className="rounded border border-border overflow-hidden flex flex-col">
                                               <div className={`${oVideoAspect} bg-muted relative shrink-0`}>
                                                 {scene.image_url ? (
                                                   // eslint-disable-next-line @next/next/no-img-element
@@ -2845,28 +2946,37 @@ export default function ContentWorkflowDetailPage() {
                                                 <p className="text-[7px] text-muted-foreground leading-relaxed line-clamp-2">{scene.description}</p>
                                               </div>
                                             </div>
-                                            {/* Generated videos for this scene */}
-                                            {taskIds.map((tid) => {
-                                              const batchVideos = sceneVars.filter((v) => v.task_id === tid);
-                                              const vid = batchVideos.find((v) => v.scene_number === scene.scene_number || v.id.includes(`-scene${scene.scene_number}-`));
-                                              const batchModel = batchVideos[0]?.model || '';
-                                              return (
-                                                <div key={tid} className="rounded border border-border overflow-hidden relative group/vid">
-                                                  {vid?.preview ? (
-                                                    <div className={`${oVideoAspect} bg-black relative`}>
-                                                      <video src={vid.preview} className="h-full w-full object-contain bg-black [&:fullscreen]:h-screen [&:fullscreen]:w-auto [&:fullscreen]:mx-auto" controls playsInline />
-                                                      <div className="absolute top-0.5 left-0.5"><span className="inline-flex items-center rounded-full bg-green-600/80 px-1 py-px font-mono text-[6px] text-white">{batchModel}</span></div>
-                                                      {vid.id && <button className="absolute top-0.5 right-0.5 h-4 w-4 rounded-full bg-black/60 text-white/70 hover:text-white hover:bg-red-600/80 opacity-0 group-hover/vid:opacity-100 transition-opacity flex items-center justify-center" onClick={() => deleteVideoVariation(workflowId, vid.id).then(() => loadWorkflow()).catch(() => {})}><X className="h-2.5 w-2.5" /></button>}
-                                                    </div>
-                                                  ) : (
-                                                    <div className={`${oVideoAspect} bg-muted/50 flex items-center justify-center`}><span className="font-mono text-[8px] text-muted-foreground/40">rendering...</span></div>
-                                                  )}
-                                                </div>
-                                              );
-                                            })}
-                                          </div>
-                                        ))}
+                                          ))}
+                                        </div>
                                       </div>
+
+                                      {/* Generated video rows — one row per variation/task */}
+                                      {taskIds.map((tid) => {
+                                        const batchVideos = sceneVars.filter((v) => v.task_id === tid);
+                                        const batchModel = batchVideos[0]?.model || '?';
+                                        return (
+                                          <div key={tid}>
+                                            <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground mb-1.5">{batchModel}</div>
+                                            <div className="grid gap-2 items-stretch" style={{ gridTemplateColumns: oGridCols }}>
+                                              {oVidScenes.map((scene) => {
+                                                const vid = batchVideos.find((v) => v.scene_number === scene.scene_number || v.id.includes(`-scene${scene.scene_number}-`));
+                                                return (
+                                                  <div key={scene.id} className="rounded border border-border overflow-hidden relative group/vid">
+                                                    {vid?.preview ? (
+                                                      <div className={`${oVideoAspect} bg-black`}>
+                                                        <video src={vid.preview} className="h-full w-full object-contain bg-black [&:fullscreen]:h-screen [&:fullscreen]:w-auto [&:fullscreen]:mx-auto" controls playsInline />
+                                                        {vid.id && <button className="absolute top-0.5 right-0.5 h-4 w-4 rounded-full bg-black/60 text-white/70 hover:text-white hover:bg-red-600/80 opacity-0 group-hover/vid:opacity-100 transition-opacity flex items-center justify-center" onClick={() => deleteVideoVariation(workflowId, vid.id).then(() => loadWorkflow()).catch(() => {})}><X className="h-2.5 w-2.5" /></button>}
+                                                      </div>
+                                                    ) : (
+                                                      <div className={`${oVideoAspect} bg-muted/50 flex items-center justify-center`}><span className="font-mono text-[8px] text-muted-foreground/40">rendering...</span></div>
+                                                    )}
+                                                  </div>
+                                                );
+                                              })}
+                                            </div>
+                                          </div>
+                                        );
+                                      })}
                                     </div>
                                   );
                                 })()}
@@ -3014,19 +3124,20 @@ export default function ContentWorkflowDetailPage() {
                       if (!selectedContentPiece) {
                         return <div className="text-center py-8 text-muted-foreground/50"><CalendarClock className="h-8 w-8 mx-auto mb-2 opacity-30" /><p className="text-xs">Select a content piece from the calendar first</p></div>;
                       }
-                      type SimTest = { id: string; persona_ids: string[]; genders: string[]; ages: string[]; llm: string; results?: SimulationResult[]; error?: string; running?: boolean };
+                      type SimTest = { id: string; persona_ids: string[]; genders: string[]; ages: string[]; llm: string; video_ids: string[]; results?: SimulationResult[]; error?: string; running?: boolean };
                       const simNode = nodes.find((n) => n.stage_key === 'simulation_testing');
                       const savedTests = ((simNode?.output_data?.tests || []) as SimTest[]);
-                      const tests = ((getSetting('simulation_testing', 'tests') as SimTest[]) || savedTests);
+                      const tests = ((getSetting('simulation_testing', 'tests') as SimTest[]) || savedTests).map((t: SimTest) => ({ ...t, video_ids: t.video_ids || [] }));
 
-                      // Get video preview
+                      // Get full videos for selection (stitched + video types, not individual scenes)
                       const vidNode = nodes.find((n) => n.stage_key === 'video_generation');
-                      const allVars = (vidNode?.output_data?.variations || []) as Array<{ id: string; preview?: string; type: string }>;
-                      const firstVideo = allVars.find((v) => v.preview && (v.type === 'video' || v.type === 'stitched'));
+                      const allVars = (vidNode?.output_data?.variations || []) as Array<{ id: string; title?: string; preview?: string; type: string; model?: string; scene_number?: number; task_id?: string }>;
+                      const stitchedVars = allVars.filter((v) => v.preview && (v.type === 'stitched' || v.type === 'video'));
+                      const firstVideo = stitchedVars[0];
 
                       const updateTests = (next: SimTest[]) => updateStageSetting('simulation_testing', 'tests', next);
                       const addTest = () => {
-                        const newTest: SimTest = { id: `t${Date.now()}`, persona_ids: [], genders: ['Male', 'Female'], ages: ['18-24', '25-34'], llm: 'gemini-pro-3' };
+                        const newTest: SimTest = { id: `t${Date.now()}`, persona_ids: [], genders: ['Male', 'Female'], ages: ['18-24', '25-34'], llm: 'gemini-pro-3', video_ids: [] };
                         updateTests([...tests, newTest]);
                       };
                       const removeTest = (id: string) => updateTests(tests.filter((t) => t.id !== id));
@@ -3052,6 +3163,7 @@ export default function ContentWorkflowDetailPage() {
                             model_provider: '',
                             model_name: test.llm,
                             persona_ids: test.persona_ids.length > 0 ? test.persona_ids : undefined,
+                            video_ids: test.video_ids.length > 0 ? test.video_ids : undefined,
                           });
                           updateTests(tests.map((t) => t.id === testId ? { ...t, results: res.results, running: false } : t));
                           loadWorkflow();
@@ -3158,6 +3270,31 @@ export default function ContentWorkflowDetailPage() {
                                       </div>
                                     </div>
 
+                                    {/* Video selection — stitched videos only */}
+                                    {stitchedVars.length > 0 && (
+                                      <div className="space-y-1.5">
+                                        <div className="font-mono text-[8px] uppercase tracking-wider text-muted-foreground">
+                                          Videos {test.video_ids.length === 0 ? <span className="text-muted-foreground/40 normal-case">(all)</span> : <span className="text-muted-foreground/40 normal-case">({test.video_ids.length} selected)</span>}
+                                        </div>
+                                        <div className="flex flex-wrap gap-1.5">
+                                          <button
+                                            className={`inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-mono transition-colors ${test.video_ids.length === 0 ? 'bg-foreground text-background' : 'bg-muted text-muted-foreground hover:bg-muted/80'}`}
+                                            onClick={() => updateTest(test.id, 'video_ids', [])}
+                                          >All</button>
+                                          {stitchedVars.map((v) => (
+                                            <button
+                                              key={v.id}
+                                              className={`inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-mono transition-colors ${test.video_ids.includes(v.id) ? 'bg-foreground text-background' : 'bg-muted text-muted-foreground hover:bg-muted/80'}`}
+                                              onClick={() => {
+                                                const next = test.video_ids.includes(v.id) ? test.video_ids.filter((id) => id !== v.id) : [...test.video_ids, v.id];
+                                                updateTest(test.id, 'video_ids', next);
+                                              }}
+                                            >{v.title || `Stitched — ${v.model || '?'}`}</button>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    )}
+
                                     {/* Run row */}
                                     <div className="flex items-center gap-3">
                                       <Button size="sm" className="h-7 font-mono text-[10px] uppercase tracking-wider" disabled={test.running || test.genders.length === 0 || test.ages.length === 0} onClick={() => runTest(test.id)}>
@@ -3170,49 +3307,67 @@ export default function ContentWorkflowDetailPage() {
                                       {test.error && <span className="text-[10px] text-destructive">{test.error}</span>}
                                     </div>
 
-                                    {/* Results — 2 cols: video (left) + score cards (right) */}
+                                    {/* Results — grouped by video */}
                                     {tResults.length > 0 && (() => {
-                                      const selectedResult = expandedScoreKey ? tResults.find((r) => `${test.id}-${r.gender}-${r.age}` === expandedScoreKey) : null;
+                                      // Group results by video_id
+                                      const videoIds = [...new Set(tResults.map((r) => r.video_id || 'all'))];
                                       return (
-                                        <div className="grid gap-4" style={{ gridTemplateColumns: '1fr 2fr' }}>
-                                          {/* Left col — video */}
-                                          <div className="rounded-lg overflow-hidden bg-black sticky top-4" style={{ height: '80vh' }}>
-                                            <div className="relative h-full">
-                                              {firstVideo?.preview ? (
-                                                <video src={firstVideo.preview} className="w-full h-full object-contain" controls playsInline />
-                                              ) : (
-                                                <div className="flex items-center justify-center h-full"><Film className="h-8 w-8 text-white/20" /></div>
-                                              )}
-                                              {selectedResult && (
-                                                <div className="absolute top-3 right-3">
-                                                  <div className="rounded-full bg-black/70 backdrop-blur-sm p-1">
-                                                    <CircleScore score={selectedResult.score} size={80} />
+                                        <div className="space-y-6">
+                                          {videoIds.map((vidId) => {
+                                            const vidResults = tResults.filter((r) => (r.video_id || 'all') === vidId);
+                                            const vidTitle = vidResults[0]?.video_title || 'All Content';
+                                            const vidVar = allVars.find((v) => v.id === vidId);
+                                            const avgScore = Math.round(vidResults.reduce((s, r) => s + r.score, 0) / vidResults.length);
+                                            const selectedResult = expandedScoreKey ? vidResults.find((r) => `${test.id}-${vidId}-${r.gender}-${r.age}` === expandedScoreKey) : null;
+                                            return (
+                                              <div key={vidId}>
+                                                {/* Video header */}
+                                                <div className="flex items-center gap-2 mb-2">
+                                                  <span className="font-mono text-[10px] font-semibold">{vidTitle}</span>
+                                                  <span className="inline-flex items-center rounded-full bg-muted px-1.5 py-0.5 font-mono text-[8px] text-muted-foreground">avg {avgScore}</span>
+                                                </div>
+                                                <div className="grid gap-4" style={{ gridTemplateColumns: '1fr 2fr' }}>
+                                                  {/* Left col — video */}
+                                                  <div className="rounded-lg overflow-hidden bg-black sticky top-4" style={{ maxHeight: '60vh' }}>
+                                                    <div className="relative h-full">
+                                                      {vidVar?.preview ? (
+                                                        <video src={vidVar.preview} className="w-full h-full object-contain" controls playsInline />
+                                                      ) : (
+                                                        <div className="flex items-center justify-center h-full py-20"><Film className="h-8 w-8 text-white/20" /></div>
+                                                      )}
+                                                      {selectedResult && (
+                                                        <div className="absolute top-3 right-3">
+                                                          <div className="rounded-full bg-black/70 backdrop-blur-sm p-1">
+                                                            <CircleScore score={selectedResult.score} size={80} />
+                                                          </div>
+                                                        </div>
+                                                      )}
+                                                    </div>
+                                                  </div>
+                                                  {/* Right col — score cards */}
+                                                  <div className="flex flex-col gap-1.5">
+                                                    {[...vidResults].sort((a, b) => {
+                                                      const ageOrder = SIM_AGE_RANGES.indexOf(a.age) - SIM_AGE_RANGES.indexOf(b.age);
+                                                      return ageOrder !== 0 ? ageOrder : a.gender.localeCompare(b.gender);
+                                                    }).map((result) => {
+                                                      const cardKey = `${test.id}-${vidId}-${result.gender}-${result.age}`;
+                                                      const isActive = expandedScoreKey === cardKey;
+                                                      const scoreColor = result.score >= 75 ? 'border-l-green-500' : result.score >= 50 ? 'border-l-yellow-500' : result.score >= 25 ? 'border-l-orange-500' : 'border-l-red-500';
+                                                      return (
+                                                        <button key={cardKey} onClick={() => setExpandedScoreKey(isActive ? null : cardKey)} className={`w-full text-left rounded-lg border border-l-[3px] ${scoreColor} px-4 py-2.5 transition-colors flex items-center ${isActive ? 'border-foreground bg-muted/50' : 'border-border hover:bg-muted/30'}`}>
+                                                          <div className="grid items-center gap-4 w-full" style={{ gridTemplateColumns: 'auto auto 1fr' }}>
+                                                            <CircleScore score={result.score} />
+                                                            <div className="font-mono text-sm font-semibold whitespace-nowrap">{result.gender}, {result.age}</div>
+                                                            <p className="text-sm text-muted-foreground/70 leading-relaxed line-clamp-2">{result.reasoning}</p>
+                                                          </div>
+                                                        </button>
+                                                      );
+                                                    })}
                                                   </div>
                                                 </div>
-                                              )}
-                                            </div>
-                                          </div>
-
-                                          {/* Right col — score cards, evenly distributed to match video height */}
-                                          <div className="flex flex-col gap-1.5" style={{ height: '80vh' }}>
-                                            {[...tResults].sort((a, b) => {
-                                              const ageOrder = SIM_AGE_RANGES.indexOf(a.age) - SIM_AGE_RANGES.indexOf(b.age);
-                                              return ageOrder !== 0 ? ageOrder : a.gender.localeCompare(b.gender);
-                                            }).map((result) => {
-                                              const cardKey = `${test.id}-${result.gender}-${result.age}`;
-                                              const isActive = expandedScoreKey === cardKey;
-                                              const scoreColor = result.score >= 75 ? 'border-l-green-500' : result.score >= 50 ? 'border-l-yellow-500' : result.score >= 25 ? 'border-l-orange-500' : 'border-l-red-500';
-                                              return (
-                                                <button key={cardKey} onClick={() => setExpandedScoreKey(isActive ? null : cardKey)} className={`w-full flex-1 min-h-0 text-left rounded-lg border border-l-[3px] ${scoreColor} px-4 transition-colors flex items-center ${isActive ? 'border-foreground bg-muted/50' : 'border-border hover:bg-muted/30'}`}>
-                                                  <div className="grid items-center gap-4 w-full" style={{ gridTemplateColumns: 'auto auto 1fr' }}>
-                                                    <CircleScore score={result.score} />
-                                                    <div className="font-mono text-sm font-semibold whitespace-nowrap">{result.gender}, {result.age}</div>
-                                                    <p className="text-sm text-muted-foreground/70 leading-relaxed line-clamp-2">{result.reasoning}</p>
-                                                  </div>
-                                                </button>
-                                              );
-                                            })}
-                                          </div>
+                                              </div>
+                                            );
+                                          })}
                                         </div>
                                       );
                                     })()}
@@ -3225,8 +3380,335 @@ export default function ContentWorkflowDetailPage() {
                       );
                     })()}
 
+                    {/* ── Predictive Modeling ── */}
+                    {stage.key === 'predictive_modeling' && (() => {
+                      const vidNode = nodes.find((n) => n.stage_key === 'video_generation');
+                      const allVars = (vidNode?.output_data?.variations || []) as Array<{ id: string; title?: string; preview?: string; type: string; model?: string }>;
+                      const stitchedVars = allVars.filter((v) => v.preview && (v.type === 'stitched' || v.type === 'video'));
+                      const predLlm = (getSetting('predictive_modeling', 'llm') as string) || 'gemini-pro-3';
+                      const predVideoIds = ((getSetting('predictive_modeling', 'video_ids') as string[]) || []);
+
+                      const fmtNum = (n: number) => n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)}M` : n >= 1_000 ? `${(n / 1_000).toFixed(1)}K` : String(n);
+
+                      const handleRunPredInline = async () => {
+                        setPredRunning(true);
+                        setPredError(null);
+                        try {
+                          const res = await runPredictiveModeling(workflowId, predLlm, predVideoIds.length > 0 ? predVideoIds : undefined);
+                          setPredResults(res.predictions);
+                          setPredBenchmarks(res.benchmarks);
+                          loadWorkflow();
+                        } catch (err) {
+                          setPredError(err instanceof Error ? err.message : 'Prediction failed');
+                        } finally {
+                          setPredRunning(false);
+                        }
+                      };
+
+                      return (
+                        <div className="space-y-6">
+                          {/* Controls */}
+                          <div className="rounded-lg border border-border p-4 bg-muted/20 space-y-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                              <div className="space-y-1.5">
+                                <div className="font-mono text-[8px] uppercase tracking-wider text-muted-foreground">LLM Model</div>
+                                <Select value={predLlm} onValueChange={(v) => updateStageSetting('predictive_modeling', 'llm', v)}>
+                                  <SelectTrigger className="h-7 text-[10px]"><SelectValue /></SelectTrigger>
+                                  <SelectContent>
+                                    {SIM_LLM_MODELS.map((m) => (
+                                      <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              {stitchedVars.length > 0 && (
+                                <div className="space-y-1.5">
+                                  <div className="font-mono text-[8px] uppercase tracking-wider text-muted-foreground">
+                                    Videos {predVideoIds.length === 0 ? <span className="text-muted-foreground/40 normal-case">(all)</span> : <span className="text-muted-foreground/40 normal-case">({predVideoIds.length} selected)</span>}
+                                  </div>
+                                  <div className="flex flex-wrap gap-1.5">
+                                    <button
+                                      className={`inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-mono transition-colors ${predVideoIds.length === 0 ? 'bg-foreground text-background' : 'bg-muted text-muted-foreground hover:bg-muted/80'}`}
+                                      onClick={() => updateStageSetting('predictive_modeling', 'video_ids', [])}
+                                    >All</button>
+                                    {stitchedVars.map((v) => (
+                                      <button
+                                        key={v.id}
+                                        className={`inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-mono transition-colors ${predVideoIds.includes(v.id) ? 'bg-foreground text-background' : 'bg-muted text-muted-foreground hover:bg-muted/80'}`}
+                                        onClick={() => {
+                                          const next = predVideoIds.includes(v.id) ? predVideoIds.filter((id) => id !== v.id) : [...predVideoIds, v.id];
+                                          updateStageSetting('predictive_modeling', 'video_ids', next);
+                                        }}
+                                      >{v.title || `Stitched — ${v.model || '?'}`}</button>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <Button size="sm" className="h-7 font-mono text-[10px] uppercase tracking-wider" disabled={predRunning || stitchedVars.length === 0} onClick={handleRunPredInline}>
+                                {predRunning ? <><Loader2 className="h-3 w-3 animate-spin mr-1.5" />Predicting...</> : <><BarChart2 className="h-3 w-3 mr-1.5" />Run Prediction</>}
+                              </Button>
+                              {predError && <span className="text-[10px] text-destructive">{predError}</span>}
+                            </div>
+                          </div>
+
+                          {/* Benchmarks bar */}
+                          {predBenchmarks.brand && (
+                            <div className="rounded-lg border border-border p-4 bg-muted/20">
+                              <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground mb-3">Brand Benchmarks (from research)</div>
+                              <div className="grid grid-cols-4 gap-4">
+                                <div><div className="text-lg font-bold font-mono">{fmtNum(predBenchmarks.brand.followers)}</div><div className="text-[10px] text-muted-foreground">Followers</div></div>
+                                <div><div className="text-lg font-bold font-mono">{fmtNum(predBenchmarks.brand.avg_views)}</div><div className="text-[10px] text-muted-foreground">Avg Views</div></div>
+                                <div><div className="text-lg font-bold font-mono">{fmtNum(predBenchmarks.brand.avg_likes)}</div><div className="text-[10px] text-muted-foreground">Avg Likes</div></div>
+                                <div><div className="text-lg font-bold font-mono">{predBenchmarks.brand.engagement_rate}%</div><div className="text-[10px] text-muted-foreground">Engagement</div></div>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Prediction cards per video */}
+                          {predResults.length > 0 && (
+                            <div className="space-y-4">
+                              {predResults.map((pred) => {
+                                const vidVar = stitchedVars.find((v) => v.id === pred.video_id);
+                                const brandBench = predBenchmarks.brand;
+                                const viewsVsBench = brandBench ? Math.round((pred.expected_views / (brandBench.avg_views || 1) - 1) * 100) : null;
+                                const likesVsBench = brandBench ? Math.round((pred.expected_likes / (brandBench.avg_likes || 1) - 1) * 100) : null;
+                                return (
+                                  <div key={pred.video_id} className="rounded-lg border border-border overflow-hidden">
+                                    <div className="flex items-center justify-between px-4 py-2.5 bg-muted/30 border-b border-border">
+                                      <span className="font-mono text-[10px] font-semibold">{pred.video_title}</span>
+                                      <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 font-mono text-[8px]">
+                                        confidence {Math.round(pred.confidence * 100)}%
+                                      </span>
+                                    </div>
+                                    <div className="grid gap-4 p-4" style={{ gridTemplateColumns: vidVar?.preview ? '1fr 2fr' : '1fr' }}>
+                                      {vidVar?.preview && (
+                                        <div className="rounded-lg overflow-hidden bg-black">
+                                          <video src={vidVar.preview} className="w-full h-full object-contain" controls playsInline style={{ maxHeight: '300px' }} />
+                                        </div>
+                                      )}
+                                      <div className="space-y-4">
+                                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                          <div className="rounded-lg border border-border p-3 text-center">
+                                            <div className="text-lg font-bold font-mono">{fmtNum(pred.expected_views)}</div>
+                                            <div className="text-[10px] text-muted-foreground">Expected Views</div>
+                                            {viewsVsBench !== null && <div className={`text-[9px] font-mono ${viewsVsBench >= 0 ? 'text-green-500' : 'text-red-500'}`}>{viewsVsBench >= 0 ? '+' : ''}{viewsVsBench}% vs bench</div>}
+                                          </div>
+                                          <div className="rounded-lg border border-border p-3 text-center">
+                                            <div className="text-lg font-bold font-mono">{fmtNum(pred.expected_likes)}</div>
+                                            <div className="text-[10px] text-muted-foreground">Expected Likes</div>
+                                            {likesVsBench !== null && <div className={`text-[9px] font-mono ${likesVsBench >= 0 ? 'text-green-500' : 'text-red-500'}`}>{likesVsBench >= 0 ? '+' : ''}{likesVsBench}% vs bench</div>}
+                                          </div>
+                                          <div className="rounded-lg border border-border p-3 text-center">
+                                            <div className="text-lg font-bold font-mono">{fmtNum(pred.expected_comments)}</div>
+                                            <div className="text-[10px] text-muted-foreground">Expected Comments</div>
+                                          </div>
+                                          <div className="rounded-lg border border-border p-3 text-center">
+                                            <div className="text-lg font-bold font-mono">{pred.engagement_rate}%</div>
+                                            <div className="text-[10px] text-muted-foreground">Engagement Rate</div>
+                                          </div>
+                                        </div>
+                                        <p className="text-sm text-muted-foreground leading-relaxed">{pred.reasoning}</p>
+                                        <div className="grid grid-cols-2 gap-4">
+                                          {pred.strengths?.length > 0 && (
+                                            <div>
+                                              <div className="font-mono text-[8px] uppercase tracking-wider text-green-500 mb-1">Strengths</div>
+                                              <ul className="space-y-1">
+                                                {pred.strengths.map((s, i) => <li key={i} className="text-xs text-muted-foreground flex items-start gap-1.5"><CheckCircle2 className="h-3 w-3 text-green-500 mt-0.5 shrink-0" />{s}</li>)}
+                                              </ul>
+                                            </div>
+                                          )}
+                                          {pred.risks?.length > 0 && (
+                                            <div>
+                                              <div className="font-mono text-[8px] uppercase tracking-wider text-orange-500 mb-1">Risks</div>
+                                              <ul className="space-y-1">
+                                                {pred.risks.map((r, i) => <li key={i} className="text-xs text-muted-foreground flex items-start gap-1.5"><XCircle className="h-3 w-3 text-orange-500 mt-0.5 shrink-0" />{r}</li>)}
+                                              </ul>
+                                            </div>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
+
+                    {/* ── Content Ranking ── */}
+                    {stage.key === 'content_ranking' && (() => {
+                      const vidNode = nodes.find((n) => n.stage_key === 'video_generation');
+                      const allVars = (vidNode?.output_data?.variations || []) as Array<{ id: string; title?: string; preview?: string; type: string; model?: string }>;
+                      const stitchedVars = allVars.filter((v) => v.preview && (v.type === 'stitched' || v.type === 'video'));
+                      const fmtNum = (n: number) => n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)}M` : n >= 1_000 ? `${(n / 1_000).toFixed(1)}K` : String(n);
+
+                      const handleRunRankInline = async () => {
+                        setRankRunning(true);
+                        setRankError(null);
+                        try {
+                          const res = await runContentRanking(workflowId, 0.4, 0.6);
+                          setRankResults(res.rankings);
+                          loadWorkflow();
+                        } catch (err) {
+                          setRankError(err instanceof Error ? err.message : 'Ranking failed');
+                        } finally {
+                          setRankRunning(false);
+                        }
+                      };
+
+                      return (
+                        <div className="space-y-6">
+                          {/* Controls */}
+                          <div className="rounded-lg border border-border p-4 bg-muted/20 space-y-4">
+                            <div className="flex items-center gap-3">
+                              <Button size="sm" className="h-7 font-mono text-[10px] uppercase tracking-wider" disabled={rankRunning || predResults.length === 0} onClick={handleRunRankInline}>
+                                {rankRunning ? <><Loader2 className="h-3 w-3 animate-spin mr-1.5" />Ranking...</> : <><Layers className="h-3 w-3 mr-1.5" />Rank Content</>}
+                              </Button>
+                              {predResults.length === 0 && <span className="text-[10px] text-muted-foreground/60">Run Predictive Modeling first</span>}
+                              {rankError && <span className="text-[10px] text-destructive">{rankError}</span>}
+                            </div>
+                          </div>
+
+                          {/* Ranked results */}
+                          {rankResults.length > 0 && (
+                            <div className="space-y-4">
+                              {rankResults.map((r) => {
+                                const vidVar = stitchedVars.find((v) => v.id === r.video_id);
+                                const isFirst = r.rank === 1;
+                                return (
+                                  <div key={r.video_id} className={`rounded-lg border overflow-hidden ${isFirst ? 'border-green-500/60 ring-1 ring-green-500/20' : 'border-border'}`}>
+                                    <div className={`flex items-center justify-between px-4 py-2.5 border-b ${isFirst ? 'bg-green-500/10 border-green-500/20' : 'bg-muted/30 border-border'}`}>
+                                      <div className="flex items-center gap-3">
+                                        <span className={`inline-flex items-center justify-center w-6 h-6 rounded-full font-mono text-xs font-bold ${isFirst ? 'bg-green-500 text-white' : 'bg-muted text-muted-foreground'}`}>{r.rank}</span>
+                                        <span className="font-mono text-[10px] font-semibold">{r.video_title}</span>
+                                      </div>
+                                      <CircleScore score={Math.round(r.composite_score)} size={40} />
+                                    </div>
+                                    <div className="grid gap-4 p-4" style={{ gridTemplateColumns: vidVar?.preview ? 'auto 1fr' : '1fr' }}>
+                                      {vidVar?.preview && (
+                                        <div className="rounded-lg overflow-hidden bg-black w-32">
+                                          <video src={vidVar.preview} className="w-full h-full object-contain" controls playsInline style={{ maxHeight: '180px' }} />
+                                        </div>
+                                      )}
+                                      <div className="space-y-3">
+                                        <div className="grid grid-cols-3 gap-3">
+                                          <div className="rounded border border-border p-2 text-center">
+                                            <div className="text-sm font-bold font-mono">{r.composite_score}</div>
+                                            <div className="text-[9px] text-muted-foreground uppercase">Composite</div>
+                                          </div>
+                                          <div className="rounded border border-border p-2 text-center">
+                                            <div className="text-sm font-bold font-mono">{r.simulation_score}</div>
+                                            <div className="text-[9px] text-muted-foreground uppercase">Simulation</div>
+                                          </div>
+                                          <div className="rounded border border-border p-2 text-center">
+                                            <div className="text-sm font-bold font-mono">{r.prediction_score}</div>
+                                            <div className="text-[9px] text-muted-foreground uppercase">Prediction</div>
+                                          </div>
+                                        </div>
+                                        <div className="flex gap-4 text-xs text-muted-foreground">
+                                          <span><span className="font-mono font-medium text-foreground">{fmtNum(r.expected_views)}</span> views</span>
+                                          <span><span className="font-mono font-medium text-foreground">{fmtNum(r.expected_likes)}</span> likes</span>
+                                          <span><span className="font-mono font-medium text-foreground">{fmtNum(r.expected_comments)}</span> comments</span>
+                                          <span><span className="font-mono font-medium text-foreground">{r.engagement_rate}%</span> eng.</span>
+                                        </div>
+                                        <p className="text-xs text-muted-foreground/70 leading-relaxed">{r.reasoning}</p>
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
+
+                    {/* ── FDM Review ── */}
+                    {stage.key === 'fdm_review' && (() => {
+                      const checklist = (getSetting('fdm_review', 'checklist') as string[]) || [];
+                      const notes = (getSetting('fdm_review', 'notes') as string) || '';
+                      const items = ['Content quality approved', 'Compliance verified', 'Platform guidelines met', 'Copy reviewed', 'CTA effective'];
+                      const done = items.filter((i) => checklist.includes(i)).length;
+                      return (
+                        <div className="space-y-4">
+                          <div className="rounded-lg border border-border p-4 bg-muted/20 space-y-4">
+                            <div className="flex items-center justify-between">
+                              <div className="font-mono text-[8px] uppercase tracking-wider text-muted-foreground">Review Checklist</div>
+                              <span className="font-mono text-[9px] text-muted-foreground">{done}/{items.length}</span>
+                            </div>
+                            <div className="space-y-1.5">
+                              {items.map((item) => (
+                                <label key={item} className={`flex items-center gap-2.5 text-xs cursor-pointer rounded px-2 py-1.5 transition-colors ${checklist.includes(item) ? 'bg-green-500/10' : 'hover:bg-muted/50'}`}>
+                                  <input type="checkbox" className="rounded border-border" checked={checklist.includes(item)} onChange={() => toggleArrayItem('fdm_review', 'checklist', item)} />
+                                  <span className={checklist.includes(item) ? 'line-through text-muted-foreground/50' : ''}>{item}</span>
+                                </label>
+                              ))}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="font-mono text-[8px] uppercase tracking-wider text-muted-foreground mb-1.5">Reviewer Notes</div>
+                            <textarea placeholder="Add review notes..." rows={3} value={notes} onChange={(e) => updateStageSetting('fdm_review', 'notes', e.target.value)} className="w-full rounded-lg border border-border bg-background px-3 py-2 text-xs text-foreground resize-none" />
+                          </div>
+                          {done === items.length && (
+                            <div className="flex items-center gap-2 rounded-lg border border-green-500/30 bg-green-500/10 px-3 py-2">
+                              <CheckCircle2 className="h-4 w-4 text-green-500" />
+                              <span className="text-xs font-medium text-green-600">All checks passed</span>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
+
+                    {/* ── Brand QA ── */}
+                    {stage.key === 'brand_qa' && (() => {
+                      const checklist = (getSetting('brand_qa', 'checklist') as string[]) || [];
+                      const notes = (getSetting('brand_qa', 'notes') as string) || '';
+                      const items = ['Brand colors correct', 'Logo placement verified', 'Tone matches guidelines', 'No trademark issues', 'Safe for all audiences'];
+                      const done = items.filter((i) => checklist.includes(i)).length;
+                      return (
+                        <div className="space-y-4">
+                          <div className="rounded-lg border border-border p-4 bg-muted/20 space-y-4">
+                            <div className="flex items-center justify-between">
+                              <div className="font-mono text-[8px] uppercase tracking-wider text-muted-foreground">QA Checklist</div>
+                              <span className="font-mono text-[9px] text-muted-foreground">{done}/{items.length}</span>
+                            </div>
+                            <div className="space-y-1.5">
+                              {items.map((item) => (
+                                <label key={item} className={`flex items-center gap-2.5 text-xs cursor-pointer rounded px-2 py-1.5 transition-colors ${checklist.includes(item) ? 'bg-green-500/10' : 'hover:bg-muted/50'}`}>
+                                  <input type="checkbox" className="rounded border-border" checked={checklist.includes(item)} onChange={() => toggleArrayItem('brand_qa', 'checklist', item)} />
+                                  <span className={checklist.includes(item) ? 'line-through text-muted-foreground/50' : ''}>{item}</span>
+                                </label>
+                              ))}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="font-mono text-[8px] uppercase tracking-wider text-muted-foreground mb-1.5">QA Notes</div>
+                            <textarea placeholder="Add QA notes..." rows={3} value={notes} onChange={(e) => updateStageSetting('brand_qa', 'notes', e.target.value)} className="w-full rounded-lg border border-border bg-background px-3 py-2 text-xs text-foreground resize-none" />
+                          </div>
+                          {done === items.length && (
+                            <div className="flex items-center gap-2 rounded-lg border border-green-500/30 bg-green-500/10 px-3 py-2">
+                              <CheckCircle2 className="h-4 w-4 text-green-500" />
+                              <span className="text-xs font-medium text-green-600">All checks passed</span>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
+
                     </div>
-                    <div className="mt-6 border-b border-border" />
+
+                    {/* Regenerate with RL */}
+                    <div className="mt-6 flex justify-end">
+                      <Button variant="outline" size="sm" className="h-7 font-mono text-[10px] uppercase tracking-wider gap-1.5 text-muted-foreground hover:text-foreground">
+                        <RefreshCw className="h-3 w-3" /> Regenerate using Reinforcement Learning
+                      </Button>
+                    </div>
+
+                    <div className="mt-4 border-b border-border" />
                   </section>
                 );
               })}
@@ -3301,7 +3783,7 @@ export default function ContentWorkflowDetailPage() {
 
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setOpenStageKey(null)}>
-            <div className={`bg-background border border-border rounded-xl shadow-xl w-full mx-4 overflow-y-auto ${openStageKey === 'storyboard' || openStageKey === 'video_generation' ? 'max-w-[98vw] max-h-[90vh]' : 'max-w-lg max-h-[80vh]'}`} onClick={(e) => e.stopPropagation()}>
+            <div className={`bg-background border border-border rounded-xl shadow-xl w-full mx-4 overflow-y-auto ${openStageKey === 'storyboard' || openStageKey === 'video_generation' || openStageKey === 'research' ? 'max-w-[98vw] max-h-[90vh]' : 'max-w-lg max-h-[80vh]'}`} onClick={(e) => e.stopPropagation()}>
               {/* Header */}
               <div className="flex items-center justify-between px-5 py-4 border-b border-border">
                 <div className="flex items-center gap-2">
@@ -3927,27 +4409,11 @@ export default function ContentWorkflowDetailPage() {
 
                 {/* ── Research ── */}
                 {openStageKey === 'research' && (
-                  <>
-                    <div>
-                      <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground mb-1.5">Trend Keywords</div>
-                      <input type="text" placeholder="e.g. skincare, reels, summer" value={(getSetting('research', 'keywords') as string) || ''} onChange={(e) => updateStageSetting('research', 'keywords', e.target.value)} className="w-full h-8 rounded border border-border bg-background px-3 text-xs text-foreground" />
-                    </div>
-                    <div>
-                      <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground mb-1.5">Competitor URLs</div>
-                      <input type="text" placeholder="https://instagram.com/..." value={(getSetting('research', 'competitor_urls') as string) || ''} onChange={(e) => updateStageSetting('research', 'competitor_urls', e.target.value)} className="w-full h-8 rounded border border-border bg-background px-3 text-xs text-foreground" />
-                    </div>
-                    <div>
-                      <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground mb-1.5">LLM Model</div>
-                      <Select value={(getSetting('research', 'model') as string) || ''} onValueChange={(v) => updateStageSetting('research', 'model', v)}><SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select model" /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="claude-sonnet">Claude Sonnet</SelectItem>
-                          <SelectItem value="claude-opus">Claude Opus</SelectItem>
-                          <SelectItem value="gpt-4o">GPT-4o</SelectItem>
-                          <SelectItem value="gemini-pro">Gemini Pro</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </>
+                  <ResearchStagePanel
+                    workflowId={workflowId}
+                    getSetting={getSetting}
+                    updateStageSetting={updateStageSetting}
+                  />
                 )}
 
                 {/* ── Concepts ── */}
@@ -4113,15 +4579,41 @@ export default function ContentWorkflowDetailPage() {
                   }
                   const pieceConcepts = ((getPieceSetting('concepts', 'generated_concepts') as GeneratedConcept[]) || []) as GeneratedConcept[];
                   type ImgGenRow = { conceptIdx: number; llm: string; imageModel: string };
-                  const rows = (getSetting('image_generation', 'rows') as ImgGenRow[]) || [{ conceptIdx: 0, llm: 'gemini-pro-3', imageModel: '' }];
+                  const rows = (getSetting('image_generation', 'rows') as ImgGenRow[]) || [{ conceptIdx: 0, llm: 'gemini-pro-3', imageModel: 'google/nano-banana' }];
 
                   const updateRows = (next: ImgGenRow[]) => updateStageSetting('image_generation', 'rows', next);
                   const updateImgRow = (idx: number, field: keyof ImgGenRow, value: string | number) => {
                     const next = rows.map((r, i) => i === idx ? { ...r, [field]: value } : r);
                     updateRows(next);
                   };
-                  const addImgRow = () => updateRows([...rows, { conceptIdx: 0, llm: 'gemini-pro-3', imageModel: '' }]);
+                  const addImgRow = () => updateRows([...rows, { conceptIdx: 0, llm: 'gemini-pro-3', imageModel: 'google/nano-banana' }]);
                   const removeImgRow = (idx: number) => updateRows(rows.filter((_, i) => i !== idx));
+
+                  const handleGenerateImage = async (row: ImgGenRow, idx: number) => {
+                    if (!row.imageModel || pieceConcepts.length === 0) return;
+                    setImgGenLoading(prev => new Set(prev).add(idx));
+                    try {
+                      const { task_id } = await generateConceptImage(
+                        workflowId,
+                        row.conceptIdx,
+                        row.imageModel,
+                        undefined,
+                        selectedContentPiece?.content_id,
+                      );
+                      for (let p = 0; p < 120; p++) {
+                        await new Promise(r => setTimeout(r, 3000));
+                        try {
+                          const st = await pollConceptImageStatus(workflowId, task_id);
+                          if (st.status === 'completed') { await loadWorkflow(); break; }
+                          if (st.status === 'failed') { console.error('Image gen failed:', st.message); break; }
+                        } catch { break; }
+                      }
+                    } catch (err) {
+                      console.error('Image generation failed:', err);
+                    } finally {
+                      setImgGenLoading(prev => { const n = new Set(prev); n.delete(idx); return n; });
+                    }
+                  };
 
                   return (
                   <>
@@ -4133,26 +4625,15 @@ export default function ContentWorkflowDetailPage() {
                       <div className="space-y-1.5">
                         {rows.map((row, idx) => (
                           <div key={idx} className="flex items-end gap-1.5">
-                            <div className="flex-1 min-w-0">
+                            <div className="shrink-0">
                               <div className="font-mono text-[8px] uppercase tracking-wider text-muted-foreground mb-0.5">Concept</div>
                               <Select value={String(row.conceptIdx)} onValueChange={(v) => updateImgRow(idx, 'conceptIdx', Number(v))}>
-                                <SelectTrigger className="h-7 text-xs"><SelectValue placeholder="Concept" /></SelectTrigger>
+                                <SelectTrigger className="h-7 w-[280px] text-xs"><SelectValue placeholder="Concept" /></SelectTrigger>
                                 <SelectContent>
                                   {pieceConcepts.map((c, i) => (
                                     <SelectItem key={i} value={String(i)}>{c.title}</SelectItem>
                                   ))}
                                   {pieceConcepts.length === 0 && <SelectItem value="0" disabled>No concepts yet</SelectItem>}
-                                </SelectContent>
-                              </Select>
-                            </div>
-                            <div className="shrink-0">
-                              <div className="font-mono text-[8px] uppercase tracking-wider text-muted-foreground mb-0.5">LLM</div>
-                              <Select value={row.llm} onValueChange={(v) => updateImgRow(idx, 'llm', v)}>
-                                <SelectTrigger className="h-7 w-[140px] text-[10px]"><SelectValue placeholder="LLM" /></SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="gemini-pro-3">Gemini Pro 3</SelectItem>
-                                  <SelectItem value="claude-4.5-sonnet">Claude 4.5 Sonnet</SelectItem>
-                                  <SelectItem value="gpt-5.2">GPT-5.2</SelectItem>
                                 </SelectContent>
                               </Select>
                             </div>
@@ -4177,8 +4658,14 @@ export default function ContentWorkflowDetailPage() {
                             </div>
                             <div className="shrink-0 flex flex-col justify-end">
                               <div className="font-mono text-[8px] uppercase tracking-wider text-transparent mb-0.5 select-none">Go</div>
-                              <button disabled={pieceConcepts.length === 0} className="h-7 w-7 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-30 disabled:cursor-not-allowed transition-colors" title="Generate">
-                                <Bot className="h-3.5 w-3.5" />
+                              <button
+                                id={`img-gen-btn-${idx}`}
+                                disabled={pieceConcepts.length === 0 || !row.imageModel}
+                                onClick={() => handleGenerateImage(row, idx)}
+                                className="h-7 w-7 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                                title="Generate"
+                              >
+                                {imgGenLoading.has(idx) ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Bot className="h-3.5 w-3.5" />}
                               </button>
                             </div>
                             {rows.length > 1 && (
@@ -4188,6 +4675,27 @@ export default function ContentWorkflowDetailPage() {
                         ))}
                       </div>
                     </div>
+
+                    {/* Generated images gallery */}
+                    {(() => {
+                      const genImages = (getPieceSetting('image_generation', 'generated_images') as Array<{ concept_index: number; slide_index: number | null; image_url: string; image_model: string }>) || [];
+                      if (genImages.length === 0) return null;
+                      return (
+                        <div className="mt-4">
+                          <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground mb-2">Generated Images</div>
+                          <div className="grid grid-cols-4 gap-2">
+                            {genImages.map((img, gi) => (
+                              <div key={gi} className="relative group">
+                                <img src={img.image_url} alt={`Concept ${img.concept_index}`} className="w-full aspect-square rounded-md object-cover border border-border" />
+                                <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-[8px] px-1.5 py-0.5 rounded-b-md opacity-0 group-hover:opacity-100 transition-opacity">
+                                  {pieceConcepts[img.concept_index]?.title?.slice(0, 30) || `Concept ${img.concept_index}`} · {img.image_model.split('/').pop()}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })()}
 
                     {pieceConcepts.length === 0 && (
                       <div className="text-center py-8 text-muted-foreground/50">
@@ -4203,8 +4711,8 @@ export default function ContentWorkflowDetailPage() {
                   if (!selectedContentPiece) {
                     return <div className="text-center py-8 text-muted-foreground/50"><CalendarClock className="h-8 w-8 mx-auto mb-2 opacity-30" /><p className="text-xs">Select a content piece from the calendar first</p></div>;
                   }
-                  // Get concepts from stageSettings or node output
-                  const generatedConcepts = (getSetting('concepts', 'generated_concepts') as Array<{ title: string; hook: string; script: string; messaging: string[]; tone?: string }>) || [];
+                  // Get concepts from piece settings (per content piece) or fallback to top-level
+                  const generatedConcepts = ((getPieceSetting('concepts', 'generated_concepts') || getSetting('concepts', 'generated_concepts')) as Array<{ title: string; hook: string; script: string; messaging: string[]; tone?: string }>) || [];
                   // Get storyboard data from nodes
                   const storyboardNode = nodes.find((n) => n.stage_key === 'storyboard');
                   const storyboardOutput = (storyboardNode?.output_data || {}) as { storyboards?: Array<Record<string, unknown>> };
@@ -4267,7 +4775,7 @@ export default function ContentWorkflowDetailPage() {
                           pollingRef.current.delete(targetId);
                           setGeneratingImages((prev) => { const next = new Set(prev); next.delete(targetId); return next; });
                         }
-                      }, 2000);
+                      }, 5000);
                       pollingRef.current.set(targetId, interval);
                     } catch (err) {
                       const msg = err instanceof Error ? err.message : 'Failed to start image generation';
@@ -4691,7 +5199,7 @@ export default function ContentWorkflowDetailPage() {
                           const currentGenerating = ((getSetting('video_generation', '_generating_rows') as number[]) || []).filter((r) => r !== idx);
                           updateStageSetting('video_generation', '_generating_rows', currentGenerating);
                         }
-                      }, 3000);
+                      }, 10000);
                     } catch (err) {
                       const currentGenerating = vidGeneratingRows.filter((r) => r !== idx);
                       updateStageSetting('video_generation', '_generating_rows', currentGenerating);
@@ -4809,21 +5317,18 @@ export default function ContentWorkflowDetailPage() {
                               const allVariations = (vidNode?.output_data?.variations || []) as Array<{ id: string; title: string; preview?: string; type: string; task_id?: string; scene_number?: number; model?: string }>;
                               const sceneVariations = allVariations.filter((v) => v.type === 'scene');
                               const taskIds = [...new Set(sceneVariations.map((v) => v.task_id || '').filter(Boolean))].reverse();
-                              // Read aspect ratio from config
                               const outputFormat = (getSetting('video_generation', 'output_format') as string) || 'reel_9_16';
                               const aspectMap: Record<string, string> = { 'reel_9_16': 'aspect-[9/16]', 'story_9_16': 'aspect-[9/16]', 'post_1_1': 'aspect-square', 'landscape_16_9': 'aspect-video' };
                               const videoAspect = aspectMap[outputFormat] || 'aspect-[9/16]';
+                              const gridCols = sbScenes.length <= 2 ? `repeat(${sbScenes.length}, minmax(0, 280px))` : `repeat(${sbScenes.length}, 1fr)`;
                               return (
-                              <div>
-                                <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground mb-1.5">Scenes</div>
-                                <div
-                                  className="grid gap-2 pb-1 items-stretch"
-                                  style={{ gridTemplateColumns: sbScenes.length <= 2 ? `repeat(${sbScenes.length}, minmax(0, 280px))` : `repeat(${sbScenes.length}, 1fr)` }}
-                                >
-                                  {sbScenes.map((scene) => (
-                                    <div key={scene.id} className="flex flex-col gap-1.5 min-w-0">
-                                      {/* Scene image */}
-                                      <div className="rounded border border-border overflow-hidden flex flex-col flex-1">
+                              <div className="space-y-3">
+                                {/* Scenes row — storyboard images */}
+                                <div>
+                                  <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground mb-1.5">Scenes</div>
+                                  <div className="grid gap-2 items-stretch" style={{ gridTemplateColumns: gridCols }}>
+                                    {sbScenes.map((scene) => (
+                                      <div key={scene.id} className="rounded border border-border overflow-hidden flex flex-col">
                                         <div className={`${videoAspect} bg-muted relative shrink-0`}>
                                           {scene.image_url ? (
                                             // eslint-disable-next-line @next/next/no-img-element
@@ -4896,44 +5401,51 @@ export default function ContentWorkflowDetailPage() {
                                           )}
                                         </div>
                                       </div>
-                                      {/* Generated videos for this scene — one per batch */}
-                                      {taskIds.map((tid) => {
-                                        const batchVideos = sceneVariations.filter((v) => v.task_id === tid);
-                                        const vid = batchVideos.find((v) => v.scene_number === scene.scene_number || v.id.includes(`-scene${scene.scene_number}-`));
-                                        const batchModel = batchVideos[0]?.model || '';
-                                        return (
-                                          <div key={tid} className="rounded border border-border overflow-hidden relative group/vid">
-                                            {vid?.preview ? (
-                                              <div className={`${videoAspect} bg-black relative`}>
-                                                <video
-                                                  src={vid.preview}
-                                                  className="h-full w-full object-contain bg-black [&:fullscreen]:h-screen [&:fullscreen]:w-auto [&:fullscreen]:mx-auto"
-                                                  controls
-                                                  playsInline
-                                                />
-                                                <div className="absolute top-0.5 left-0.5">
-                                                  <span className="inline-flex items-center rounded-full bg-green-600/80 px-1 py-px font-mono text-[6px] text-white">{batchModel}</span>
-                                                </div>
-                                                {vid.id && (
-                                                  <button
-                                                    className="absolute top-0.5 right-0.5 h-4 w-4 rounded-full bg-black/60 text-white/70 hover:text-white hover:bg-red-600/80 opacity-0 group-hover/vid:opacity-100 transition-opacity flex items-center justify-center"
-                                                    onClick={() => deleteVideoVariation(workflowId, vid.id).then(() => loadWorkflow()).catch(() => {})}
-                                                  >
-                                                    <X className="h-2.5 w-2.5" />
-                                                  </button>
-                                                )}
-                                              </div>
-                                            ) : (
-                                              <div className={`${videoAspect} bg-muted/50 flex items-center justify-center`}>
-                                                <span className="font-mono text-[8px] text-muted-foreground/40">rendering...</span>
-                                              </div>
-                                            )}
-                                          </div>
-                                        );
-                                      })}
-                                    </div>
-                                  ))}
+                                    ))}
+                                  </div>
                                 </div>
+
+                                {/* Generated video rows — one row per variation/task */}
+                                {taskIds.map((tid) => {
+                                  const batchVideos = sceneVariations.filter((v) => v.task_id === tid);
+                                  const batchModel = batchVideos[0]?.model || '?';
+                                  return (
+                                    <div key={tid}>
+                                      <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground mb-1.5">{batchModel}</div>
+                                      <div className="grid gap-2 items-stretch" style={{ gridTemplateColumns: gridCols }}>
+                                        {sbScenes.map((scene) => {
+                                          const vid = batchVideos.find((v) => v.scene_number === scene.scene_number || v.id.includes(`-scene${scene.scene_number}-`));
+                                          return (
+                                            <div key={scene.id} className="rounded border border-border overflow-hidden relative group/vid">
+                                              {vid?.preview ? (
+                                                <div className={`${videoAspect} bg-black`}>
+                                                  <video
+                                                    src={vid.preview}
+                                                    className="h-full w-full object-contain bg-black [&:fullscreen]:h-screen [&:fullscreen]:w-auto [&:fullscreen]:mx-auto"
+                                                    controls
+                                                    playsInline
+                                                  />
+                                                  {vid.id && (
+                                                    <button
+                                                      className="absolute top-0.5 right-0.5 h-4 w-4 rounded-full bg-black/60 text-white/70 hover:text-white hover:bg-red-600/80 opacity-0 group-hover/vid:opacity-100 transition-opacity flex items-center justify-center"
+                                                      onClick={() => deleteVideoVariation(workflowId, vid.id).then(() => loadWorkflow()).catch(() => {})}
+                                                    >
+                                                      <X className="h-2.5 w-2.5" />
+                                                    </button>
+                                                  )}
+                                                </div>
+                                              ) : (
+                                                <div className={`${videoAspect} bg-muted/50 flex items-center justify-center`}>
+                                                  <span className="font-mono text-[8px] text-muted-foreground/40">rendering...</span>
+                                                </div>
+                                              )}
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
                               </div>
                               );
                             })()}
@@ -4954,38 +5466,82 @@ export default function ContentWorkflowDetailPage() {
                       </div>
                     )}
 
-                    {/* Generated Videos — stitched/full only */}
+                    {/* Generated Videos — grouped by job */}
                     {(() => {
                       const vidNode = nodes.find((n) => n.stage_key === 'video_generation');
-                      const vidVariations = ((vidNode?.output_data?.variations || []) as Array<{ id: string; title: string; preview?: string; type: string }>).filter((v) => v.type !== 'scene');
-                      if (vidVariations.length === 0) return null;
+                      const allVars = (vidNode?.output_data?.variations || []) as Array<{ id: string; title: string; preview?: string; type: string; task_id?: string; scene_number?: number; model?: string }>;
+                      if (allVars.length === 0) return null;
+
                       const fmt2 = (getSetting('video_generation', 'output_format') as string) || 'reel_9_16';
                       const fmtMap2: Record<string, string> = { 'reel_9_16': 'aspect-[9/16]', 'story_9_16': 'aspect-[9/16]', 'post_1_1': 'aspect-square', 'landscape_16_9': 'aspect-video' };
                       const vidAspect2 = fmtMap2[fmt2] || 'aspect-[9/16]';
+
+                      // Group by task_id (job)
+                      const jobIds = [...new Set(allVars.map(v => v.task_id || 'unknown').filter(Boolean))];
+                      // Get job metadata from videoJobs state
+                      const jobsData = (videoJobs || []) as Array<{ task_id: string; model: string; temperature?: number; status: string; scenes_total: number; scenes_done: number; scenes_failed: number }>;
+
                       return (
-                        <div className="mb-4 border-b border-border pb-4">
-                          <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Generated Videos</h4>
-                          <div className="flex flex-col gap-3">
-                            {vidVariations.map((v) => (
-                              <div key={v.id} className="rounded-lg border border-border overflow-hidden bg-muted relative group/gv2 max-w-sm">
-                                <video
-                                  src={v.preview}
-                                  className={`w-full ${vidAspect2} object-contain bg-black [&:fullscreen]:h-screen [&:fullscreen]:w-auto [&:fullscreen]:mx-auto`}
-                                  controls
-                                  playsInline
-                                />
-                                <button
-                                  className="absolute top-1 right-1 h-5 w-5 rounded-full bg-black/60 text-white/70 hover:text-white hover:bg-red-600/80 opacity-0 group-hover/gv2:opacity-100 transition-opacity flex items-center justify-center"
-                                  onClick={() => deleteVideoVariation(workflowId, v.id).then(() => loadWorkflow()).catch(() => {})}
-                                >
-                                  <X className="h-3 w-3" />
-                                </button>
-                                <div className="p-1.5">
-                                  <p className="text-[9px] font-medium truncate">{v.title}</p>
+                        <div className="space-y-4">
+                          {jobIds.map((jobId) => {
+                            const jobVars = allVars.filter(v => v.task_id === jobId);
+                            const sceneVars = jobVars.filter(v => v.type === 'scene').sort((a, b) => (a.scene_number || 0) - (b.scene_number || 0));
+                            const stitchedVars = jobVars.filter(v => v.type !== 'scene');
+                            const jobMeta = jobsData.find(j => j.task_id === jobId);
+                            const model = jobMeta?.model || jobVars[0]?.model || '?';
+                            const temp = jobMeta?.temperature != null ? jobMeta.temperature : '';
+                            const shortId = jobId.slice(0, 8);
+
+                            return (
+                              <div key={jobId} className="rounded-lg border border-border overflow-hidden">
+                                {/* Job header */}
+                                <div className="flex items-center gap-2 px-3 py-1.5 bg-muted/40 border-b border-border">
+                                  <span className="font-mono text-[10px] font-medium text-foreground">{model}</span>
+                                  {temp !== '' && <span className="font-mono text-[9px] text-muted-foreground">temp {temp}</span>}
+                                  <span className="font-mono text-[8px] text-muted-foreground/50">{shortId}</span>
+                                  {jobMeta && <span className="font-mono text-[8px] text-muted-foreground ml-auto">{jobMeta.scenes_done}/{jobMeta.scenes_total}{jobMeta.scenes_failed > 0 ? ` · ${jobMeta.scenes_failed}✗` : ''}</span>}
                                 </div>
+                                {/* Scene videos */}
+                                {sceneVars.length > 0 && (
+                                  <div className="grid gap-1 p-2" style={{ gridTemplateColumns: `repeat(${Math.min(sceneVars.length, 6)}, 1fr)` }}>
+                                    {sceneVars.map((v) => (
+                                      <div key={v.id} className="relative group/sv rounded overflow-hidden">
+                                        {v.preview ? (
+                                          <div className={`${vidAspect2} bg-black`}>
+                                            <video src={v.preview} className="h-full w-full object-contain bg-black" controls playsInline />
+                                          </div>
+                                        ) : (
+                                          <div className={`${vidAspect2} bg-muted/50 flex items-center justify-center`}>
+                                            <span className="font-mono text-[7px] text-muted-foreground/40">rendering...</span>
+                                          </div>
+                                        )}
+                                        <div className="absolute top-0.5 left-0.5"><span className="inline-flex items-center rounded-full bg-black/60 px-1 py-px font-mono text-[6px] text-white">S{v.scene_number}</span></div>
+                                        <button
+                                          className="absolute top-0.5 right-0.5 h-4 w-4 rounded-full bg-black/60 text-white/70 hover:text-white hover:bg-red-600/80 opacity-0 group-hover/sv:opacity-100 transition-opacity flex items-center justify-center"
+                                          onClick={() => deleteVideoVariation(workflowId, v.id).then(() => loadWorkflow()).catch(() => {})}
+                                        ><X className="h-2.5 w-2.5" /></button>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                                {/* Stitched/full videos */}
+                                {stitchedVars.length > 0 && (
+                                  <div className="p-2 border-t border-border space-y-2">
+                                    {stitchedVars.map((v) => (
+                                      <div key={v.id} className="relative group/fv rounded overflow-hidden max-w-sm">
+                                        <video src={v.preview} className={`w-full ${vidAspect2} object-contain bg-black`} controls playsInline />
+                                        <button
+                                          className="absolute top-1 right-1 h-5 w-5 rounded-full bg-black/60 text-white/70 hover:text-white hover:bg-red-600/80 opacity-0 group-hover/fv:opacity-100 transition-opacity flex items-center justify-center"
+                                          onClick={() => deleteVideoVariation(workflowId, v.id).then(() => loadWorkflow()).catch(() => {})}
+                                        ><X className="h-3 w-3" /></button>
+                                        <div className="p-1"><span className="text-[8px] font-medium">{v.title}</span></div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
                               </div>
-                            ))}
-                          </div>
+                            );
+                          })}
                         </div>
                       );
                     })()}
@@ -5177,7 +5733,13 @@ export default function ContentWorkflowDetailPage() {
                   const simAges = ((getSetting('simulation_testing', 'ages') as string[]) || ['18-24', '25-34']);
                   const simLlm = (getSetting('simulation_testing', 'llm') as string) || 'gemini-pro-3';
                   const simPersonaIds = ((getSetting('simulation_testing', 'persona_ids') as string[]) || []);
+                  const simVideoIds = ((getSetting('simulation_testing', 'video_ids') as string[]) || []);
                   const simCombos = simGenders.length * simAges.length;
+
+                  // Get stitched videos for selection
+                  const simVidNode = nodes.find((n) => n.stage_key === 'video_generation');
+                  const simAllVars = (simVidNode?.output_data?.variations || []) as Array<{ id: string; title?: string; preview?: string; type: string; model?: string; task_id?: string }>;
+                  const simStitchedVars = simAllVars.filter((v) => v.preview && (v.type === 'stitched' || v.type === 'video'));
 
                   const handleRunSim = async () => {
                     setSimRunning(true);
@@ -5189,6 +5751,7 @@ export default function ContentWorkflowDetailPage() {
                         model_provider: '',
                         model_name: simLlm,
                         persona_ids: simPersonaIds.length > 0 ? simPersonaIds : undefined,
+                        video_ids: simVideoIds.length > 0 ? simVideoIds : undefined,
                       });
                       setSimResults(res.results);
                       loadWorkflow();
@@ -5241,11 +5804,143 @@ export default function ContentWorkflowDetailPage() {
                           </SelectContent>
                         </Select>
                       </div>
+                      {/* Video selection — stitched videos only */}
+                      {simStitchedVars.length > 0 && (
+                        <div className="space-y-2">
+                          <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground">
+                            Videos {simVideoIds.length === 0 ? <span className="text-muted-foreground/40 normal-case">(all)</span> : <span className="text-muted-foreground/40 normal-case">({simVideoIds.length} selected)</span>}
+                          </div>
+                          <div className="flex flex-wrap gap-1.5">
+                            <button
+                              className={`inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-mono transition-colors ${simVideoIds.length === 0 ? 'bg-foreground text-background' : 'bg-muted text-muted-foreground hover:bg-muted/80'}`}
+                              onClick={() => updateStageSetting('simulation_testing', 'video_ids', [])}
+                            >All</button>
+                            {simStitchedVars.map((v) => (
+                              <button
+                                key={v.id}
+                                className={`inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-mono transition-colors ${simVideoIds.includes(v.id) ? 'bg-foreground text-background' : 'bg-muted text-muted-foreground hover:bg-muted/80'}`}
+                                onClick={() => {
+                                  const next = simVideoIds.includes(v.id) ? simVideoIds.filter((id: string) => id !== v.id) : [...simVideoIds, v.id];
+                                  updateStageSetting('simulation_testing', 'video_ids', next);
+                                }}
+                              >{v.title || `Stitched — ${v.model || '?'}`}</button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                       <div className="text-[10px] text-muted-foreground/60 font-mono">{simGenders.length} genders &times; {simAges.length} ages = {simCombos} combos</div>
                       <Button size="sm" className="w-full h-8 font-mono text-[10px] uppercase tracking-wider" disabled={simRunning || simGenders.length === 0 || simAges.length === 0 || !simLlm} onClick={handleRunSim}>
                         {simRunning ? <><Loader2 className="h-3 w-3 animate-spin mr-1.5" />Running...</> : <><BarChart2 className="h-3 w-3 mr-1.5" />Run Simulation</>}
                       </Button>
                       {simError && <p className="text-[10px] text-destructive">{simError}</p>}
+                    </>
+                  );
+                })()}
+
+                {/* ── Predictive Modeling ── */}
+                {openStageKey === 'predictive_modeling' && (() => {
+                  if (!selectedContentPiece) {
+                    return <div className="text-center py-8 text-muted-foreground/50"><CalendarClock className="h-8 w-8 mx-auto mb-2 opacity-30" /><p className="text-xs">Select a content piece from the calendar first</p></div>;
+                  }
+                  const predLlm = (getSetting('predictive_modeling', 'llm') as string) || 'gemini-pro-3';
+                  const predVideoIds = ((getSetting('predictive_modeling', 'video_ids') as string[]) || []);
+
+                  const predVidNode = nodes.find((n) => n.stage_key === 'video_generation');
+                  const predAllVars = (predVidNode?.output_data?.variations || []) as Array<{ id: string; title?: string; preview?: string; type: string; model?: string }>;
+                  const predStitchedVars = predAllVars.filter((v) => v.preview && (v.type === 'stitched' || v.type === 'video'));
+
+                  const handleRunPred = async () => {
+                    setPredRunning(true);
+                    setPredError(null);
+                    try {
+                      const res = await runPredictiveModeling(
+                        workflowId,
+                        predLlm,
+                        predVideoIds.length > 0 ? predVideoIds : undefined,
+                      );
+                      setPredResults(res.predictions);
+                      setPredBenchmarks(res.benchmarks);
+                      loadWorkflow();
+                    } catch (err) {
+                      setPredError(err instanceof Error ? err.message : 'Prediction failed');
+                    } finally {
+                      setPredRunning(false);
+                    }
+                  };
+
+                  return (
+                    <>
+                      <div>
+                        <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground mb-1.5">LLM</div>
+                        <Select value={predLlm} onValueChange={(v) => updateStageSetting('predictive_modeling', 'llm', v)}>
+                          <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {SIM_LLM_MODELS.map((m) => (
+                              <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      {/* Video selection */}
+                      {predStitchedVars.length > 0 && (
+                        <div className="space-y-2">
+                          <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground">
+                            Videos {predVideoIds.length === 0 ? <span className="text-muted-foreground/40 normal-case">(all)</span> : <span className="text-muted-foreground/40 normal-case">({predVideoIds.length} selected)</span>}
+                          </div>
+                          <div className="flex flex-wrap gap-1.5">
+                            <button
+                              className={`inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-mono transition-colors ${predVideoIds.length === 0 ? 'bg-foreground text-background' : 'bg-muted text-muted-foreground hover:bg-muted/80'}`}
+                              onClick={() => updateStageSetting('predictive_modeling', 'video_ids', [])}
+                            >All</button>
+                            {predStitchedVars.map((v) => (
+                              <button
+                                key={v.id}
+                                className={`inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-mono transition-colors ${predVideoIds.includes(v.id) ? 'bg-foreground text-background' : 'bg-muted text-muted-foreground hover:bg-muted/80'}`}
+                                onClick={() => {
+                                  const next = predVideoIds.includes(v.id) ? predVideoIds.filter((id: string) => id !== v.id) : [...predVideoIds, v.id];
+                                  updateStageSetting('predictive_modeling', 'video_ids', next);
+                                }}
+                              >{v.title || `Stitched — ${v.model || '?'}`}</button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      <Button size="sm" className="w-full h-8 font-mono text-[10px] uppercase tracking-wider" disabled={predRunning || predStitchedVars.length === 0} onClick={handleRunPred}>
+                        {predRunning ? <><Loader2 className="h-3 w-3 animate-spin mr-1.5" />Predicting...</> : <><BarChart2 className="h-3 w-3 mr-1.5" />Run Prediction</>}
+                      </Button>
+                      {predError && <p className="text-[10px] text-destructive">{predError}</p>}
+                      {predResults.length > 0 && <p className="text-[10px] text-muted-foreground/60 font-mono">{predResults.length} video{predResults.length !== 1 ? 's' : ''} predicted</p>}
+                    </>
+                  );
+                })()}
+
+                {/* ── Content Ranking ── */}
+                {openStageKey === 'content_ranking' && (() => {
+                  if (!selectedContentPiece) {
+                    return <div className="text-center py-8 text-muted-foreground/50"><CalendarClock className="h-8 w-8 mx-auto mb-2 opacity-30" /><p className="text-xs">Select a content piece from the calendar first</p></div>;
+                  }
+                  const handleRunRank = async () => {
+                    setRankRunning(true);
+                    setRankError(null);
+                    try {
+                      const res = await runContentRanking(workflowId, 0.4, 0.6);
+                      setRankResults(res.rankings);
+                      loadWorkflow();
+                    } catch (err) {
+                      setRankError(err instanceof Error ? err.message : 'Ranking failed');
+                    } finally {
+                      setRankRunning(false);
+                    }
+                  };
+
+                  return (
+                    <>
+                      <Button size="sm" className="w-full h-8 font-mono text-[10px] uppercase tracking-wider" disabled={rankRunning || predResults.length === 0} onClick={handleRunRank}>
+                        {rankRunning ? <><Loader2 className="h-3 w-3 animate-spin mr-1.5" />Ranking...</> : <><Layers className="h-3 w-3 mr-1.5" />Rank Content</>}
+                      </Button>
+                      {predResults.length === 0 && <p className="text-[10px] text-muted-foreground/60">Run Predictive Modeling first</p>}
+                      {rankError && <p className="text-[10px] text-destructive">{rankError}</p>}
+                      {rankResults.length > 0 && <p className="text-[10px] text-muted-foreground/60 font-mono">{rankResults.length} video{rankResults.length !== 1 ? 's' : ''} ranked</p>}
                     </>
                   );
                 })()}

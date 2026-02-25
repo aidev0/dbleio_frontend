@@ -299,6 +299,15 @@ export async function generateConceptImage(
   return res.json();
 }
 
+export async function pollConceptImageStatus(
+  workflowId: string,
+  taskId: string,
+): Promise<{ status: string; progress: number; message: string; result?: { image_url: string; gs_uri: string } }> {
+  const res = await apiGet(`/api/content/workflows/${workflowId}/storyboard-image-status/${taskId}`);
+  if (!res.ok) throw new Error('Failed to get image status');
+  return res.json();
+}
+
 // --- Storyboard ---
 
 export async function generateStoryboard(
@@ -483,13 +492,87 @@ export interface SimulationResult {
   age: string;
   score: number;
   reasoning: string;
+  video_id?: string;
+  video_title?: string;
 }
 
 export async function runContentSimulation(
   workflowId: string,
-  params: { genders: string[]; ages: string[]; model_provider: string; model_name: string; persona_ids?: string[] },
+  params: { genders: string[]; ages: string[]; model_provider: string; model_name: string; persona_ids?: string[]; video_ids?: string[] },
 ): Promise<{ results: SimulationResult[] }> {
   const res = await apiPost(`/api/content/workflows/${workflowId}/simulate`, params);
+  if (!res.ok) {
+    const text = await res.text();
+    let detail = text;
+    try { detail = JSON.parse(text).detail || text; } catch { /* */ }
+    throw new Error(detail);
+  }
+  return res.json();
+}
+
+// --- Predictive Modeling ---
+
+export interface PredictionResult {
+  video_id: string;
+  video_title: string;
+  expected_views: number;
+  expected_likes: number;
+  expected_comments: number;
+  engagement_rate: number;
+  confidence: number;
+  reasoning: string;
+  strengths: string[];
+  risks: string[];
+}
+
+export interface PredictionBenchmarks {
+  brand?: { followers: number; avg_views: number; avg_likes: number; avg_comments: number; engagement_rate: number; count: number };
+  competitors?: Record<string, { followers: number; avg_views: number; avg_likes: number; avg_comments: number; engagement_rate: number; count: number }>;
+}
+
+export async function runPredictiveModeling(
+  workflowId: string,
+  modelName: string,
+  videoIds?: string[],
+): Promise<{ predictions: PredictionResult[]; benchmarks: PredictionBenchmarks }> {
+  const body: Record<string, unknown> = { model_name: modelName };
+  if (videoIds && videoIds.length > 0) body.video_ids = videoIds;
+  const res = await apiPost(`/api/content/workflows/${workflowId}/predict`, body);
+  if (!res.ok) {
+    const text = await res.text();
+    let detail = text;
+    try { detail = JSON.parse(text).detail || text; } catch { /* */ }
+    throw new Error(detail);
+  }
+  return res.json();
+}
+
+// --- Content Ranking ---
+
+export interface RankingResult {
+  rank: number;
+  video_id: string;
+  video_title: string;
+  composite_score: number;
+  simulation_score: number;
+  prediction_score: number;
+  expected_views: number;
+  expected_likes: number;
+  expected_comments: number;
+  engagement_rate: number;
+  confidence: number;
+  reasoning: string;
+}
+
+export async function runContentRanking(
+  workflowId: string,
+  simulationWeight: number = 0.4,
+  predictionWeight: number = 0.6,
+): Promise<{ rankings: RankingResult[]; weights: { simulation: number; prediction: number } }> {
+  const res = await apiPost(`/api/content/workflows/${workflowId}/rank`, {
+    simulation_weight: simulationWeight,
+    prediction_weight: predictionWeight,
+  });
   if (!res.ok) {
     const text = await res.text();
     let detail = text;
