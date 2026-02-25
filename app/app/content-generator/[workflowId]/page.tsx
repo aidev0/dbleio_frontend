@@ -2852,9 +2852,9 @@ export default function ContentWorkflowDetailPage() {
                                             <button className="h-4 px-1 text-[9px] text-muted-foreground hover:text-foreground hover:bg-muted transition-colors" onClick={() => { const cur = parseInt(String(scene.duration_hint).replace('s', '')) || 5; const next = Math.min(60, cur + 1); updateStoryboardScene(workflowId, oCurrentSbFlatIdx, scene.id, { duration_hint: `${next}s` }).then(() => loadWorkflow()); }}>+</button>
                                           </div>
                                         </div>
-                                        {scene.character_ids.length > 0 && (
+                                        {(scene.character_ids || []).length > 0 && (
                                           <div className="flex flex-wrap gap-0.5">
-                                            {scene.character_ids.map((cid) => { const c = oCharacters.find((ch) => ch.id === cid); return <span key={cid} className="inline-flex items-center rounded-full border border-border px-1 py-px font-mono text-[7px] text-muted-foreground">{c?.name || cid}</span>; })}
+                                            {(scene.character_ids || []).map((cid) => { const c = oCharacters.find((ch) => ch.id === cid); return <span key={cid} className="inline-flex items-center rounded-full border border-border px-1 py-px font-mono text-[7px] text-muted-foreground">{c?.name || cid}</span>; })}
                                           </div>
                                         )}
                                         {imageErrors.get(scene.id) && <p className="text-[7px] text-destructive">{imageErrors.get(scene.id)}</p>}
@@ -5054,9 +5054,9 @@ export default function ContentWorkflowDetailPage() {
                                         <button className="h-4 px-1 text-[9px] text-muted-foreground hover:text-foreground hover:bg-muted transition-colors" onClick={() => { const cur = parseInt(String(scene.duration_hint).replace('s', '')) || 5; const next = Math.min(60, cur + 1); updateStoryboardScene(workflowId as string, currentSbFlatIdx, scene.id, { duration_hint: `${next}s` }).then(() => loadWorkflow()); }}>+</button>
                                       </div>
                                     </div>
-                                    {scene.character_ids.length > 0 && (
+                                    {(scene.character_ids || []).length > 0 && (
                                       <div className="flex flex-wrap gap-0.5">
-                                        {scene.character_ids.map((cid) => { const char = characters.find((c) => c.id === cid); return <span key={cid} className="inline-flex items-center rounded-full border border-border px-1 py-px font-mono text-[7px] text-muted-foreground">{char?.name || cid}</span>; })}
+                                        {(scene.character_ids || []).map((cid) => { const char = characters.find((c) => c.id === cid); return <span key={cid} className="inline-flex items-center rounded-full border border-border px-1 py-px font-mono text-[7px] text-muted-foreground">{char?.name || cid}</span>; })}
                                       </div>
                                     )}
                                     {imageErrors.get(scene.id) && <p className="text-[7px] text-destructive">{imageErrors.get(scene.id)}</p>}
@@ -5400,9 +5400,9 @@ export default function ContentWorkflowDetailPage() {
                                               }
                                             }}
                                           />
-                                          {scene.character_ids.length > 0 && (
+                                          {(scene.character_ids || []).length > 0 && (
                                             <div className="flex flex-wrap gap-0.5">
-                                              {scene.character_ids.map((cid: string) => {
+                                              {(scene.character_ids || []).map((cid: string) => {
                                                 const char = sbCharacters.find((c) => c.id === cid);
                                                 return <span key={cid} className="inline-flex items-center rounded-full border border-border px-1 py-px font-mono text-[6px] text-muted-foreground">{char?.name || cid}</span>;
                                               })}
