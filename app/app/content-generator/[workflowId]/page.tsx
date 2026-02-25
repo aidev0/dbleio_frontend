@@ -3127,7 +3127,12 @@ export default function ContentWorkflowDetailPage() {
                       type SimTest = { id: string; persona_ids: string[]; genders: string[]; ages: string[]; llm: string; video_ids: string[]; results?: SimulationResult[]; error?: string; running?: boolean };
                       const simNode = nodes.find((n) => n.stage_key === 'simulation_testing');
                       const savedTests = ((simNode?.output_data?.tests || []) as SimTest[]);
-                      const tests = ((getSetting('simulation_testing', 'tests') as SimTest[]) || savedTests).map((t: SimTest) => ({ ...t, video_ids: t.video_ids || [] }));
+                      // If top-level results exist but no tests, create a synthetic test to display them
+                      const topLevelResults = (simNode?.output_data?.results || []) as SimulationResult[];
+                      const fallbackTests: SimTest[] = savedTests.length === 0 && topLevelResults.length > 0
+                        ? [{ id: 'legacy', persona_ids: [], genders: [...new Set(topLevelResults.map(r => r.gender))], ages: [...new Set(topLevelResults.map(r => r.age))], llm: (simNode?.output_data?.config as Record<string, unknown>)?.model_name as string || 'gemini-pro-3', video_ids: [], results: topLevelResults }]
+                        : savedTests;
+                      const tests = ((getSetting('simulation_testing', 'tests') as SimTest[]) || fallbackTests).map((t: SimTest) => ({ ...t, video_ids: t.video_ids || [] }));
 
                       // Get full videos for selection (stitched + video types, not individual scenes)
                       const vidNode = nodes.find((n) => n.stage_key === 'video_generation');
