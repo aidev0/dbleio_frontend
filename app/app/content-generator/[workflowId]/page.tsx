@@ -1604,7 +1604,7 @@ export default function ContentWorkflowDetailPage() {
             }
           };
 
-          const sceneCharsReadyOverview = (scene: SbScene) => scene.character_ids.every((cid) => { const c = oCharacters.find((ch) => ch.id === cid); return c && c.image_url; });
+          const sceneCharsReadyOverview = (scene: SbScene) => (scene.character_ids || []).every((cid) => { const c = oCharacters.find((ch) => ch.id === cid); return c && c.image_url; });
 
           const selAssetIds = new Set((stageSettings['campaign_strategy']?.['asset_ids'] as string[] | undefined) || []);
           const selAssets = brandAssets.filter((a) => selAssetIds.has(a._id));
@@ -4818,7 +4818,7 @@ export default function ContentWorkflowDetailPage() {
 
                   // Check if all characters referenced by a scene have images
                   const sceneCharsReady = (scene: StoryboardScene) => {
-                    return scene.character_ids.every((cid) => {
+                    return (scene.character_ids || []).every((cid) => {
                       const char = characters.find((c) => c.id === cid);
                       return char && char.image_url;
                     });
