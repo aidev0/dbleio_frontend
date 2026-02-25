@@ -24,7 +24,6 @@ export function Header({ isAuthenticated, onLogin, onRequestAccess }: HeaderProp
             dble
           </a>
           <nav className="hidden items-center gap-8 md:flex">
-            <a href="/#how-it-works" className="font-mono text-xs uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground">How it works</a>
             <a href="/#platform" className="font-mono text-xs uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground">Platform</a>
             <a href="/#pricing" className="font-mono text-xs uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground">Pricing</a>
             <a href="/#security" className="font-mono text-xs uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground">Security</a>
@@ -90,7 +89,6 @@ export function Header({ isAuthenticated, onLogin, onRequestAccess }: HeaderProp
       {mobileMenuOpen && (
         <div className="border-t border-border/50 bg-background px-6 py-4 md:hidden">
           <div className="flex flex-col gap-1">
-            <a href="/#how-it-works" className="py-2 font-mono text-xs uppercase tracking-wider text-muted-foreground">How it works</a>
             <a href="/#platform" className="py-2 font-mono text-xs uppercase tracking-wider text-muted-foreground">Platform</a>
             <a href="/#pricing" className="py-2 font-mono text-xs uppercase tracking-wider text-muted-foreground">Pricing</a>
             <a href="/#security" className="py-2 font-mono text-xs uppercase tracking-wider text-muted-foreground">Security</a>

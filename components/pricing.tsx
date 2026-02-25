@@ -44,8 +44,8 @@ const tiers = [
     ],
   },
   {
-    name: "Enterprise",
-    id: "enterprise",
+    name: "Agency",
+    id: "agency",
     price: "Custom",
     period: "multi-brand",
     commitment: "Annual Contract",
@@ -136,7 +136,7 @@ export function Pricing() {
                 )}
               </div>
 
-              {tier.name === "Enterprise" && (
+              {tier.name === "Agency" && (
                 <div className="mt-2 text-xs text-muted-foreground/60">{tier.commitment}</div>
               )}
 
@@ -202,61 +202,11 @@ export function Pricing() {
         <p className="mt-3 sm:mt-4 text-center font-mono text-[10px] sm:text-xs text-muted-foreground/60">
           $1,000 cloud + LLM usage credits included in all plans
         </p>
+        <p className="mt-2 sm:mt-3 text-center font-mono text-[10px] sm:text-xs text-muted-foreground/60">
+          Every plan includes the full platform: generation, prediction, simulation, optimization, and RL — no features locked.
+        </p>
 
-        {/* Platform Features - hidden on mobile */}
-        <div className="hidden sm:block mt-16">
-          <div className="mb-8">
-            <div className="mb-4 font-mono text-xs uppercase tracking-widest text-muted-foreground">
-              Platform Features
-            </div>
-            <h3 className="text-3xl font-light italic tracking-tight text-foreground">
-              Included in <span className="not-italic">every plan</span>
-            </h3>
-          </div>
-          <div className="grid gap-px border border-border bg-border md:grid-cols-2 lg:grid-cols-4">
-            {platformFeatures.map((category) => (
-              <div key={category.category} className="bg-background p-6">
-                <h4 className="font-mono text-xs uppercase tracking-wider text-muted-foreground">{category.category}</h4>
-                <ul className="mt-4 space-y-2">
-                  {category.features.map((feature) => (
-                    <li key={feature} className="flex items-start gap-2 text-base text-muted-foreground">
-                      <Check className="mt-0.5 h-4 w-4 shrink-0 text-foreground/30" />
-                      {feature}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-          </div>
-        </div>
 
-        {/* FDE/FDM Explanation - hidden on mobile */}
-        <div className="hidden sm:block mt-16">
-          <div className="mb-8">
-            <div className="mb-4 font-mono text-xs uppercase tracking-widest text-muted-foreground">
-              Dedicated Experts
-            </div>
-            <h3 className="text-3xl font-light italic tracking-tight text-foreground">
-              What is <span className="not-italic">FDE & FDM?</span>
-            </h3>
-          </div>
-          <div className="grid gap-px border border-border bg-border md:grid-cols-2">
-            <div className="bg-background p-8">
-              <span className="font-mono text-xs text-muted-foreground/40">FDE</span>
-              <h4 className="mt-2 text-xl font-light text-foreground">Forward Deployed Engineer</h4>
-              <p className="mt-4 text-base leading-relaxed text-muted-foreground">
-                Your dedicated engineer for custom builds, integrations, and system maintenance.
-              </p>
-            </div>
-            <div className="bg-background p-8">
-              <span className="font-mono text-xs text-muted-foreground/40">FDM</span>
-              <h4 className="mt-2 text-xl font-light text-foreground">Forward Deployed Marketer</h4>
-              <p className="mt-4 text-base leading-relaxed text-muted-foreground">
-                Strategic partner for campaign optimization, performance reviews, and growth.
-              </p>
-            </div>
-          </div>
-        </div>
       </div>
 
       <ContactFormModal

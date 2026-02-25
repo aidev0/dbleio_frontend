@@ -9,272 +9,37 @@ import { useState, useSyncExternalStore } from "react"
 
 const faqs = [
   {
-    question: "What exactly is dble?",
-    answer: `dble builds and runs AI-powered marketing systems for e-commerce brands.
-
-Instead of giving you software and tutorials, dble:
-• designs automation for your business
-• integrates it into your stack
-• runs it continuously
-• improves it over time
-
-You're buying working systems, not tools.`
+    question: "Is dble just another generative AI tool?",
+    answer: `No. dble is deployed production infrastructure, not a generative AI wrapper. We provide an end-to-end AI marketing system that predicts performance before your budget is spent, effectively closing the intelligence gap and replacing the standard "test and learn" cycle that wastes 30-50% of ad spend.`
   },
   {
-    question: "Is this a SaaS product or a service?",
-    answer: `It's both.
-
-You get:
-• a full AI marketing platform
-• plus engineers who build systems on top of it
-
-You're not paying for logins. You're paying for automation capacity.`
+    question: "What is the Forward Deployed model?",
+    answer: `Unlike traditional SaaS tools that hand you a login, we embed experts directly into your workflow. Forward Deployed Engineers (FDEs) manage your custom technical builds, integrations, and system maintenance. Forward Deployed Marketers (FDMs) act as your strategic partners, reviewing creative outputs, enforcing brand standards, and optimizing campaigns for growth.`
   },
   {
-    question: "How is this different from an agency?",
-    answer: `Agencies do work manually. dble builds systems that do the work automatically.
-
-Key differences:
-• systems run 24/7
-• decisions happen in real time
-• performance improves with use
-• results don't stop when humans stop working
-
-If you stop paying an agency, the work stops. With dble, the systems are the value.`
+    question: "How do you predict ad performance before spending budget?",
+    answer: `Our core engine uses two layers of pre-launch intelligence. First, a custom predictive model ranks every concept against core KPIs like predicted CTR, Conversion Rate, and ROAS. Second, top concepts are stress-tested through a simulation engine using AI personas that model real audience behaviors, dictating exactly where to allocate media budget for maximum return.`
   },
   {
-    question: "How is this different from buying tools like Motion, Smartly, or Triple Whale?",
-    answer: `Tools give you capabilities. dble gives you outcomes.
-
-With tools:
-• you configure everything
-• you manage workflows
-• you troubleshoot issues
-• you hire people to operate them
-
-With dble:
-• systems are built for you
-• everything is integrated
-• automation runs end-to-end
-• humans are optional`
+    question: "What platforms does dble integrate with?",
+    answer: `The integration suite seamlessly connects your entire growth stack. We integrate with Meta, Amazon, Shopify, TikTok, Google, and major analytics platforms, unifying your data into one centralized system.`
   },
   {
-    question: "What do you actually build for me?",
-    answer: `That depends on your biggest bottleneck.
-
-Common systems include:
-• automated video ad generation from Shopify
-• pre-launch creative testing (predict winners before spend)
-• live campaign optimization across platforms
-• marketplace feed automation
-• custom business rules and logic
-
-You decide what to automate. dble builds it.`
+    question: "Is our agency and client data secure?",
+    answer: `Yes. The platform is built for regulated environments and sensitive data. We maintain enterprise-grade security including SOC 2 Type II, GDPR, and CCPA compliance. Infrastructure includes AES-256 encryption at rest, TLS 1.3 in transit, SSO/SAML, and full audit trails. We also offer dedicated infrastructure and custom data residency options.`
   },
   {
-    question: "What is an \"Active Build Request\"?",
-    answer: `An Active Build Request is a system dble is actively working on.
-
-Examples:
-• building a video generation system
-• modifying testing logic
-• adding a new integration
-• adjusting optimization rules
-
-You can submit unlimited requests. Your plan determines how many are worked on at once.`
+    question: "How is the platform priced?",
+    answer: `Every partnership tier receives full platform access with no locked features; your investment scales with your growth and required level of custom development. The Scale plan is $4,000/mo/brand, and the Enterprise plan is $8,000/mo/brand, which fully integrates your dedicated FDE and FDM teams.`
   },
   {
-    question: "What happens after the system is built?",
-    answer: `It runs continuously.
-
-That includes:
-• monitoring
-• optimization
-• performance improvements
-• bug fixes
-• model updates
-
-You don't need to babysit it.`
+    question: "How do you guarantee brand safety and consistency?",
+    answer: `You maintain absolute control over the final output. The platform uses your specific brand fonts, colors, and styling for every asset generated. Furthermore, your dedicated Forward Deployed Marketers (FDMs) review outputs to enforce your brand standards, ensuring every asset passes strict compliance checks before anything goes live.`
   },
   {
-    question: "Do all plans include the same features?",
-    answer: `Yes. There is no feature gating.
-
-All plans include:
-• generation
-• testing
-• optimization
-• integrations
-• reinforcement learning
-
-Plans only differ in capacity, speed, and security depth.`
+    question: "Do we need to provide our own LLM or cloud infrastructure?",
+    answer: `No. All of our plans automatically include $1,000 in cloud and LLM usage credits. For Enterprise partners, we can also build on dedicated infrastructure or provide on-premise options to meet your specific compliance needs.`
   },
-  {
-    question: "Why does pricing start at $6,000/month?",
-    answer: `Because this isn't software access. It's engineering.
-
-Behind the scenes:
-• engineers design systems for your business
-• integrations are built and maintained
-• infrastructure runs continuously
-• performance is monitored and improved
-
-This replaces:
-• agency retainers
-• freelancers
-• multiple tools
-• internal headcount`
-  },
-  {
-    question: "What's included in the monthly price?",
-    answer: `Every plan includes:
-• full platform access
-• system design and build (based on tier)
-• integrations and deployment
-• monitoring and maintenance
-• $1,000/month in included usage credits
-  • $500 LLM credits
-  • $500 cloud and infrastructure credits
-
-Anything beyond that is usage-based and transparent.`
-  },
-  {
-    question: "Will I get surprise usage charges?",
-    answer: `No.
-
-Usage is:
-• visible in your dashboard
-• predictable for most customers
-• alertable with caps if needed
-
-Most brands stay within included credits early on.`
-  },
-  {
-    question: "How long does it take to get started?",
-    answer: `Typically 3–4 weeks from kickoff to first system live.
-
-Subsequent systems are faster since integrations are already in place.`
-  },
-  {
-    question: "Do I need an internal marketing team?",
-    answer: `Not necessarily.
-
-You can:
-• run systems yourself
-• add a Forward Deployed Marketer (FDM)
-• or mix internal + dble execution
-
-The model is flexible by design.`
-  },
-  {
-    question: "What does an FDM do?",
-    answer: `An FDM:
-• operates systems daily
-• launches campaigns
-• monitors performance
-• executes optimizations
-• reports results
-
-An FDM does not build systems. New logic requires a build request.`
-  },
-  {
-    question: "What if you build custom systems for us and later we want to run everything ourselves?",
-    answer: `That's expected and supported.
-
-Many customers:
-• start with dble building systems
-• prove performance
-• graduate to running them internally on the Operate plan
-
-You're not locked in.`
-  },
-  {
-    question: "If we move to Operate, do the systems stop working?",
-    answer: `No.
-
-The systems stay live. You simply take over operation.
-
-You can always re-add build capacity later if needed.`
-  },
-  {
-    question: "Can I upgrade or downgrade plans?",
-    answer: `Yes.
-
-Customers commonly:
-• move from Build → Scale
-• or Build → Operate once stable
-• or add temporary capacity during peak seasons
-
-Pricing scales with need, not contracts.`
-  },
-  {
-    question: "What platforms do you integrate with?",
-    answer: `Out of the box:
-• Shopify
-• Meta (Facebook, Instagram)
-• TikTok + TikTok Shop
-• Google (Search, Shopping, YouTube)
-• Amazon Ads
-
-Custom integrations are available on higher tiers.`
-  },
-  {
-    question: "Is this secure?",
-    answer: `Yes.
-
-All plans include:
-• enterprise-grade encryption
-• secure cloud infrastructure
-• compliance with SOC 2, GDPR, and CCPA
-
-Enterprise plans add:
-• dedicated infrastructure
-• SSO / SAML
-• VPN and IP allowlists
-• custom compliance requirements`
-  },
-  {
-    question: "Who is this not a fit for?",
-    answer: `dble is not ideal if:
-• you spend under ~$250k/year on ads
-• you want DIY tools
-• you're looking for a traditional agency
-
-It's built for brands serious about automation.`
-  },
-  {
-    question: "What's the typical ROI?",
-    answer: `Most customers see value from:
-• reduced creative costs
-• lower wasted ad spend
-• faster iteration
-• fewer hires or agencies
-
-ROI usually becomes clear within the first 60–90 days.`
-  },
-  {
-    question: "What's the commitment?",
-    answer: `• Build: 3 months
-• Scale: 6 months
-• Custom: 12 months
-
-After that, plans are flexible with notice.`
-  },
-  {
-    question: "What happens if we cancel?",
-    answer: `You keep:
-• all creative assets
-• performance data exports
-• documentation
-
-Systems stop running only because they're on dble infrastructure.`
-  },
-  {
-    question: "What's the simplest way to think about dble?",
-    answer: `Like Designjoy, but for AI marketing systems.
-
-You request what to automate. dble builds and runs it. Pricing is based on how many systems we work on at once.`
-  }
 ]
 
 export default function FAQPage() {

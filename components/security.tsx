@@ -1,8 +1,8 @@
 export function Security() {
   const features = [
     {
-      title: "SOC 2 Type II",
-      items: ["GDPR + DPA", "CCPA", "HIPAA available"],
+      title: "Compliance (Coming Soon)",
+      items: ["SOC 2 Type II", "GDPR + DPA + CCPA", "HIPAA"],
     },
     {
       title: "Encryption",
@@ -37,7 +37,15 @@ export function Security() {
           <div className="grid grid-cols-2 gap-px border border-border bg-border">
             {features.map((feature) => (
               <div key={feature.title} className="bg-background p-3 sm:p-6">
-                <h3 className="font-mono text-[10px] sm:text-xs uppercase tracking-wider text-foreground">{feature.title}</h3>
+                <h3 className="font-mono text-[10px] sm:text-xs uppercase tracking-wider text-foreground">
+                  {feature.title === "Compliance (Coming Soon)" ? (
+                    <>
+                      Compliance <span className="text-muted-foreground/60">(Coming Soon)</span>
+                    </>
+                  ) : (
+                    feature.title
+                  )}
+                </h3>
                 <ul className="mt-2 sm:mt-4 space-y-1 sm:space-y-2">
                   {feature.items.map((item) => (
                     <li key={item} className="text-xs sm:text-base text-muted-foreground">{item}</li>
