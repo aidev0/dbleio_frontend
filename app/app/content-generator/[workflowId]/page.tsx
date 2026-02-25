@@ -3494,7 +3494,7 @@ export default function ContentWorkflowDetailPage() {
                                         </div>
                                       )}
                                       <div className="space-y-4">
-                                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
                                           <div className="rounded-lg border border-border p-3 text-center">
                                             <div className="text-lg font-bold font-mono">{fmtNum(pred.expected_views)}</div>
                                             <div className="text-[10px] text-muted-foreground">Expected Views</div>
@@ -3512,6 +3512,10 @@ export default function ContentWorkflowDetailPage() {
                                           <div className="rounded-lg border border-border p-3 text-center">
                                             <div className="text-lg font-bold font-mono">{pred.engagement_rate}%</div>
                                             <div className="text-[10px] text-muted-foreground">Engagement Rate</div>
+                                          </div>
+                                          <div className="rounded-lg border border-border p-3 text-center">
+                                            <div className="text-lg font-bold font-mono">{brandBench?.followers ? (pred.expected_views / brandBench.followers * 100).toFixed(2) : '—'}%</div>
+                                            <div className="text-[10px] text-muted-foreground">View / Follower</div>
                                           </div>
                                         </div>
                                         <p className="text-sm text-muted-foreground leading-relaxed">{pred.reasoning}</p>
