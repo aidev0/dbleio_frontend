@@ -39,7 +39,7 @@ export function Hero({ onContactUs }: HeroProps) {
 
           <p className="mt-3 sm:mt-8 max-w-xl text-pretty text-sm sm:text-xl leading-relaxed text-muted-foreground">
             <span className="sm:hidden">AI-powered ad systems. We run it, you scale.</span>
-            <span className="hidden sm:inline">Custom AI systems across every ad platform. We build, deploy, and run it—you scale your brand.</span>
+            <span className="hidden sm:inline">Custom AI systems across every ad platform. We build, deploy, and run it—you scale at the speed of software.</span>
           </p>
 
           <div className="mt-6 sm:mt-14 flex flex-row gap-3 sm:gap-4 items-center justify-center sm:justify-start">
