@@ -6,7 +6,7 @@ import {
   Play, ListChecks, GitBranch,
   CheckCircle2, Circle, Loader2, XCircle, Clock,
   MoreHorizontal, CalendarClock, Copy, Download, Star, Trash2,
-  ChevronLeft, ChevronRight, Bot, User as UserIcon, Image as ImageIcon,
+  ChevronLeft, ChevronRight, ChevronDown, Bot, User as UserIcon, Image as ImageIcon,
   Megaphone, Paperclip, Settings2, X, Pencil,
   Film, Music, Type as TypeIconLucide, Eye, Check, Plus, Upload,
   FileText, BarChart2, Globe, ExternalLink, Layers, CircleDot, Clapperboard, RefreshCw,
@@ -31,6 +31,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import ContentWorkflowStatusBadge from '../components/ContentWorkflowStatusBadge';
 import ResearchStagePanel from '../components/ResearchStagePanel';
+import FeedbackBar from '../components/FeedbackBar';
 import NavMenu from '@/components/NavMenu';
 import {
   getContentWorkflow,
@@ -57,6 +58,7 @@ import {
   generateConceptImage,
   pollConceptImageStatus,
   generateStoryboard,
+  deleteStoryboard,
   generateStoryboardImage,
   getStoryboardImageStatus,
   generateVideo,
@@ -69,6 +71,11 @@ import {
   getPersonas,
   runPredictiveModeling,
   runContentRanking,
+  listCalendarItems,
+  createCalendarItem,
+  updateCalendarItem,
+  deleteCalendarItem,
+  migrateCalendar,
 } from '../lib/api';
 import type { VideoJob, SimulationResult, Persona, PredictionResult, PredictionBenchmarks, RankingResult } from '../lib/api';
 import type { Campaign } from '../lib/api';
@@ -595,6 +602,7 @@ export default function ContentWorkflowDetailPage() {
   const [storyboardError, setStoryboardError] = useState<string | null>(null);
   const [generatingImages, setGeneratingImages] = useState<Set<string>>(new Set());
   const [imageErrors, setImageErrors] = useState<Map<string, string>>(new Map());
+  const [collapsedStoryboards, setCollapsedStoryboards] = useState<Set<number>>(new Set());
   const pollingRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
 
   // Brand context
@@ -1493,7 +1501,7 @@ export default function ContentWorkflowDetailPage() {
           const oStoryboards = oStoryboardOutput.storyboards || [];
 
           type SbChar = { id: string; name: string; description: string; image_prompt: string; image_url: string | null; gs_uri: string | null; image_model: string };
-          type SbScene = { id: string; scene_number: number; title: string; description: string; shot_type: string; duration_hint: string; character_ids: string[]; image_prompt: string; image_url: string | null; gs_uri: string | null; image_model: string };
+          type SbScene = { id: string; scene_number: number; title: string; description: string; shot_type: string; duration_hint: string; character_ids: string[]; image_prompt: string; image_url: string | null; gs_uri: string | null; image_model: string; dialog?: string; lighting?: string; time_of_day?: string; camera_move?: string; character_descriptions?: Array<{ character_id: string; appearance_in_scene: string }> };
           const oConceptVariations = oStoryboards.filter((sb) => (sb.concept_index as number) === storyboardConceptIdx);
           const oCurrentSb = (oConceptVariations[storyboardVariationIdx] || oConceptVariations[0]) as Record<string, unknown> | undefined;
           const oCurrentSbFlatIdx = oCurrentSb ? oStoryboards.indexOf(oCurrentSb) : 0;
@@ -2462,6 +2470,17 @@ export default function ContentWorkflowDetailPage() {
                                 {fc.messaging && fc.messaging.length > 0 && <div><div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/60 mb-0.5">Key Messaging</div><ul className="space-y-0.5">{fc.messaging.map((msg, mi) => (<li key={mi} className="text-[10px] text-muted-foreground flex items-start gap-1.5"><span className="text-muted-foreground/40 shrink-0">&#x2022;</span><span className="whitespace-pre-line">{msg}</span></li>))}</ul></div>}
                               </>);
                             })()}
+                            {/* WS8: Feedback bar */}
+                            <div className="pt-2 border-t border-border mt-2">
+                              <FeedbackBar
+                                workflowId={workflowId}
+                                contentId={selectedContentPiece?.content_id}
+                                stageKey="concepts"
+                                itemType="concept"
+                                itemId={`concept_${idx}`}
+                                onRegenerate={() => handleGenerateO(0)}
+                              />
+                            </div>
                           </div>
                         );
                       };
@@ -2749,128 +2768,183 @@ export default function ContentWorkflowDetailPage() {
 
                         {storyboardError && <div className="rounded border border-destructive/30 bg-destructive/5 px-3 py-2"><p className="text-xs text-destructive">{storyboardError}</p></div>}
 
-                        {oCurrentSb && (
-                          <>
-                            <div>
-                              <div className="font-mono text-xs uppercase tracking-wider text-muted-foreground mb-1.5">Storyline</div>
-                              <div
-                                contentEditable
-                                suppressContentEditableWarning
-                                className="w-full text-sm text-foreground/80 leading-relaxed bg-transparent border border-border rounded hover:border-foreground/30 focus:border-primary focus:outline-none px-3 py-2 min-h-[60px]"
-                                onBlur={(e) => {
-                                  const val = e.currentTarget.innerText;
-                                  if (val !== oStoryline) {
-                                    updateStageSetting('storyboard', `storyline_${storyboardConceptIdx}`, val);
-                                  }
-                                }}
-                                dangerouslySetInnerHTML={{ __html: ((getSetting('storyboard', `storyline_${storyboardConceptIdx}`) as string) || oStoryline).replace(/\n/g, '<br/>') }}
-                              />
-                              <div className="flex items-center gap-3 mt-1">
-                                <span className="font-mono text-[9px] text-muted-foreground">{oTotalCuts} cuts</span>
-                                <span className="font-mono text-[9px] text-muted-foreground">{oCharacters.length} characters</span>
-                                <span className="font-mono text-[9px] text-muted-foreground">{oScenes.length} scenes</span>
-                                <span className="font-mono text-[9px] text-muted-foreground">{oScenes.reduce((sum, s) => sum + (parseInt(String(s.duration_hint).replace('s', '')) || 0), 0)}s total</span>
-                              </div>
-                            </div>
+                        {/* Storyboard list — collapsible cards */}
+                        {oConceptVariations.length > 0 && (
+                          <div className="space-y-3">
+                            {oConceptVariations.map((sbRaw, vi) => {
+                              const sbFlatIdx = oStoryboards.indexOf(sbRaw);
+                              const sbChars = [...(sbRaw.characters || []) as SbChar[]];
+                              const sbScenes = [...(sbRaw.scenes || []) as SbScene[]];
+                              const sbStoryline = (sbRaw.storyline || '') as string;
+                              const sbTotalCuts = (sbRaw.total_cuts || 0) as number;
+                              const isCollapsed = collapsedStoryboards.has(sbFlatIdx);
+                              const totalDuration = sbScenes.reduce((sum, s) => sum + (parseInt(String(s.duration_hint).replace('s', '')) || 0), 0);
+                              const conceptTitle = (sbRaw.concept_title || oGeneratedConcepts[storyboardConceptIdx]?.title || `Concept ${storyboardConceptIdx + 1}`) as string;
 
-                            {/* Characters */}
-                            <div>
-                              <div className="flex items-center justify-between mb-2">
-                                <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground">Characters</div>
-                                <button
-                                  onClick={() => {
-                                    const newChar = { id: `char_${Date.now()}`, name: 'New Character', description: '', image_prompt: '', image_url: null, gs_uri: null, image_model: '' };
-                                    const sbKey = `_new_characters_${storyboardConceptIdx}`;
-                                    const existing = (getSetting('storyboard', sbKey) as typeof oCharacters) || [];
-                                    updateStageSetting('storyboard', sbKey, [...existing, newChar]);
-                                  }}
-                                  className="font-mono text-[10px] text-muted-foreground hover:text-foreground transition-colors"
-                                >+ Add Character</button>
-                              </div>
-                              <div className="flex gap-3 flex-wrap">
-                                {oCharacters.map((char) => (
-                                  <div key={char.id} className="w-[140px] rounded-lg border border-border overflow-hidden bg-muted/20">
-                                    <div className="relative aspect-[3/4] bg-muted">
-                                      {char.image_url ? (
-                                        // eslint-disable-next-line @next/next/no-img-element
-                                        <img src={char.image_url} alt={char.name} className="h-full w-full object-cover" />
-                                      ) : (
-                                        <div className="flex h-full items-center justify-center">{generatingImages.has(char.id) ? <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /> : <UserIcon className="h-5 w-5 text-muted-foreground/20" />}</div>
-                                      )}
+                              return (
+                                <div key={sbFlatIdx} className="rounded-lg border border-border bg-card overflow-hidden">
+                                  {/* Card header */}
+                                  <div className="flex items-center gap-2 px-3 py-2 bg-muted/30 border-b border-border">
+                                    <button
+                                      onClick={() => setCollapsedStoryboards(prev => { const next = new Set(prev); if (next.has(sbFlatIdx)) next.delete(sbFlatIdx); else next.add(sbFlatIdx); return next; })}
+                                      className="shrink-0 text-muted-foreground hover:text-foreground transition-colors"
+                                    >
+                                      {isCollapsed ? <ChevronRight className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                                    </button>
+                                    <div className="flex-1 min-w-0">
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-xs font-medium truncate">{conceptTitle} — v{vi + 1}</span>
+                                        <span className="font-mono text-[9px] text-muted-foreground">{sbTotalCuts} cuts</span>
+                                        <span className="font-mono text-[9px] text-muted-foreground">{sbChars.length} chars</span>
+                                        <span className="font-mono text-[9px] text-muted-foreground">{sbScenes.length} scenes</span>
+                                        <span className="font-mono text-[9px] text-muted-foreground">{totalDuration}s</span>
+                                      </div>
                                     </div>
-                                    <div className="p-2 space-y-1">
-                                      <input className="text-[10px] font-medium truncate bg-transparent border-b border-transparent hover:border-border focus:border-primary focus:outline-none w-full" defaultValue={char.name} onBlur={(e) => { if (e.target.value !== char.name) updateStoryboardScene(workflowId, oCurrentSbFlatIdx, char.id, { title: e.target.value }).then(() => loadWorkflow()).catch(() => { e.target.value = char.name; }); }} onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} />
-                                      <textarea className="text-[8px] text-muted-foreground leading-relaxed bg-transparent border border-transparent hover:border-border focus:border-primary focus:outline-none w-full resize-none" defaultValue={char.description} rows={2} onBlur={(e) => { if (e.target.value !== char.description) updateStoryboardScene(workflowId, oCurrentSbFlatIdx, char.id, { description: e.target.value }).then(() => loadWorkflow()).catch(() => { e.target.value = char.description; }); }} />
-                                      {imageErrors.get(char.id) && <p className="text-[8px] text-destructive line-clamp-2">{imageErrors.get(char.id)}</p>}
-                                      <Button size="sm" variant="outline" onClick={() => handleGenerateImageOverview('character', char.id)} disabled={generatingImages.has(char.id)} className="w-full h-5 text-[8px]">
-                                        {generatingImages.has(char.id) ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : char.image_url ? 'Regenerate' : 'Generate'}
-                                      </Button>
-                                    </div>
+                                    <button
+                                      onClick={() => { if (confirm('Delete this storyboard?')) deleteStoryboard(workflowId, sbFlatIdx).then(() => loadWorkflow()).catch(() => {}); }}
+                                      className="shrink-0 h-6 w-6 rounded flex items-center justify-center text-muted-foreground/50 hover:text-red-500 hover:bg-red-500/10 transition-colors"
+                                      title="Delete storyboard"
+                                    >
+                                      <Trash2 className="h-3.5 w-3.5" />
+                                    </button>
                                   </div>
-                                ))}
-                              </div>
-                            </div>
 
-                            {/* Scenes — horizontal scroll, editable */}
-                            <div>
-                              <div className="flex items-center justify-between mb-2">
-                                <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground">Scenes</div>
-                                <button
-                                  onClick={() => {
-                                    const newScene = { id: `scene_${Date.now()}`, scene_number: oScenes.length + 1, title: 'New Scene', description: '', shot_type: 'medium', duration_hint: '5s', character_ids: [] as string[], image_prompt: '', image_url: null, gs_uri: null, image_model: '' };
-                                    const sbKey = `_new_scenes_${storyboardConceptIdx}`;
-                                    const existing = (getSetting('storyboard', sbKey) as typeof oScenes) || [];
-                                    updateStageSetting('storyboard', sbKey, [...existing, newScene]);
-                                  }}
-                                  className="font-mono text-[10px] text-muted-foreground hover:text-foreground transition-colors"
-                                >+ Add Scene</button>
-                              </div>
-                              <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${oScenes.length}, 1fr)` }}>
-                                {oScenes.map((scene) => {
-                                  const charsReady = sceneCharsReadyOverview(scene);
-                                  return (
-                                    <div key={scene.id} className="min-w-0 rounded-lg border border-border overflow-hidden bg-muted/20 flex flex-col">
-                                      <div className="relative aspect-[9/16] bg-muted shrink-0">
-                                        {scene.image_url ? (
-                                          // eslint-disable-next-line @next/next/no-img-element
-                                          <img src={scene.image_url} alt={scene.title} className="h-full w-full object-cover" />
-                                        ) : (
-                                          <div className="flex h-full items-center justify-center">{generatingImages.has(scene.id) ? <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /> : <ImageIcon className="h-5 w-5 text-muted-foreground/20" />}</div>
-                                        )}
+                                  {/* Collapsible body */}
+                                  {!isCollapsed && (
+                                    <div className="p-3 space-y-4">
+                                      {/* Storyline */}
+                                      <div>
+                                        <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground mb-1">Storyline</div>
+                                        <div
+                                          contentEditable
+                                          suppressContentEditableWarning
+                                          className="w-full text-sm text-foreground/80 leading-relaxed bg-transparent border border-border rounded hover:border-foreground/30 focus:border-primary focus:outline-none px-3 py-2 min-h-[40px]"
+                                          onBlur={(e) => {
+                                            const val = e.currentTarget.innerText;
+                                            if (val !== sbStoryline) {
+                                              updateStageSetting('storyboard', `storyline_${storyboardConceptIdx}_v${vi}`, val);
+                                            }
+                                          }}
+                                          dangerouslySetInnerHTML={{ __html: ((getSetting('storyboard', `storyline_${storyboardConceptIdx}_v${vi}`) as string) || sbStoryline).replace(/\n/g, '<br/>') }}
+                                        />
                                       </div>
-                                      <div className="p-2 flex flex-col gap-1 flex-1">
-                                        <div className="flex items-center gap-1">
-                                          <span className="font-mono text-[8px] text-muted-foreground/50">{scene.scene_number}.</span>
-                                          <input className="text-[10px] font-medium bg-transparent border-b border-transparent hover:border-border focus:border-primary focus:outline-none flex-1 min-w-0" defaultValue={scene.title} onBlur={(e) => { if (e.target.value !== scene.title) updateStoryboardScene(workflowId, oCurrentSbFlatIdx, scene.id, { title: e.target.value }).then(() => loadWorkflow()).catch(() => { e.target.value = scene.title; }); }} onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} />
+
+                                      {/* Characters */}
+                                      <div>
+                                        <div className="flex items-center justify-between mb-2">
+                                          <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground">Characters</div>
+                                          <button
+                                            onClick={() => {
+                                              const newChar = { id: `char_${Date.now()}`, name: 'New Character', description: '', image_prompt: '', image_url: null, gs_uri: null, image_model: '' };
+                                              const sbKey = `_new_characters_${storyboardConceptIdx}`;
+                                              const existing = (getSetting('storyboard', sbKey) as typeof sbChars) || [];
+                                              updateStageSetting('storyboard', sbKey, [...existing, newChar]);
+                                            }}
+                                            className="font-mono text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+                                          >+ Add Character</button>
                                         </div>
-                                        <textarea className="text-[8px] text-muted-foreground leading-relaxed bg-transparent border border-transparent hover:border-border focus:border-primary focus:outline-none w-full resize-none" defaultValue={scene.description} rows={3} onBlur={(e) => { if (e.target.value !== scene.description) updateStoryboardScene(workflowId, oCurrentSbFlatIdx, scene.id, { description: e.target.value }).then(() => loadWorkflow()).catch(() => { e.target.value = scene.description; }); }} />
-                                        <div className="flex items-center gap-1.5 flex-wrap">
-                                          <input className="font-mono text-[8px] bg-transparent border-b border-transparent hover:border-border focus:border-primary focus:outline-none w-[60px]" defaultValue={scene.shot_type} onBlur={(e) => { if (e.target.value !== scene.shot_type) updateStoryboardScene(workflowId, oCurrentSbFlatIdx, scene.id, { shot_type: e.target.value }).then(() => loadWorkflow()).catch(() => { e.target.value = scene.shot_type; }); }} onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} />
-                                          <div className="flex items-center gap-0 rounded border border-border overflow-hidden">
-                                            <button className="h-4 px-1 text-[9px] text-muted-foreground hover:text-foreground hover:bg-muted transition-colors" onClick={() => { const cur = parseInt(String(scene.duration_hint).replace('s', '')) || 5; const next = Math.max(1, cur - 1); updateStoryboardScene(workflowId, oCurrentSbFlatIdx, scene.id, { duration_hint: `${next}s` }).then(() => loadWorkflow()); }}>-</button>
-                                            <span className="font-mono text-[8px] px-1 tabular-nums">{scene.duration_hint}</span>
-                                            <button className="h-4 px-1 text-[9px] text-muted-foreground hover:text-foreground hover:bg-muted transition-colors" onClick={() => { const cur = parseInt(String(scene.duration_hint).replace('s', '')) || 5; const next = Math.min(60, cur + 1); updateStoryboardScene(workflowId, oCurrentSbFlatIdx, scene.id, { duration_hint: `${next}s` }).then(() => loadWorkflow()); }}>+</button>
-                                          </div>
+                                        <div className="flex gap-3 flex-wrap">
+                                          {sbChars.map((char) => (
+                                            <div key={char.id} className="w-[200px] rounded-lg border border-border overflow-hidden bg-muted/20">
+                                              <div className="relative aspect-[3/4] bg-muted">
+                                                {char.image_url ? (
+                                                  // eslint-disable-next-line @next/next/no-img-element
+                                                  <img src={char.image_url} alt={char.name} className="h-full w-full object-cover" />
+                                                ) : (
+                                                  <div className="flex h-full items-center justify-center">{generatingImages.has(char.id) ? <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /> : <UserIcon className="h-5 w-5 text-muted-foreground/20" />}</div>
+                                                )}
+                                              </div>
+                                              <div className="p-2 space-y-1">
+                                                <input className="text-[10px] font-medium truncate bg-transparent border-b border-transparent hover:border-border focus:border-primary focus:outline-none w-full" defaultValue={char.name} onBlur={(e) => { if (e.target.value !== char.name) updateStoryboardScene(workflowId, sbFlatIdx, char.id, { title: e.target.value }).then(() => loadWorkflow()).catch(() => { e.target.value = char.name; }); }} onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} />
+                                                <textarea className="text-[8px] text-muted-foreground leading-relaxed bg-transparent border border-transparent hover:border-border focus:border-primary focus:outline-none w-full resize-none" defaultValue={char.description} rows={2} onBlur={(e) => { if (e.target.value !== char.description) updateStoryboardScene(workflowId, sbFlatIdx, char.id, { description: e.target.value }).then(() => loadWorkflow()).catch(() => { e.target.value = char.description; }); }} />
+                                                {imageErrors.get(char.id) && <p className="text-[8px] text-destructive line-clamp-2">{imageErrors.get(char.id)}</p>}
+                                                <Button size="sm" variant="outline" onClick={() => handleGenerateImageOverview('character', char.id)} disabled={generatingImages.has(char.id)} className="w-full h-5 text-[8px]">
+                                                  {generatingImages.has(char.id) ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : char.image_url ? 'Regenerate' : 'Generate'}
+                                                </Button>
+                                                <FeedbackBar workflowId={workflowId} contentId={selectedContentPiece?.content_id} stageKey="storyboard" itemType="character" itemId={char.id} />
+                                              </div>
+                                            </div>
+                                          ))}
                                         </div>
-                                        {(scene.character_ids || []).length > 0 && (
-                                          <div className="flex flex-wrap gap-0.5">
-                                            {(scene.character_ids || []).map((cid) => { const c = oCharacters.find((ch) => ch.id === cid); return <span key={cid} className="inline-flex items-center rounded-full border border-border px-1 py-px font-mono text-[7px] text-muted-foreground">{c?.name || cid}</span>; })}
-                                          </div>
-                                        )}
-                                        {imageErrors.get(scene.id) && <p className="text-[7px] text-destructive">{imageErrors.get(scene.id)}</p>}
-                                        <Button size="sm" variant="outline" onClick={() => handleGenerateImageOverview('scene', scene.id)} disabled={generatingImages.has(scene.id) || !charsReady} title={!charsReady ? 'Generate character images first' : undefined} className="w-full h-5 text-[8px] mt-auto">
-                                          {generatingImages.has(scene.id) ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : !charsReady ? 'Chars required' : scene.image_url ? 'Regenerate' : 'Generate'}
-                                        </Button>
+                                      </div>
+
+                                      {/* Scenes */}
+                                      <div>
+                                        <div className="flex items-center justify-between mb-2">
+                                          <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground">Scenes</div>
+                                          <button
+                                            onClick={() => {
+                                              const newScene = { id: `scene_${Date.now()}`, scene_number: sbScenes.length + 1, title: 'New Scene', description: '', shot_type: 'medium', duration_hint: '5s', character_ids: [] as string[], image_prompt: '', image_url: null, gs_uri: null, image_model: '' };
+                                              const sbKey = `_new_scenes_${storyboardConceptIdx}`;
+                                              const existing = (getSetting('storyboard', sbKey) as typeof sbScenes) || [];
+                                              updateStageSetting('storyboard', sbKey, [...existing, newScene]);
+                                            }}
+                                            className="font-mono text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+                                          >+ Add Scene</button>
+                                        </div>
+                                        <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${sbScenes.length}, 1fr)` }}>
+                                          {sbScenes.map((scene) => {
+                                            const charsReady = (scene.character_ids || []).every((cid) => { const c = sbChars.find((ch) => ch.id === cid); return c && c.image_url; });
+                                            return (
+                                              <div key={scene.id} className="min-w-0 rounded-lg border border-border overflow-hidden bg-muted/20 flex flex-col">
+                                                <div className="relative aspect-[9/16] bg-muted shrink-0">
+                                                  {scene.image_url ? (
+                                                    // eslint-disable-next-line @next/next/no-img-element
+                                                    <img src={scene.image_url} alt={scene.title} className="h-full w-full object-cover" />
+                                                  ) : (
+                                                    <div className="flex h-full items-center justify-center">{generatingImages.has(scene.id) ? <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /> : <ImageIcon className="h-5 w-5 text-muted-foreground/20" />}</div>
+                                                  )}
+                                                </div>
+                                                <div className="p-2 flex flex-col gap-1 flex-1">
+                                                  <div className="flex items-center gap-1">
+                                                    <span className="font-mono text-[8px] text-muted-foreground/50">{scene.scene_number}.</span>
+                                                    <input className="text-[10px] font-medium bg-transparent border-b border-transparent hover:border-border focus:border-primary focus:outline-none flex-1 min-w-0" defaultValue={scene.title} onBlur={(e) => { if (e.target.value !== scene.title) updateStoryboardScene(workflowId, sbFlatIdx, scene.id, { title: e.target.value }).then(() => loadWorkflow()).catch(() => { e.target.value = scene.title; }); }} onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} />
+                                                  </div>
+                                                  <textarea className="text-[8px] text-muted-foreground leading-relaxed bg-transparent border border-transparent hover:border-border focus:border-primary focus:outline-none w-full resize-none" defaultValue={scene.description} rows={3} onBlur={(e) => { if (e.target.value !== scene.description) updateStoryboardScene(workflowId, sbFlatIdx, scene.id, { description: e.target.value }).then(() => loadWorkflow()).catch(() => { e.target.value = scene.description; }); }} />
+                                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                                    <input className="font-mono text-[8px] bg-transparent border-b border-transparent hover:border-border focus:border-primary focus:outline-none w-[60px]" defaultValue={scene.shot_type} onBlur={(e) => { if (e.target.value !== scene.shot_type) updateStoryboardScene(workflowId, sbFlatIdx, scene.id, { shot_type: e.target.value }).then(() => loadWorkflow()).catch(() => { e.target.value = scene.shot_type; }); }} onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} />
+                                                    <div className="flex items-center gap-0 rounded border border-border overflow-hidden">
+                                                      <button className="h-4 px-1 text-[9px] text-muted-foreground hover:text-foreground hover:bg-muted transition-colors" onClick={() => { const cur = parseInt(String(scene.duration_hint).replace('s', '')) || 5; const next = Math.max(1, cur - 1); updateStoryboardScene(workflowId, sbFlatIdx, scene.id, { duration_hint: `${next}s` }).then(() => loadWorkflow()); }}>-</button>
+                                                      <span className="font-mono text-[8px] px-1 tabular-nums">{scene.duration_hint}</span>
+                                                      <button className="h-4 px-1 text-[9px] text-muted-foreground hover:text-foreground hover:bg-muted transition-colors" onClick={() => { const cur = parseInt(String(scene.duration_hint).replace('s', '')) || 5; const next = Math.min(60, cur + 1); updateStoryboardScene(workflowId, sbFlatIdx, scene.id, { duration_hint: `${next}s` }).then(() => loadWorkflow()); }}>+</button>
+                                                    </div>
+                                                  </div>
+                                                  {(scene.character_ids || []).length > 0 && (
+                                                    <div className="flex flex-wrap gap-0.5">
+                                                      {(scene.character_ids || []).map((cid) => { const c = sbChars.find((ch) => ch.id === cid); return <span key={cid} className="inline-flex items-center rounded-full border border-border px-1 py-px font-mono text-[7px] text-muted-foreground">{c?.name || cid}</span>; })}
+                                                    </div>
+                                                  )}
+                                                  {imageErrors.get(scene.id) && <p className="text-[7px] text-destructive">{imageErrors.get(scene.id)}</p>}
+                                                  <Button size="sm" variant="outline" onClick={() => handleGenerateImageOverview('scene', scene.id)} disabled={generatingImages.has(scene.id) || !charsReady} title={!charsReady ? 'Generate character images first' : undefined} className="w-full h-5 text-[8px] mt-auto">
+                                                    {generatingImages.has(scene.id) ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : !charsReady ? 'Chars required' : scene.image_url ? 'Regenerate' : 'Generate'}
+                                                  </Button>
+                                                  {scene.dialog && <div><div className="font-mono text-[7px] uppercase text-muted-foreground/50">Dialog</div><p className="text-[8px] text-muted-foreground">{scene.dialog}</p></div>}
+                                                  {scene.lighting && <div><div className="font-mono text-[7px] uppercase text-muted-foreground/50">Lighting</div><p className="text-[8px] text-muted-foreground">{scene.lighting}</p></div>}
+                                                  {scene.time_of_day && <div><div className="font-mono text-[7px] uppercase text-muted-foreground/50">Time</div><p className="text-[8px] text-muted-foreground">{scene.time_of_day}</p></div>}
+                                                  {scene.camera_move && <div><div className="font-mono text-[7px] uppercase text-muted-foreground/50">Camera</div><p className="text-[8px] text-muted-foreground">{scene.camera_move}</p></div>}
+                                                  <div className="pt-1 border-t border-border mt-1">
+                                                    <FeedbackBar workflowId={workflowId} contentId={selectedContentPiece?.content_id} stageKey="storyboard" itemType="scene" itemId={scene.id} />
+                                                  </div>
+                                                </div>
+                                              </div>
+                                            );
+                                          })}
+                                        </div>
                                       </div>
                                     </div>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          </>
+                                  )}
+
+                                  {/* Storyboard-level feedback — always visible at bottom of card */}
+                                  <div className="px-3 py-2 border-t border-border">
+                                    <FeedbackBar workflowId={workflowId} contentId={selectedContentPiece?.content_id} stageKey="storyboard" itemType="storyboard" itemId={`sb_${sbFlatIdx}`} />
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
                         )}
 
-                        {!oCurrentSb && !generatingStoryboard && oGeneratedConcepts.length > 0 && (
+                        {oConceptVariations.length === 0 && !generatingStoryboard && oGeneratedConcepts.length > 0 && (
                           <div className="text-center py-6 text-muted-foreground/50"><ImageIcon className="h-8 w-8 mx-auto mb-2 opacity-30" /><p className="text-xs">Select a concept and click &quot;Generate Storyboard&quot; to begin</p></div>
                         )}
                         {oGeneratedConcepts.length === 0 && <div className="text-center py-6 text-muted-foreground/50"><p className="text-xs">Generate concepts first in the Concepts stage</p></div>}
@@ -2944,6 +3018,7 @@ export default function ContentWorkflowDetailPage() {
                                               <div className="px-1.5 py-1 space-y-0.5 flex-1">
                                                 <div className="flex items-center gap-1"><span className="font-mono text-[7px] text-muted-foreground/50">{scene.scene_number}.</span><span className="text-[8px] font-medium truncate">{scene.title}</span></div>
                                                 <p className="text-[7px] text-muted-foreground leading-relaxed line-clamp-2">{scene.description}</p>
+                                                <FeedbackBar workflowId={workflowId} contentId={selectedContentPiece?.content_id} stageKey="video_generation" itemType="scene" itemId={scene.id} />
                                               </div>
                                             </div>
                                           ))}
@@ -2970,6 +3045,9 @@ export default function ContentWorkflowDetailPage() {
                                                     ) : (
                                                       <div className={`${oVideoAspect} bg-muted/50 flex items-center justify-center`}><span className="font-mono text-[8px] text-muted-foreground/40">rendering...</span></div>
                                                     )}
+                                                    <div className="px-1.5 py-1">
+                                                      <FeedbackBar workflowId={workflowId} contentId={selectedContentPiece?.content_id} stageKey="video_generation" itemType="video" itemId={vid?.id || `scene-${scene.scene_number}`} />
+                                                    </div>
                                                   </div>
                                                 );
                                               })}
@@ -2997,7 +3075,11 @@ export default function ContentWorkflowDetailPage() {
                                           <div key={v.id} className="rounded-lg border border-border overflow-hidden bg-muted relative group/gv3">
                                             <video src={v.preview} className={`w-full ${va3} object-contain bg-black [&:fullscreen]:h-screen [&:fullscreen]:w-auto [&:fullscreen]:mx-auto`} controls playsInline />
                                             <button className="absolute top-1 right-1 h-5 w-5 rounded-full bg-black/60 text-white/70 hover:text-white hover:bg-red-600/80 opacity-0 group-hover/gv3:opacity-100 transition-opacity flex items-center justify-center" onClick={() => deleteVideoVariation(workflowId, v.id).then(() => loadWorkflow()).catch(() => {})}><X className="h-3 w-3" /></button>
-                                            <div className="p-1.5"><p className="text-[9px] font-medium truncate">{v.title}</p></div>
+                                            <div className="p-1.5">
+                                              <p className="text-[9px] font-medium truncate">{v.title}</p>
+                                              {/* WS8: FeedbackBar */}
+                                              <FeedbackBar workflowId={workflowId} contentId={selectedContentPiece?.content_id} stageKey="video_generation" itemType="video" itemId={v.id} />
+                                            </div>
                                           </div>
                                         ))}
                                       </div>
@@ -3330,6 +3412,7 @@ export default function ContentWorkflowDetailPage() {
                                                 <div className="flex items-center gap-2 mb-2">
                                                   <span className="font-mono text-[10px] font-semibold">{vidTitle}</span>
                                                   <span className="inline-flex items-center rounded-full bg-muted px-1.5 py-0.5 font-mono text-[8px] text-muted-foreground">avg {avgScore}</span>
+                                                  <FeedbackBar workflowId={workflowId} contentId={selectedContentPiece?.content_id} stageKey="simulation_testing" itemType="simulation" itemId={`${vidId}`} />
                                                 </div>
                                                 <div className="grid gap-4" style={{ gridTemplateColumns: '1fr 2fr' }}>
                                                   {/* Left col — video */}
@@ -3483,9 +3566,12 @@ export default function ContentWorkflowDetailPage() {
                                   <div key={pred.video_id} className="rounded-lg border border-border overflow-hidden">
                                     <div className="flex items-center justify-between px-4 py-2.5 bg-muted/30 border-b border-border">
                                       <span className="font-mono text-[10px] font-semibold">{pred.video_title}</span>
-                                      <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 font-mono text-[8px]">
-                                        confidence {Math.round(pred.confidence * 100)}%
-                                      </span>
+                                      <div className="flex items-center gap-2">
+                                        <FeedbackBar workflowId={workflowId} contentId={selectedContentPiece?.content_id} stageKey="predictive_modeling" itemType="prediction" itemId={pred.video_id} />
+                                        <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 font-mono text-[8px]">
+                                          confidence {Math.round(pred.confidence * 100)}%
+                                        </span>
+                                      </div>
                                     </div>
                                     <div className="grid gap-4 p-4" style={{ gridTemplateColumns: vidVar?.preview ? '1fr 2fr' : '1fr' }}>
                                       {vidVar?.preview && (
@@ -3595,7 +3681,10 @@ export default function ContentWorkflowDetailPage() {
                                         <span className={`inline-flex items-center justify-center w-6 h-6 rounded-full font-mono text-xs font-bold ${isFirst ? 'bg-green-500 text-white' : 'bg-muted text-muted-foreground'}`}>{r.rank}</span>
                                         <span className="font-mono text-[10px] font-semibold">{r.video_title}</span>
                                       </div>
-                                      <CircleScore score={Math.round(r.composite_score)} size={40} />
+                                      <div className="flex items-center gap-2">
+                                        <FeedbackBar workflowId={workflowId} contentId={selectedContentPiece?.content_id} stageKey="content_ranking" itemType="ranking" itemId={r.video_id} />
+                                        <CircleScore score={Math.round(r.composite_score)} size={40} />
+                                      </div>
                                     </div>
                                     <div className="grid gap-4 p-4" style={{ gridTemplateColumns: vidVar?.preview ? 'auto 1fr' : '1fr' }}>
                                       {vidVar?.preview && (
@@ -3708,13 +3797,6 @@ export default function ContentWorkflowDetailPage() {
                       );
                     })()}
 
-                    </div>
-
-                    {/* Regenerate with RL */}
-                    <div className="mt-6 flex justify-end">
-                      <Button variant="outline" size="sm" className="h-7 font-mono text-[10px] uppercase tracking-wider gap-1.5 text-muted-foreground hover:text-foreground">
-                        <RefreshCw className="h-3 w-3" /> Regenerate using Reinforcement Learning
-                      </Button>
                     </div>
 
                     <div className="mt-4 border-b border-border" />
@@ -4989,7 +5071,7 @@ export default function ContentWorkflowDetailPage() {
                           </div>
                           <div className="flex gap-3 flex-wrap">
                             {characters.map((char) => (
-                              <div key={char.id} className="w-[140px] rounded-lg border border-border overflow-hidden bg-muted/20">
+                              <div key={char.id} className="w-[200px] rounded-lg border border-border overflow-hidden bg-muted/20">
                                 <div className="relative aspect-[3/4] bg-muted">
                                   {char.image_url ? (
                                     // eslint-disable-next-line @next/next/no-img-element
