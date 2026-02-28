@@ -99,87 +99,105 @@ export default function FeedbackBar({
   const comments = feedback.filter(f => f.comment);
 
   return (
-    <div className="space-y-1.5">
-      {/* Reactions row */}
-      <div className="flex items-center gap-1.5">
-        <button
-          onClick={() => handleReaction('like')}
-          disabled={submitting}
-          className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] transition-colors ${
-            myReaction === 'like'
-              ? 'bg-green-500/15 text-green-600'
-              : 'bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground'
-          }`}
-        >
-          <ThumbsUp className="h-3 w-3" />
-          {likeCount > 0 && <span className="tabular-nums">{likeCount}</span>}
-        </button>
-        <button
-          onClick={() => handleReaction('dislike')}
-          disabled={submitting}
-          className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] transition-colors ${
-            myReaction === 'dislike'
-              ? 'bg-red-500/15 text-red-600'
-              : 'bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground'
-          }`}
-        >
-          <ThumbsDown className="h-3 w-3" />
-          {dislikeCount > 0 && <span className="tabular-nums">{dislikeCount}</span>}
-        </button>
+    <div className="mt-3 border-t border-border/40 pt-3 space-y-4">
+      {/* Reactions & Actions Row */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => handleReaction('like')}
+            disabled={submitting}
+            className={`inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium transition-all ${
+              myReaction === 'like'
+                ? 'bg-green-500/10 text-green-600 border border-green-500/20'
+                : 'bg-muted/30 text-muted-foreground hover:bg-muted hover:text-foreground border border-transparent'
+            }`}
+          >
+            <ThumbsUp className="h-3.5 w-3.5" />
+            <span className="tabular-nums">{likeCount}</span>
+          </button>
+          <button
+            onClick={() => handleReaction('dislike')}
+            disabled={submitting}
+            className={`inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium transition-all ${
+              myReaction === 'dislike'
+                ? 'bg-red-500/10 text-red-600 border border-red-500/20'
+                : 'bg-muted/30 text-muted-foreground hover:bg-muted hover:text-foreground border border-transparent'
+            }`}
+          >
+            <ThumbsDown className="h-3.5 w-3.5" />
+            <span className="tabular-nums">{dislikeCount}</span>
+          </button>
+        </div>
+
+        {onRegenerate && (
+          <button
+            onClick={onRegenerate}
+            className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium bg-foreground/5 text-muted-foreground hover:bg-foreground hover:text-background transition-all"
+          >
+            <RefreshCw className="h-3.5 w-3.5" />
+            <span>Regenerate</span>
+          </button>
+        )}
       </div>
 
-      {/* Comment thread — inline */}
+      {/* Comment Thread */}
       {comments.length > 0 && (
-        <div className="space-y-1">
-          {comments.map((c) => (
-            <div key={c._id} className="group flex items-start gap-1.5 text-[10px]">
-              <span className="font-medium text-foreground/70 shrink-0">
-                {c.user_name?.split(' ')[0] || 'User'}
-                {c.source === 'client' && <span className="ml-0.5 text-[8px] text-orange-500 font-normal">client</span>}
-              </span>
-              <span className="text-muted-foreground flex-1 min-w-0">{c.comment}</span>
-              <button
-                onClick={() => handleDelete(c._id)}
-                className="shrink-0 opacity-0 group-hover:opacity-100 text-muted-foreground/40 hover:text-red-500 transition-opacity"
-              >
-                <X className="h-3 w-3" />
-              </button>
-            </div>
-          ))}
+        <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1 scrollbar-thin">
+          {comments.map((c) => {
+            const initials = c.user_name?.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() || 'U';
+            return (
+              <div key={c._id} className="group flex items-start gap-2.5">
+                <div className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${
+                  c.source === 'client' ? 'bg-orange-500 text-white' : 'bg-foreground/10 text-foreground/70'
+                }`}>
+                  {initials}
+                </div>
+                <div className="flex-1 min-w-0 space-y-0.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[10px] font-semibold text-foreground/80">
+                      {c.user_name || 'User'}
+                      {c.source === 'client' && <span className="ml-1.5 text-[9px] text-orange-500 font-normal uppercase tracking-wider">Client</span>}
+                    </span>
+                    <button
+                      onClick={() => handleDelete(c._id)}
+                      className="shrink-0 opacity-0 group-hover:opacity-100 text-muted-foreground/40 hover:text-destructive transition-all"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                  <div className="rounded-lg rounded-tl-none bg-muted/30 px-2.5 py-1.5 text-xs text-foreground/90 leading-relaxed">
+                    {c.comment}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
 
-      {/* Inline comment input */}
-      <div className="flex items-center gap-1">
+      {/* Inline Chat Input */}
+      <div className="relative group">
         <input
           type="text"
           value={commentText}
           onChange={(e) => setCommentText(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') handleComment(); }}
-          placeholder="Add a comment..."
-          className="flex-1 h-6 rounded-full bg-muted/40 border-0 px-2.5 text-[10px] text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-foreground/20"
+          placeholder="Send a message..."
+          className="w-full h-9 rounded-lg bg-muted/40 border border-transparent px-3 pr-10 text-xs text-foreground placeholder:text-muted-foreground/50 transition-all focus:bg-muted/60 focus:border-border focus:outline-none"
         />
-        {commentText.trim() && (
-          <button
-            onClick={handleComment}
-            disabled={submitting}
-            className="shrink-0 h-5 w-5 rounded-full bg-foreground text-background flex items-center justify-center hover:bg-foreground/80 disabled:opacity-40 transition-colors"
-          >
-            <ArrowUp className="h-3 w-3" />
-          </button>
-        )}
-      </div>
-
-      {/* Regenerate — after comments */}
-      {onRegenerate && (
         <button
-          onClick={onRegenerate}
-          className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+          onClick={handleComment}
+          disabled={!commentText.trim() || submitting}
+          className={`absolute right-1.5 top-1/2 -translate-y-1/2 h-6 w-6 rounded-md flex items-center justify-center transition-all ${
+            commentText.trim() 
+              ? 'bg-foreground text-background hover:scale-105 active:scale-95' 
+              : 'text-muted-foreground/30'
+          }`}
         >
-          <RefreshCw className="h-3 w-3" />
-          <span>Regenerate</span>
+          <ArrowUp className="h-3.5 w-3.5" />
         </button>
-      )}
+      </div>
     </div>
   );
 }
+

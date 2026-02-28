@@ -2470,7 +2470,6 @@ export default function ContentWorkflowDetailPage() {
                                 {fc.messaging && fc.messaging.length > 0 && <div><div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/60 mb-0.5">Key Messaging</div><ul className="space-y-0.5">{fc.messaging.map((msg, mi) => (<li key={mi} className="text-[10px] text-muted-foreground flex items-start gap-1.5"><span className="text-muted-foreground/40 shrink-0">&#x2022;</span><span className="whitespace-pre-line">{msg}</span></li>))}</ul></div>}
                               </>);
                             })()}
-                            {/* WS8: Feedback bar */}
                             <div className="pt-2 border-t border-border mt-2">
                               <FeedbackBar
                                 workflowId={workflowId}
@@ -2861,7 +2860,14 @@ export default function ContentWorkflowDetailPage() {
                                                 <Button size="sm" variant="outline" onClick={() => handleGenerateImageOverview('character', char.id)} disabled={generatingImages.has(char.id)} className="w-full h-5 text-[8px]">
                                                   {generatingImages.has(char.id) ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : char.image_url ? 'Regenerate' : 'Generate'}
                                                 </Button>
-                                                <FeedbackBar workflowId={workflowId} contentId={selectedContentPiece?.content_id} stageKey="storyboard" itemType="character" itemId={char.id} />
+                                                <FeedbackBar 
+                                                  workflowId={workflowId} 
+                                                  contentId={selectedContentPiece?.content_id} 
+                                                  stageKey="storyboard" 
+                                                  itemType="character" 
+                                                  itemId={char.id} 
+                                                  onRegenerate={handleGenerateStoryboard}
+                                                />
                                               </div>
                                             </div>
                                           ))}
@@ -2923,7 +2929,14 @@ export default function ContentWorkflowDetailPage() {
                                                   {scene.time_of_day && <div><div className="font-mono text-[7px] uppercase text-muted-foreground/50">Time</div><p className="text-[8px] text-muted-foreground">{scene.time_of_day}</p></div>}
                                                   {scene.camera_move && <div><div className="font-mono text-[7px] uppercase text-muted-foreground/50">Camera</div><p className="text-[8px] text-muted-foreground">{scene.camera_move}</p></div>}
                                                   <div className="pt-1 border-t border-border mt-1">
-                                                    <FeedbackBar workflowId={workflowId} contentId={selectedContentPiece?.content_id} stageKey="storyboard" itemType="scene" itemId={scene.id} />
+                                                    <FeedbackBar 
+                                                      workflowId={workflowId} 
+                                                      contentId={selectedContentPiece?.content_id} 
+                                                      stageKey="storyboard" 
+                                                      itemType="scene" 
+                                                      itemId={scene.id} 
+                                                      onRegenerate={handleGenerateStoryboard}
+                                                    />
                                                   </div>
                                                 </div>
                                               </div>
@@ -2936,7 +2949,14 @@ export default function ContentWorkflowDetailPage() {
 
                                   {/* Storyboard-level feedback — always visible at bottom of card */}
                                   <div className="px-3 py-2 border-t border-border">
-                                    <FeedbackBar workflowId={workflowId} contentId={selectedContentPiece?.content_id} stageKey="storyboard" itemType="storyboard" itemId={`sb_${sbFlatIdx}`} />
+                                    <FeedbackBar 
+                                      workflowId={workflowId} 
+                                      contentId={selectedContentPiece?.content_id} 
+                                      stageKey="storyboard" 
+                                      itemType="storyboard" 
+                                      itemId={`sb_${currentSbFlatIdx}`} 
+                                      onRegenerate={handleGenerateStoryboard}
+                                    />
                                   </div>
                                 </div>
                               );
@@ -3018,7 +3038,14 @@ export default function ContentWorkflowDetailPage() {
                                               <div className="px-1.5 py-1 space-y-0.5 flex-1">
                                                 <div className="flex items-center gap-1"><span className="font-mono text-[7px] text-muted-foreground/50">{scene.scene_number}.</span><span className="text-[8px] font-medium truncate">{scene.title}</span></div>
                                                 <p className="text-[7px] text-muted-foreground leading-relaxed line-clamp-2">{scene.description}</p>
-                                                <FeedbackBar workflowId={workflowId} contentId={selectedContentPiece?.content_id} stageKey="video_generation" itemType="scene" itemId={scene.id} />
+                                                <FeedbackBar 
+                                                  workflowId={workflowId} 
+                                                  contentId={selectedContentPiece?.content_id} 
+                                                  stageKey="video_generation" 
+                                                  itemType="scene" 
+                                                  itemId={scene.id} 
+                                                  onRegenerate={() => handleGenerateRow(0)}
+                                                />
                                               </div>
                                             </div>
                                           ))}
@@ -3046,7 +3073,14 @@ export default function ContentWorkflowDetailPage() {
                                                       <div className={`${oVideoAspect} bg-muted/50 flex items-center justify-center`}><span className="font-mono text-[8px] text-muted-foreground/40">rendering...</span></div>
                                                     )}
                                                     <div className="px-1.5 py-1">
-                                                      <FeedbackBar workflowId={workflowId} contentId={selectedContentPiece?.content_id} stageKey="video_generation" itemType="video" itemId={vid?.id || `scene-${scene.scene_number}`} />
+                                                      <FeedbackBar 
+                                                        workflowId={workflowId} 
+                                                        contentId={selectedContentPiece?.content_id} 
+                                                        stageKey="video_generation" 
+                                                        itemType="video" 
+                                                        itemId={vid?.id || `scene-${scene.scene_number}`} 
+                                                        onRegenerate={() => handleGenerateRow(0)}
+                                                      />
                                                     </div>
                                                   </div>
                                                 );
@@ -3078,7 +3112,15 @@ export default function ContentWorkflowDetailPage() {
                                             <div className="p-1.5">
                                               <p className="text-[9px] font-medium truncate">{v.title}</p>
                                               {/* WS8: FeedbackBar */}
-                                              <FeedbackBar workflowId={workflowId} contentId={selectedContentPiece?.content_id} stageKey="video_generation" itemType="video" itemId={v.id} />
+                                                                                             <FeedbackBar 
+                                                                                               workflowId={workflowId} 
+                                                                                               contentId={selectedContentPiece?.content_id} 
+                                                                                               stageKey="video_generation" 
+                                                                                               itemType="video" 
+                                                                                               itemId={v.id} 
+                                                                                               onRegenerate={() => handleGenerateRow(0)}
+                                                                                             />
+                                              
                                             </div>
                                           </div>
                                         ))}
@@ -3412,7 +3454,14 @@ export default function ContentWorkflowDetailPage() {
                                                 <div className="flex items-center gap-2 mb-2">
                                                   <span className="font-mono text-[10px] font-semibold">{vidTitle}</span>
                                                   <span className="inline-flex items-center rounded-full bg-muted px-1.5 py-0.5 font-mono text-[8px] text-muted-foreground">avg {avgScore}</span>
-                                                  <FeedbackBar workflowId={workflowId} contentId={selectedContentPiece?.content_id} stageKey="simulation_testing" itemType="simulation" itemId={`${vidId}`} />
+                                                  <FeedbackBar 
+                                                  workflowId={workflowId} 
+                                                  contentId={selectedContentPiece?.content_id} 
+                                                  stageKey="simulation_testing" 
+                                                  itemType="simulation" 
+                                                  itemId={`${vidId}`} 
+                                                  onRegenerate={() => {}} 
+                                                />
                                                 </div>
                                                 <div className="grid gap-4" style={{ gridTemplateColumns: '1fr 2fr' }}>
                                                   {/* Left col — video */}
@@ -3567,7 +3616,14 @@ export default function ContentWorkflowDetailPage() {
                                     <div className="flex items-center justify-between px-4 py-2.5 bg-muted/30 border-b border-border">
                                       <span className="font-mono text-[10px] font-semibold">{pred.video_title}</span>
                                       <div className="flex items-center gap-2">
-                                        <FeedbackBar workflowId={workflowId} contentId={selectedContentPiece?.content_id} stageKey="predictive_modeling" itemType="prediction" itemId={pred.video_id} />
+                                        <FeedbackBar 
+                                          workflowId={workflowId} 
+                                          contentId={selectedContentPiece?.content_id} 
+                                          stageKey="predictive_modeling" 
+                                          itemType="prediction" 
+                                          itemId={pred.video_id} 
+                                          onRegenerate={() => {}}
+                                        />
                                         <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 font-mono text-[8px]">
                                           confidence {Math.round(pred.confidence * 100)}%
                                         </span>
@@ -3682,7 +3738,14 @@ export default function ContentWorkflowDetailPage() {
                                         <span className="font-mono text-[10px] font-semibold">{r.video_title}</span>
                                       </div>
                                       <div className="flex items-center gap-2">
-                                        <FeedbackBar workflowId={workflowId} contentId={selectedContentPiece?.content_id} stageKey="content_ranking" itemType="ranking" itemId={r.video_id} />
+                                        <FeedbackBar 
+                                          workflowId={workflowId} 
+                                          contentId={selectedContentPiece?.content_id} 
+                                          stageKey="content_ranking" 
+                                          itemType="ranking" 
+                                          itemId={r.video_id} 
+                                          onRegenerate={() => {}}
+                                        />
                                         <CircleScore score={Math.round(r.composite_score)} size={40} />
                                       </div>
                                     </div>
