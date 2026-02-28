@@ -2866,7 +2866,7 @@ export default function ContentWorkflowDetailPage() {
                                                   stageKey="storyboard" 
                                                   itemType="character" 
                                                   itemId={char.id} 
-                                                  onRegenerate={handleGenerateStoryboard}
+                                                  onRegenerate={handleGenerateStoryboardOverview}
                                                 />
                                               </div>
                                             </div>
@@ -2935,7 +2935,7 @@ export default function ContentWorkflowDetailPage() {
                                                       stageKey="storyboard" 
                                                       itemType="scene" 
                                                       itemId={scene.id} 
-                                                      onRegenerate={handleGenerateStoryboard}
+                                                      onRegenerate={handleGenerateStoryboardOverview}
                                                     />
                                                   </div>
                                                 </div>
@@ -2955,7 +2955,7 @@ export default function ContentWorkflowDetailPage() {
                                       stageKey="storyboard" 
                                       itemType="storyboard" 
                                       itemId={`sb_${currentSbFlatIdx}`} 
-                                      onRegenerate={handleGenerateStoryboard}
+                                      onRegenerate={handleGenerateStoryboardOverview}
                                     />
                                   </div>
                                 </div>
@@ -3044,7 +3044,7 @@ export default function ContentWorkflowDetailPage() {
                                                   stageKey="video_generation" 
                                                   itemType="scene" 
                                                   itemId={scene.id} 
-                                                  onRegenerate={() => handleGenerateRow(0)}
+                                                  onRegenerate={() => handleGenerateRowOverview(0)}
                                                 />
                                               </div>
                                             </div>
@@ -3079,7 +3079,7 @@ export default function ContentWorkflowDetailPage() {
                                                         stageKey="video_generation" 
                                                         itemType="video" 
                                                         itemId={vid?.id || `scene-${scene.scene_number}`} 
-                                                        onRegenerate={() => handleGenerateRow(0)}
+                                                        onRegenerate={() => handleGenerateRowOverview(0)}
                                                       />
                                                     </div>
                                                   </div>
@@ -3118,7 +3118,7 @@ export default function ContentWorkflowDetailPage() {
                                                                                                stageKey="video_generation" 
                                                                                                itemType="video" 
                                                                                                itemId={v.id} 
-                                                                                               onRegenerate={() => handleGenerateRow(0)}
+                                                                                               onRegenerate={() => handleGenerateRowOverview(0)}
                                                                                              />
                                               
                                             </div>
@@ -3460,7 +3460,7 @@ export default function ContentWorkflowDetailPage() {
                                                   stageKey="simulation_testing" 
                                                   itemType="simulation" 
                                                   itemId={`${vidId}`} 
-                                                  onRegenerate={() => {}} 
+                                                  onRegenerate={() => runTest(test.id)} 
                                                 />
                                                 </div>
                                                 <div className="grid gap-4" style={{ gridTemplateColumns: '1fr 2fr' }}>
@@ -3622,7 +3622,7 @@ export default function ContentWorkflowDetailPage() {
                                           stageKey="predictive_modeling" 
                                           itemType="prediction" 
                                           itemId={pred.video_id} 
-                                          onRegenerate={() => {}}
+                                          onRegenerate={handleRunPredInline}
                                         />
                                         <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 font-mono text-[8px]">
                                           confidence {Math.round(pred.confidence * 100)}%
@@ -3744,7 +3744,7 @@ export default function ContentWorkflowDetailPage() {
                                           stageKey="content_ranking" 
                                           itemType="ranking" 
                                           itemId={r.video_id} 
-                                          onRegenerate={() => {}}
+                                          onRegenerate={handleRunRankInline}
                                         />
                                         <CircleScore score={Math.round(r.composite_score)} size={40} />
                                       </div>
@@ -5152,6 +5152,14 @@ export default function ContentWorkflowDetailPage() {
                                   <Button size="sm" variant="outline" onClick={() => handleGenerateImage('character', char.id)} disabled={generatingImages.has(char.id)} className="w-full h-6 text-[9px]">
                                     {generatingImages.has(char.id) ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : char.image_url ? 'Regenerate' : 'Generate'}
                                   </Button>
+                                  <FeedbackBar 
+                                    workflowId={workflowId} 
+                                    contentId={selectedContentPiece?.content_id} 
+                                    stageKey="storyboard" 
+                                    itemType="character" 
+                                    itemId={char.id} 
+                                    onRegenerate={handleGenerateStoryboard}
+                                  />
                                 </div>
                               </div>
                             ))}
@@ -5208,6 +5216,14 @@ export default function ContentWorkflowDetailPage() {
                                     <Button size="sm" variant="outline" onClick={() => handleGenerateImage('scene', scene.id)} disabled={generatingImages.has(scene.id) || !charsReady} title={!charsReady ? 'Generate character images first' : undefined} className="w-full h-5 text-[8px] mt-auto">
                                       {generatingImages.has(scene.id) ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : !charsReady ? 'Chars required' : scene.image_url ? 'Regenerate' : 'Generate'}
                                     </Button>
+                                    <FeedbackBar 
+                                      workflowId={workflowId} 
+                                      contentId={selectedContentPiece?.content_id} 
+                                      stageKey="storyboard" 
+                                      itemType="scene" 
+                                      itemId={scene.id} 
+                                      onRegenerate={handleGenerateStoryboard}
+                                    />
                                   </div>
                                 </div>
                               );
@@ -5263,6 +5279,16 @@ export default function ContentWorkflowDetailPage() {
                               </div>
                             )}
                           </div>
+                        </div>
+                        <div className="pt-2 border-t border-border mt-2">
+                          <FeedbackBar 
+                            workflowId={workflowId} 
+                            contentId={selectedContentPiece?.content_id} 
+                            stageKey="storyboard" 
+                            itemType="storyboard" 
+                            itemId={`sb_${currentSbFlatIdx}`} 
+                            onRegenerate={handleGenerateStoryboard}
+                          />
                         </div>
                       </>
                     )}
