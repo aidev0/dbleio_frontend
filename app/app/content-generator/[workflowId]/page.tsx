@@ -2954,7 +2954,7 @@ export default function ContentWorkflowDetailPage() {
                                       contentId={selectedContentPiece?.content_id} 
                                       stageKey="storyboard" 
                                       itemType="storyboard" 
-                                      itemId={`sb_${currentSbFlatIdx}`} 
+                                      itemId={`sb_${sbFlatIdx}`} 
                                       onRegenerate={handleGenerateStoryboardOverview}
                                     />
                                   </div>
