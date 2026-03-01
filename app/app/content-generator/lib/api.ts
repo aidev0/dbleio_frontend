@@ -256,9 +256,12 @@ export async function generateConcepts(
   workflowId: string,
   num: number,
   tone: string,
-  content_type: string = 'reel'
+  content_type: string = 'reel',
+  contentId?: string,
 ): Promise<{ concepts: Array<Record<string, unknown>> }> {
-  const res = await apiPost(`/api/content/workflows/${workflowId}/generate-concepts`, { num, tone, content_type });
+  const body: Record<string, unknown> = { num, tone, content_type };
+  if (contentId) body.content_id = contentId;
+  const res = await apiPost(`/api/content/workflows/${workflowId}/generate-concepts`, body);
   if (!res.ok) throw new Error('Failed to generate concepts');
   return res.json();
 }
@@ -314,11 +317,13 @@ export async function generateStoryboard(
   workflowId: string,
   conceptIndex: number,
   llmModel?: string,
-  imageModel?: string
+  imageModel?: string,
+  contentId?: string,
 ): Promise<Record<string, unknown>> {
   const body: Record<string, unknown> = { concept_index: conceptIndex };
   if (llmModel) body.llm_model = llmModel;
   if (imageModel) body.image_model = imageModel;
+  if (contentId) body.content_id = contentId;
   const res = await apiPost(`/api/content/workflows/${workflowId}/generate-storyboard`, body);
   if (!res.ok) {
     const text = await res.text();
@@ -341,11 +346,13 @@ export async function generateStoryboardImage(
   targetType: 'character' | 'scene',
   targetId: string,
   imageModel?: string,
-  variationIndex?: number
+  variationIndex?: number,
+  contentId?: string,
 ): Promise<{ task_id: string }> {
   const body: Record<string, unknown> = { concept_index: conceptIndex, target_type: targetType, target_id: targetId };
   if (variationIndex !== undefined) body.variation_index = variationIndex;
   if (imageModel) body.image_model = imageModel;
+  if (contentId) body.content_id = contentId;
   const res = await apiPost(`/api/content/workflows/${workflowId}/generate-storyboard-image`, body);
   if (!res.ok) {
     const text = await res.text();
@@ -398,12 +405,14 @@ export async function generateVideo(
   resolution?: string,
   temperature?: number,
   customPrompt?: string,
+  contentId?: string,
 ): Promise<{ task_id: string; status: string; model: string; count: number }> {
   const body: Record<string, unknown> = { storyboard_index: storyboardIndex, count, model };
   if (outputFormat) body.output_format = outputFormat;
   if (resolution) body.resolution = resolution;
   if (temperature != null) body.temperature = temperature;
   if (customPrompt) body.custom_prompt = customPrompt;
+  if (contentId) body.content_id = contentId;
   const res = await apiPost(`/api/content/workflows/${workflowId}/generate-video`, body);
   if (!res.ok) {
     const text = await res.text();
@@ -500,11 +509,12 @@ export interface SimulationResult {
   reasoning: string;
   video_id?: string;
   video_title?: string;
+  content_id?: string;
 }
 
 export async function runContentSimulation(
   workflowId: string,
-  params: { genders: string[]; ages: string[]; model_provider: string; model_name: string; persona_ids?: string[]; video_ids?: string[] },
+  params: { genders: string[]; ages: string[]; model_provider: string; model_name: string; persona_ids?: string[]; video_ids?: string[]; content_id?: string },
 ): Promise<{ results: SimulationResult[] }> {
   const res = await apiPost(`/api/content/workflows/${workflowId}/simulate`, params);
   if (!res.ok) {
@@ -521,6 +531,7 @@ export async function runContentSimulation(
 export interface PredictionResult {
   video_id: string;
   video_title: string;
+  content_id?: string;
   expected_views: number;
   expected_likes: number;
   expected_comments: number;
@@ -540,9 +551,11 @@ export async function runPredictiveModeling(
   workflowId: string,
   modelName: string,
   videoIds?: string[],
+  contentId?: string,
 ): Promise<{ predictions: PredictionResult[]; benchmarks: PredictionBenchmarks }> {
   const body: Record<string, unknown> = { model_name: modelName };
   if (videoIds && videoIds.length > 0) body.video_ids = videoIds;
+  if (contentId) body.content_id = contentId;
   const res = await apiPost(`/api/content/workflows/${workflowId}/predict`, body);
   if (!res.ok) {
     const text = await res.text();
@@ -558,6 +571,7 @@ export async function runPredictiveModeling(
 export interface RankingResult {
   rank: number;
   video_id: string;
+  content_id?: string;
   video_title: string;
   composite_score: number;
   simulation_score: number;
@@ -574,11 +588,14 @@ export async function runContentRanking(
   workflowId: string,
   simulationWeight: number = 0.4,
   predictionWeight: number = 0.6,
+  contentId?: string,
 ): Promise<{ rankings: RankingResult[]; weights: { simulation: number; prediction: number } }> {
-  const res = await apiPost(`/api/content/workflows/${workflowId}/rank`, {
+  const body: Record<string, unknown> = {
     simulation_weight: simulationWeight,
     prediction_weight: predictionWeight,
-  });
+  };
+  if (contentId) body.content_id = contentId;
+  const res = await apiPost(`/api/content/workflows/${workflowId}/rank`, body);
   if (!res.ok) {
     const text = await res.text();
     let detail = text;
@@ -705,9 +722,14 @@ export async function getItemFeedback(
   workflowId: string,
   stageKey: string,
   itemId: string,
+  contentId?: string,
 ): Promise<FeedbackItem[]> {
   try {
-    const res = await apiGet(`/api/content/workflows/${workflowId}/feedback?stage_key=${stageKey}&item_id=${encodeURIComponent(itemId)}`);
+    const qp = new URLSearchParams();
+    qp.set('stage_key', stageKey);
+    qp.set('item_id', itemId);
+    if (contentId) qp.set('content_id', contentId);
+    const res = await apiGet(`/api/content/workflows/${workflowId}/feedback?${qp.toString()}`);
     if (!res.ok) return [];
     return res.json();
   } catch {
@@ -718,9 +740,13 @@ export async function getItemFeedback(
 export async function getFeedbackSummary(
   workflowId: string,
   stageKey: string,
+  contentId?: string,
 ): Promise<FeedbackSummaryItem[]> {
   try {
-    const res = await apiGet(`/api/content/workflows/${workflowId}/feedback/summary?stage_key=${stageKey}`);
+    const qp = new URLSearchParams();
+    qp.set('stage_key', stageKey);
+    if (contentId) qp.set('content_id', contentId);
+    const res = await apiGet(`/api/content/workflows/${workflowId}/feedback/summary?${qp.toString()}`);
     if (!res.ok) return [];
     return res.json();
   } catch {

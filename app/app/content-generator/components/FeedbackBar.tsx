@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { ThumbsUp, ThumbsDown, RefreshCw, ArrowUp, X } from 'lucide-react';
-import { submitFeedback, getItemFeedback, deleteFeedback } from '../lib/api';
+import { submitFeedback, getItemFeedback, deleteFeedback, getUserMe } from '../lib/api';
 import type { FeedbackItem } from '../lib/types';
 
 interface FeedbackBarProps {
@@ -28,20 +28,31 @@ export default function FeedbackBar({
   const [dislikeCount, setDislikeCount] = useState(0);
   const [commentText, setCommentText] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   const loadFeedback = useCallback(async () => {
-    const items = await getItemFeedback(workflowId, stageKey, itemId);
+    const items = await getItemFeedback(workflowId, stageKey, itemId, contentId);
     setFeedback(items);
     let likes = 0, dislikes = 0;
     for (const f of items) {
       if (f.reaction === 'like' && !f.comment) likes++;
       if (f.reaction === 'dislike' && !f.comment) dislikes++;
     }
+    const mine = currentUserId
+      ? items.find((f) => f.user_id === currentUserId && !!f.reaction && !f.comment)
+      : null;
+    setMyReaction((mine?.reaction as 'like' | 'dislike' | null) || null);
     setLikeCount(likes);
     setDislikeCount(dislikes);
-  }, [workflowId, stageKey, itemId]);
+  }, [workflowId, stageKey, itemId, contentId, currentUserId]);
 
   useEffect(() => { loadFeedback(); }, [loadFeedback]);
+  useEffect(() => {
+    (async () => {
+      const me = await getUserMe();
+      setCurrentUserId(me?.workos_user_id || null);
+    })();
+  }, []);
 
   const handleReaction = async (reaction: 'like' | 'dislike') => {
     if (submitting) return;
@@ -159,7 +170,9 @@ export default function FeedbackBar({
                       {c.source === 'client' && <span className="ml-1.5 text-[9px] text-orange-500 font-normal uppercase tracking-wider">Client</span>}
                     </span>
                     <button
+                      type="button"
                       onClick={() => handleDelete(c._id)}
+                      disabled={!currentUserId || c.user_id !== currentUserId}
                       className="shrink-0 opacity-0 group-hover:opacity-100 text-muted-foreground/40 hover:text-destructive transition-all"
                     >
                       <X className="h-3 w-3" />
@@ -200,4 +213,3 @@ export default function FeedbackBar({
     </div>
   );
 }
-
