@@ -7,25 +7,8 @@ import { ContactFormModal } from "@/components/contact-form-modal"
 
 const tiers = [
   {
-    name: "Platform",
-    id: "platform",
-    price: "$4,000",
-    period: "/mo/brand",
-    commitment: "Monthly Subscription",
-    highlight: false,
-    mobileDesc: "Full platform access + integrations",
-    includes: [
-      "Full platform access",
-      "Ads Platforms integrations",
-      "Video & image generation tools",
-      "Creative testing & scoring",
-      "Campaign analytics dashboard",
-      "$1,000 cloud + LLM usage credits included",
-    ],
-  },
-  {
-    name: "SCALE",
-    id: "scale",
+    name: "Brand",
+    id: "brand",
     price: "$8,000",
     period: "/mo/brand",
     commitment: "Monthly Subscription",
@@ -100,20 +83,20 @@ export function Pricing() {
   return (
     <section id="pricing" className="py-8 sm:py-16 md:py-20">
       <div className="mx-auto max-w-7xl px-4 sm:px-6">
-        <div className="mb-5 sm:mb-10 max-w-2xl">
+        <div className="mb-5 sm:mb-10 max-w-4xl">
           <div className="mb-3 sm:mb-6 font-mono text-[10px] sm:text-xs uppercase tracking-widest text-muted-foreground">
             Pricing
           </div>
-          <h2 className="text-2xl font-light italic tracking-tight text-foreground sm:text-5xl lg:text-6xl">
-            Scale with <span className="not-italic">your growth</span>
+          <h2 className="text-2xl font-light italic tracking-tight text-foreground sm:text-5xl lg:text-6xl whitespace-nowrap">
+            Scale Intelligence, Not Headcount
           </h2>
           <p className="hidden sm:block mt-6 text-xl leading-relaxed text-muted-foreground">
-            Full platform access on every plan. Choose your level of custom development.
+            We deploy production marketing systems into your organization. Every deployment includes the full intelligence engine and the dedicated operators behind it.
           </p>
         </div>
 
         {/* Tier Cards - Desktop */}
-        <div className="hidden sm:grid gap-px border border-border bg-border md:grid-cols-3">
+        <div className="hidden sm:grid gap-px border border-border bg-border md:grid-cols-2">
           {tiers.map((tier) => (
             <div
               key={tier.name}
@@ -129,11 +112,6 @@ export function Pricing() {
                     <span className="text-sm text-muted-foreground">{tier.period}</span>
                   </div>
                 </div>
-                {tier.highlight && (
-                  <span className="border border-foreground px-2 py-1 font-mono text-[10px] uppercase tracking-wider text-foreground">
-                    Popular
-                  </span>
-                )}
               </div>
 
               {tier.name === "Agency" && (
@@ -199,12 +177,6 @@ export function Pricing() {
             </div>
           ))}
         </div>
-        <p className="mt-3 sm:mt-4 text-center font-mono text-[10px] sm:text-xs text-muted-foreground/60">
-          $1,000 cloud + LLM usage credits included in all plans
-        </p>
-        <p className="mt-2 sm:mt-3 text-center font-mono text-[10px] sm:text-xs text-muted-foreground/60">
-          Every plan includes the full platform: generation, prediction, simulation, optimization, and RL — no features locked.
-        </p>
 
 
       </div>
