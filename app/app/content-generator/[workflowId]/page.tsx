@@ -58,6 +58,7 @@ import {
   generateConceptImage,
   pollConceptImageStatus,
   generateStoryboard,
+  pollStoryboardStatus,
   deleteStoryboard,
   generateStoryboardImage,
   getStoryboardImageStatus,
@@ -602,7 +603,7 @@ export default function ContentWorkflowDetailPage() {
   const [storyboardError, setStoryboardError] = useState<string | null>(null);
   const [generatingImages, setGeneratingImages] = useState<Set<string>>(new Set());
   const [imageErrors, setImageErrors] = useState<Map<string, string>>(new Map());
-  const [collapsedStoryboards, setCollapsedStoryboards] = useState<Set<number>>(new Set());
+  const [collapsedStoryboards, setCollapsedStoryboards] = useState<Set<string>>(new Set());
   const pollingRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
   const migrationAttempted = useRef(false);
 
@@ -974,6 +975,47 @@ export default function ContentWorkflowDetailPage() {
     const pieces = (getSetting(stage, 'pieces') as Record<string, Record<string, unknown>>) || {};
     const entry = pieces[contentPieceKey] || {};
     updateStageSetting(stage, 'pieces', { ...pieces, [contentPieceKey]: { ...entry, [field]: value } });
+  };
+
+  // Shared calendar CRUD helpers (used by both overview and detail scheduling sections)
+  const handleDeleteContentItem = async (calendarItems: ContentItem[], itemId: string) => {
+    const originalItems = [...calendarItems];
+    const originalPiece = selectedContentPiece;
+    updateStageSetting('scheduling', 'content_items', calendarItems.filter((i) => i.content_id !== itemId));
+    if (selectedContentPiece?.content_id === itemId) setSelectedContentPiece(null);
+    try {
+      await deleteCalendarItem(workflowId, itemId);
+    } catch (err) {
+      console.error('Failed to delete calendar item:', err);
+      updateStageSetting('scheduling', 'content_items', originalItems);
+      setSelectedContentPiece(originalPiece);
+    }
+  };
+  const handleMoveContentItem = async (calendarItems: ContentItem[], itemId: string, newDate: string) => {
+    const originalItems = [...calendarItems];
+    const originalPiece = selectedContentPiece;
+    updateStageSetting('scheduling', 'content_items', calendarItems.map((i) => i.content_id === itemId ? { ...i, date: newDate } : i));
+    if (selectedContentPiece?.content_id === itemId) setSelectedContentPiece({ ...selectedContentPiece, date: newDate });
+    try {
+      await updateCalendarItem(workflowId, itemId, { date: newDate });
+    } catch (err) {
+      console.error('Failed to move calendar item:', err);
+      updateStageSetting('scheduling', 'content_items', originalItems);
+      setSelectedContentPiece(originalPiece);
+    }
+  };
+  const handleUpdateContentItem = async (calendarItems: ContentItem[], itemId: string, field: keyof ContentItem, value: string | undefined) => {
+    const originalItems = [...calendarItems];
+    const originalPiece = selectedContentPiece;
+    updateStageSetting('scheduling', 'content_items', calendarItems.map((i) => i.content_id === itemId ? { ...i, [field]: value } : i));
+    if (selectedContentPiece?.content_id === itemId) setSelectedContentPiece({ ...selectedContentPiece, [field]: value });
+    try {
+      await updateCalendarItem(workflowId, itemId, { [field]: value } as Partial<ContentItem>);
+    } catch (err) {
+      console.error('Failed to update calendar item:', err);
+      updateStageSetting('scheduling', 'content_items', originalItems);
+      setSelectedContentPiece(originalPiece);
+    }
   };
 
   // Derived settings from stage settings (persisted)
@@ -1623,15 +1665,26 @@ export default function ContentWorkflowDetailPage() {
             setGeneratingStoryboard(true);
             setStoryboardError(null);
             try {
-              await generateStoryboard(
+              const { task_id } = await generateStoryboard(
                 workflowId,
                 storyboardConceptIdx,
                 storyboardLlmModel || undefined,
                 storyboardImageModel || undefined,
                 selectedContentPiece?.content_id,
               );
-              await loadWorkflow();
-              setStoryboardVariationIdx(oConceptVariations.length);
+              // Poll for completion
+              for (let attempt = 0; attempt < 120; attempt++) {
+                await new Promise(r => setTimeout(r, 3000));
+                const status = await pollStoryboardStatus(workflowId, task_id);
+                if (status.status === 'completed') {
+                  await loadWorkflow();
+                  setStoryboardVariationIdx(oConceptVariations.length);
+                  break;
+                }
+                if (status.status === 'failed') {
+                  throw new Error(status.message || 'Storyboard generation failed');
+                }
+              }
             } catch (err) {
               setStoryboardError(err instanceof Error ? err.message : 'Storyboard generation failed');
             } finally {
@@ -1983,45 +2036,9 @@ export default function ContentWorkflowDetailPage() {
                       };
                       const formatDate = (d?: string) => { if (!d) return ''; try { return new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); } catch { return d; } };
                       const showDayPicker = (freq?: string) => freq && freq !== 'once';
-                      const deleteContentItem = async (itemId: string) => {
-                        const originalItems = [...calendarItems];
-                        const originalPiece = selectedContentPiece;
-                        updateStageSetting('scheduling', 'content_items', calendarItems.filter((i) => i.content_id !== itemId));
-                        if (selectedContentPiece?.content_id === itemId) setSelectedContentPiece(null);
-                        try {
-                          await deleteCalendarItem(workflowId, itemId);
-                        } catch (err) {
-                          console.error('Failed to delete calendar item:', err);
-                          updateStageSetting('scheduling', 'content_items', originalItems);
-                          setSelectedContentPiece(originalPiece);
-                        }
-                      };
-                      const moveContentItem = async (itemId: string, newDate: string) => {
-                        const originalItems = [...calendarItems];
-                        const originalPiece = selectedContentPiece;
-                        updateStageSetting('scheduling', 'content_items', calendarItems.map((i) => i.content_id === itemId ? { ...i, date: newDate } : i));
-                        if (selectedContentPiece?.content_id === itemId) setSelectedContentPiece({ ...selectedContentPiece, date: newDate });
-                        try {
-                          await updateCalendarItem(workflowId, itemId, { date: newDate });
-                        } catch (err) {
-                          console.error('Failed to move calendar item:', err);
-                          updateStageSetting('scheduling', 'content_items', originalItems);
-                          setSelectedContentPiece(originalPiece);
-                        }
-                      };
-                      const updateContentItem = async (itemId: string, field: keyof ContentItem, value: string | undefined) => {
-                        const originalItems = [...calendarItems];
-                        const originalPiece = selectedContentPiece;
-                        updateStageSetting('scheduling', 'content_items', calendarItems.map((i) => i.content_id === itemId ? { ...i, [field]: value } : i));
-                        if (selectedContentPiece?.content_id === itemId) setSelectedContentPiece({ ...selectedContentPiece, [field]: value });
-                        try {
-                          await updateCalendarItem(workflowId, itemId, { [field]: value } as Partial<ContentItem>);
-                        } catch (err) {
-                          console.error('Failed to update calendar item:', err);
-                          updateStageSetting('scheduling', 'content_items', originalItems);
-                          setSelectedContentPiece(originalPiece);
-                        }
-                      };
+                      const deleteContentItem = (itemId: string) => handleDeleteContentItem(calendarItems, itemId);
+                      const moveContentItem = (itemId: string, newDate: string) => handleMoveContentItem(calendarItems, itemId, newDate);
+                      const updateContentItem = (itemId: string, field: keyof ContentItem, value: string | undefined) => handleUpdateContentItem(calendarItems, itemId, field, value);
                       return (
                       <div className="space-y-4">
                         <div>
@@ -2888,20 +2905,21 @@ export default function ContentWorkflowDetailPage() {
                           <div className="space-y-3">
                             {oConceptVariations.map((sbRaw, vi) => {
                               const sbFlatIdx = oStoryboards.indexOf(sbRaw);
+                              const sbKey = `sb-${storyboardConceptIdx}-${vi}`;
                               const sbChars = [...(sbRaw.characters || []) as SbChar[]];
                               const sbScenes = [...(sbRaw.scenes || []) as SbScene[]];
                               const sbStoryline = (sbRaw.storyline || '') as string;
                               const sbTotalCuts = (sbRaw.total_cuts || 0) as number;
-                              const isCollapsed = collapsedStoryboards.has(sbFlatIdx);
+                              const isCollapsed = collapsedStoryboards.has(sbKey);
                               const totalDuration = sbScenes.reduce((sum, s) => sum + (parseInt(String(s.duration_hint).replace('s', '')) || 0), 0);
                               const conceptTitle = (sbRaw.concept_title || oGeneratedConcepts[storyboardConceptIdx]?.title || `Concept ${storyboardConceptIdx + 1}`) as string;
 
                               return (
-                                <div key={sbFlatIdx} className="rounded-lg border border-border bg-card overflow-hidden">
+                                <div key={sbKey} className="rounded-lg border border-border bg-card overflow-hidden">
                                   {/* Card header */}
                                   <div className="flex items-center gap-2 px-3 py-2 bg-muted/30 border-b border-border">
                                     <button
-                                      onClick={() => setCollapsedStoryboards(prev => { const next = new Set(prev); if (next.has(sbFlatIdx)) next.delete(sbFlatIdx); else next.add(sbFlatIdx); return next; })}
+                                      onClick={() => setCollapsedStoryboards(prev => { const next = new Set(prev); if (next.has(sbKey)) next.delete(sbKey); else next.add(sbKey); return next; })}
                                       className="shrink-0 text-muted-foreground hover:text-foreground transition-colors"
                                     >
                                       {isCollapsed ? <ChevronRight className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
@@ -2916,7 +2934,7 @@ export default function ContentWorkflowDetailPage() {
                                       </div>
                                     </div>
                                     <button
-                                      onClick={() => { if (confirm('Delete this storyboard?')) deleteStoryboard(workflowId, sbFlatIdx).then(() => loadWorkflow()).catch((err) => { console.error('Delete storyboard failed:', err); setStoryboardError('Failed to delete storyboard'); }); }}
+                                      onClick={() => { if (confirm('Delete this storyboard?')) deleteStoryboard(workflowId, sbFlatIdx, sbRaw.storyboard_id as string | undefined).then(() => loadWorkflow()).catch((err) => { console.error('Delete storyboard failed:', err); setStoryboardError('Failed to delete storyboard'); }); }}
                                       className="shrink-0 h-6 w-6 rounded flex items-center justify-center text-muted-foreground/50 hover:text-red-500 hover:bg-red-500/10 transition-colors"
                                       title="Delete storyboard"
                                     >
@@ -2931,6 +2949,7 @@ export default function ContentWorkflowDetailPage() {
                                       <div>
                                         <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground mb-1">Storyline</div>
                                         <div
+                                          key={`ce-${((getSetting('storyboard', `storyline_${storyboardConceptIdx}_v${vi}`) as string) || sbStoryline)?.substring(0, 20) || ''}`}
                                           contentEditable
                                           suppressContentEditableWarning
                                           className="w-full text-sm text-foreground/80 leading-relaxed bg-transparent border border-border rounded hover:border-foreground/30 focus:border-primary focus:outline-none px-3 py-2 min-h-[40px]"
@@ -3073,7 +3092,7 @@ export default function ContentWorkflowDetailPage() {
                                       contentId={selectedContentPiece?.content_id} 
                                       stageKey="storyboard" 
                                       itemType="storyboard" 
-                                      itemId={`sb_${sbFlatIdx}`} 
+                                      itemId={sbKey} 
                                       onRegenerate={handleGenerateStoryboardOverview}
                                     />
                                   </div>
@@ -4379,45 +4398,9 @@ export default function ContentWorkflowDetailPage() {
                   };
                   const showDayPicker = (freq?: string) => freq && freq !== 'once';
                   const formatDate = (d?: string) => { if (!d) return ''; try { return new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); } catch { return d; } };
-                  const deleteContentItem = async (itemId: string) => {
-                    const originalItems = [...calendarItems];
-                    const originalPiece = selectedContentPiece;
-                    updateStageSetting('scheduling', 'content_items', calendarItems.filter((i) => i.content_id !== itemId));
-                    if (selectedContentPiece?.content_id === itemId) setSelectedContentPiece(null);
-                    try {
-                      await deleteCalendarItem(workflowId, itemId);
-                    } catch (err) {
-                      console.error('Failed to delete calendar item:', err);
-                      updateStageSetting('scheduling', 'content_items', originalItems);
-                      setSelectedContentPiece(originalPiece);
-                    }
-                  };
-                  const moveContentItem = async (itemId: string, newDate: string) => {
-                    const originalItems = [...calendarItems];
-                    const originalPiece = selectedContentPiece;
-                    updateStageSetting('scheduling', 'content_items', calendarItems.map((i) => i.content_id === itemId ? { ...i, date: newDate } : i));
-                    if (selectedContentPiece?.content_id === itemId) setSelectedContentPiece({ ...selectedContentPiece, date: newDate });
-                    try {
-                      await updateCalendarItem(workflowId, itemId, { date: newDate });
-                    } catch (err) {
-                      console.error('Failed to move calendar item:', err);
-                      updateStageSetting('scheduling', 'content_items', originalItems);
-                      setSelectedContentPiece(originalPiece);
-                    }
-                  };
-                  const updateContentItem = async (itemId: string, field: keyof ContentItem, value: string | undefined) => {
-                    const originalItems = [...calendarItems];
-                    const originalPiece = selectedContentPiece;
-                    updateStageSetting('scheduling', 'content_items', calendarItems.map((i) => i.content_id === itemId ? { ...i, [field]: value } : i));
-                    if (selectedContentPiece?.content_id === itemId) setSelectedContentPiece({ ...selectedContentPiece, [field]: value });
-                    try {
-                      await updateCalendarItem(workflowId, itemId, { [field]: value } as Partial<ContentItem>);
-                    } catch (err) {
-                      console.error('Failed to update calendar item:', err);
-                      updateStageSetting('scheduling', 'content_items', originalItems);
-                      setSelectedContentPiece(originalPiece);
-                    }
-                  };
+                  const deleteContentItem = (itemId: string) => handleDeleteContentItem(calendarItems, itemId);
+                  const moveContentItem = (itemId: string, newDate: string) => handleMoveContentItem(calendarItems, itemId, newDate);
+                  const updateContentItem = (itemId: string, field: keyof ContentItem, value: string | undefined) => handleUpdateContentItem(calendarItems, itemId, field, value);
                   return (
                   <div className="space-y-4">
                     <div>
@@ -5086,16 +5069,26 @@ export default function ContentWorkflowDetailPage() {
                     setGeneratingStoryboard(true);
                     setStoryboardError(null);
                     try {
-                      await generateStoryboard(
+                      const { task_id } = await generateStoryboard(
                         workflowId,
                         storyboardConceptIdx,
                         storyboardLlmModel || undefined,
                         storyboardImageModel || undefined,
                         selectedContentPiece?.content_id,
                       );
-                      await loadWorkflow();
-                      // Select the newly created variation (it will be appended at the end)
-                      setStoryboardVariationIdx(conceptVariations.length);
+                      // Poll for completion
+                      for (let attempt = 0; attempt < 120; attempt++) {
+                        await new Promise(r => setTimeout(r, 3000));
+                        const status = await pollStoryboardStatus(workflowId, task_id);
+                        if (status.status === 'completed') {
+                          await loadWorkflow();
+                          setStoryboardVariationIdx(conceptVariations.length);
+                          break;
+                        }
+                        if (status.status === 'failed') {
+                          throw new Error(status.message || 'Storyboard generation failed');
+                        }
+                      }
                     } catch (err) {
                       const msg = err instanceof Error ? err.message : 'Storyboard generation failed';
                       setStoryboardError(msg);
@@ -5307,6 +5300,7 @@ export default function ContentWorkflowDetailPage() {
                         <div>
                           <div className="font-mono text-xs uppercase tracking-wider text-muted-foreground mb-1.5">Storyline</div>
                           <div
+                            key={`ce-${((getSetting('storyboard', `storyline_${storyboardConceptIdx}`) as string) || storyline)?.substring(0, 20) || ''}`}
                             contentEditable
                             suppressContentEditableWarning
                             className="w-full text-sm text-foreground/80 leading-relaxed bg-transparent border border-border rounded hover:border-foreground/30 focus:border-primary focus:outline-none px-3 py-2 min-h-[60px]"

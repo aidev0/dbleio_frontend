@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { ThumbsUp, ThumbsDown, RefreshCw, ArrowUp, X } from 'lucide-react';
-import { submitFeedback, getItemFeedback, deleteFeedback, getUserMe } from '../lib/api';
+import { submitFeedback, getItemFeedback, deleteFeedback } from '../lib/api';
 import type { FeedbackItem } from '../lib/types';
 
 interface FeedbackBarProps {
@@ -11,6 +11,7 @@ interface FeedbackBarProps {
   stageKey: string;
   itemType: string;
   itemId: string;
+  currentUserId?: string | null;
   onRegenerate?: () => void;
 }
 
@@ -20,6 +21,7 @@ export default function FeedbackBar({
   stageKey,
   itemType,
   itemId,
+  currentUserId,
   onRegenerate,
 }: FeedbackBarProps) {
   const [feedback, setFeedback] = useState<FeedbackItem[]>([]);
@@ -28,31 +30,30 @@ export default function FeedbackBar({
   const [dislikeCount, setDislikeCount] = useState(0);
   const [commentText, setCommentText] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const loadFeedback = useCallback(async () => {
+    if (!currentUserId) return;
     const items = await getItemFeedback(workflowId, stageKey, itemId, contentId);
     setFeedback(items);
     let likes = 0, dislikes = 0;
     for (const f of items) {
-      if (f.reaction === 'like' && !f.comment) likes++;
-      if (f.reaction === 'dislike' && !f.comment) dislikes++;
+      if (f.reaction === 'like') likes++;
+      if (f.reaction === 'dislike') dislikes++;
     }
-    const mine = currentUserId
-      ? items.find((f) => f.user_id === currentUserId && !!f.reaction && !f.comment)
-      : null;
+    const mine = items.find((f) => f.user_id === currentUserId && !!f.reaction && !f.comment);
     setMyReaction((mine?.reaction as 'like' | 'dislike' | null) || null);
     setLikeCount(likes);
     setDislikeCount(dislikes);
   }, [workflowId, stageKey, itemId, contentId, currentUserId]);
 
-  useEffect(() => { loadFeedback(); }, [loadFeedback]);
+  useEffect(() => { if (currentUserId) loadFeedback(); }, [loadFeedback, currentUserId]);
+
   useEffect(() => {
-    (async () => {
-      const me = await getUserMe();
-      setCurrentUserId(me?.workos_user_id || null);
-    })();
-  }, []);
+    if (!error) return;
+    const timer = setTimeout(() => setError(null), 3000);
+    return () => clearTimeout(timer);
+  }, [error]);
 
   const handleReaction = async (reaction: 'like' | 'dislike') => {
     if (submitting) return;
@@ -65,6 +66,7 @@ export default function FeedbackBar({
         item_id: itemId,
         reaction,
       });
+      setError(null);
       if ((result as { action?: string }).action === 'removed') {
         setMyReaction(null);
       } else {
@@ -73,6 +75,7 @@ export default function FeedbackBar({
       await loadFeedback();
     } catch (err) {
       console.error('Feedback error:', err);
+      setError('Failed to submit reaction');
     } finally {
       setSubmitting(false);
     }
@@ -89,10 +92,12 @@ export default function FeedbackBar({
         item_id: itemId,
         comment: commentText.trim(),
       });
+      setError(null);
       setCommentText('');
       await loadFeedback();
     } catch (err) {
       console.error('Comment error:', err);
+      setError('Failed to send comment');
     } finally {
       setSubmitting(false);
     }
@@ -101,9 +106,11 @@ export default function FeedbackBar({
   const handleDelete = async (feedbackId: string) => {
     try {
       await deleteFeedback(workflowId, feedbackId);
+      setError(null);
       await loadFeedback();
     } catch (err) {
       console.error('Delete error:', err);
+      setError('Failed to delete comment');
     }
   };
 
@@ -117,6 +124,7 @@ export default function FeedbackBar({
           <button
             onClick={() => handleReaction('like')}
             disabled={submitting}
+            aria-label="Like"
             className={`inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium transition-all ${
               myReaction === 'like'
                 ? 'bg-green-500/10 text-green-600 border border-green-500/20'
@@ -129,6 +137,7 @@ export default function FeedbackBar({
           <button
             onClick={() => handleReaction('dislike')}
             disabled={submitting}
+            aria-label="Dislike"
             className={`inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium transition-all ${
               myReaction === 'dislike'
                 ? 'bg-red-500/10 text-red-600 border border-red-500/20'
@@ -143,6 +152,7 @@ export default function FeedbackBar({
         {onRegenerate && (
           <button
             onClick={onRegenerate}
+            aria-label="Regenerate"
             className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium bg-foreground/5 text-muted-foreground hover:bg-foreground hover:text-background transition-all"
           >
             <RefreshCw className="h-3.5 w-3.5" />
@@ -151,11 +161,15 @@ export default function FeedbackBar({
         )}
       </div>
 
+      {error && (
+        <div className="text-[10px] text-destructive font-medium">{error}</div>
+      )}
+
       {/* Comment Thread */}
       {comments.length > 0 && (
         <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1 scrollbar-thin">
           {comments.map((c) => {
-            const initials = c.user_name?.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() || 'U';
+            const initials = c.user_name?.split(' ').filter(Boolean).map(n => n[0]).join('').substring(0, 2).toUpperCase() || 'U';
             return (
               <div key={c._id} className="group flex items-start gap-2.5">
                 <div className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${
@@ -169,14 +183,16 @@ export default function FeedbackBar({
                       {c.user_name || 'User'}
                       {c.source === 'client' && <span className="ml-1.5 text-[9px] text-orange-500 font-normal uppercase tracking-wider">Client</span>}
                     </span>
-                    <button
-                      type="button"
-                      onClick={() => handleDelete(c._id)}
-                      disabled={!currentUserId || c.user_id !== currentUserId}
-                      className="shrink-0 opacity-0 group-hover:opacity-100 text-muted-foreground/40 hover:text-destructive transition-all"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
+                    {currentUserId && c.user_id === currentUserId && (
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(c._id)}
+                        aria-label="Delete comment"
+                        className="shrink-0 opacity-0 group-hover:opacity-100 text-muted-foreground/40 hover:text-destructive transition-all"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    )}
                   </div>
                   <div className="rounded-lg rounded-tl-none bg-muted/30 px-2.5 py-1.5 text-xs text-foreground/90 leading-relaxed">
                     {c.comment}
@@ -201,9 +217,10 @@ export default function FeedbackBar({
         <button
           onClick={handleComment}
           disabled={!commentText.trim() || submitting}
+          aria-label="Send comment"
           className={`absolute right-1.5 top-1/2 -translate-y-1/2 h-6 w-6 rounded-md flex items-center justify-center transition-all ${
-            commentText.trim() 
-              ? 'bg-foreground text-background hover:scale-105 active:scale-95' 
+            commentText.trim()
+              ? 'bg-foreground text-background hover:scale-105 active:scale-95'
               : 'text-muted-foreground/30'
           }`}
         >

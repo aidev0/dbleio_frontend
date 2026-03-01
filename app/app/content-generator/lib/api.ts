@@ -319,7 +319,7 @@ export async function generateStoryboard(
   llmModel?: string,
   imageModel?: string,
   contentId?: string,
-): Promise<Record<string, unknown>> {
+): Promise<{ task_id: string; status: string }> {
   const body: Record<string, unknown> = { concept_index: conceptIndex };
   if (llmModel) body.llm_model = llmModel;
   if (imageModel) body.image_model = imageModel;
@@ -334,8 +334,18 @@ export async function generateStoryboard(
   return res.json();
 }
 
-export async function deleteStoryboard(workflowId: string, storyboardIndex: number): Promise<{ ok: boolean; remaining: number }> {
-  const res = await apiFetch(`/api/content/workflows/${workflowId}/storyboard/${storyboardIndex}`, { method: 'DELETE' });
+export async function pollStoryboardStatus(
+  workflowId: string,
+  taskId: string,
+): Promise<{ task_id: string; status: string; scenes_total: number; scenes_done: number; message: string; storyboard_entry?: Record<string, unknown> }> {
+  const res = await apiGet(`/api/content/workflows/${workflowId}/storyboard-status/${taskId}`);
+  if (!res.ok) throw new Error('Failed to get storyboard status');
+  return res.json();
+}
+
+export async function deleteStoryboard(workflowId: string, storyboardIndex: number, storyboardId?: string): Promise<{ ok: boolean; remaining: number }> {
+  const query = storyboardId ? `?storyboard_id=${encodeURIComponent(storyboardId)}` : '';
+  const res = await apiFetch(`/api/content/workflows/${workflowId}/storyboard/${storyboardIndex}${query}`, { method: 'DELETE' });
   if (!res.ok) throw new Error('Failed to delete storyboard');
   return res.json();
 }
@@ -655,13 +665,10 @@ export async function publishContentTimelineEntry(workflowId: string, entryId: s
 // --- WS1: Content Calendar ---
 
 export async function listCalendarItems(workflowId: string): Promise<ContentCalendarItem[]> {
-  try {
-    const res = await apiGet(`/api/content/workflows/${workflowId}/calendar`);
-    if (!res.ok) return [];
-    return res.json();
-  } catch {
-    return [];
-  }
+  const res = await apiGet(`/api/content/workflows/${workflowId}/calendar`);
+  if (res.status === 404) return [];
+  if (!res.ok) throw new Error('Failed to load calendar items');
+  return res.json();
 }
 
 export async function createCalendarItem(
@@ -715,10 +722,19 @@ export async function submitFeedback(
     try { detail = JSON.parse(text).detail || text; } catch { /* */ }
     throw new Error(detail);
   }
+  clearFeedbackCache(workflowId, data.stage_key);
   return res.json();
 }
 
 const feedbackCache = new Map<string, Promise<FeedbackItem[]>>();
+
+export function clearFeedbackCache(workflowId?: string, stageKey?: string) {
+  if (!workflowId) { feedbackCache.clear(); return; }
+  const prefix = `${workflowId}-${stageKey || ''}`;
+  for (const key of feedbackCache.keys()) {
+    if (key.startsWith(prefix)) feedbackCache.delete(key);
+  }
+}
 
 export async function getItemFeedback(
   workflowId: string,
@@ -774,4 +790,5 @@ export async function getFeedbackSummary(
 export async function deleteFeedback(workflowId: string, feedbackId: string): Promise<void> {
   const res = await apiDelete(`/api/content/workflows/${workflowId}/feedback/${feedbackId}`);
   if (!res.ok) throw new Error('Failed to delete feedback');
+  clearFeedbackCache(workflowId);
 }
