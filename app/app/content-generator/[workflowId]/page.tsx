@@ -3416,18 +3416,22 @@ export default function ContentWorkflowDetailPage() {
                       const topLevelResults = contentEntry
                         ? (contentEntry.results || [])
                         : ((simNode?.output_data?.results || []) as SimulationResult[]).filter(r => !selectedCid || r.content_id === selectedCid);
-                      const savedTests = ((simNode?.output_data?.tests || []) as SimTest[]);
-                      // If top-level results exist but no tests, create a synthetic test to display them
                       const topLevelConfig = contentEntry?.config || (simNode?.output_data?.config as Record<string, unknown>) || {};
-                      const fallbackTests: SimTest[] = savedTests.length === 0 && topLevelResults.length > 0
+                      // Fallback: only create synthetic test if there are results for this content piece
+                      const fallbackTests: SimTest[] = topLevelResults.length > 0
                         ? [{ id: 'legacy', persona_ids: [], genders: [...new Set(topLevelResults.map(r => r.gender))], ages: [...new Set(topLevelResults.map(r => r.age))], llm: topLevelConfig?.model_name as string || 'gemini-pro-3', video_ids: [], results: topLevelResults }]
-                        : savedTests;
+                        : [];
                       // Load tests scoped per content_id
                       const allTestsSetting = getSetting('simulation_testing', 'tests');
                       const testsForPiece = Array.isArray(allTestsSetting)
-                        ? allTestsSetting // legacy flat array
+                        ? (selectedCid ? allTestsSetting.filter((t: SimTest) => t.results && t.results.some((r: SimulationResult) => r.content_id === selectedCid)) : allTestsSetting) // legacy: only show tests with results for this content
                         : (allTestsSetting && selectedCid ? (allTestsSetting as Record<string, SimTest[]>)[selectedCid] || [] : []);
-                      const tests = ((testsForPiece.length > 0 ? testsForPiece : fallbackTests) as SimTest[]).map((t: SimTest) => ({ ...t, video_ids: t.video_ids || [] }));
+                      const tests = ((testsForPiece.length > 0 ? testsForPiece : fallbackTests) as SimTest[]).map((t: SimTest) => ({
+                        ...t,
+                        video_ids: t.video_ids || [],
+                        // Filter inline results to only show results for selected content piece
+                        results: selectedCid && t.results ? t.results.filter(r => r.content_id === selectedCid) : t.results,
+                      }));
 
                       // Get full videos for selection (stitched + video types, not individual scenes)
                       const vidNode = nodes.find((n) => n.stage_key === 'video_generation');
