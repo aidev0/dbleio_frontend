@@ -216,3 +216,76 @@ export interface ResearchData {
   trends?: Record<string, ResearchTrendPoint[]>;
   financial?: Record<string, ResearchFinancialData>;
 }
+
+// --- WS1: Content Calendar Item ---
+
+export interface ContentCalendarItem {
+  _id: string;
+  content_id: string;
+  workflow_id: string;
+  brand_id?: string;
+  organization_id?: string;
+  platform: string;
+  content_type: string;
+  date: string;
+  post_time?: string;
+  frequency?: string;
+  days?: number[];
+  start_date?: string;
+  end_date?: string;
+  title?: string;
+  status: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+// --- WS3: Enhanced Storyboard Scene ---
+
+export interface StoryboardCharacterDescription {
+  character_id: string;
+  appearance_in_scene: string;
+}
+
+export interface StoryboardScene {
+  id: string;
+  scene_number: number;
+  title: string;
+  description: string;
+  dialog?: string;
+  lighting?: string;
+  time_of_day?: string;
+  camera_move?: string;
+  character_descriptions?: StoryboardCharacterDescription[];
+  shot_type: string;
+  duration_hint: string;
+  character_ids: string[];
+  image_prompt: string;
+  image_url?: string | null;
+  gs_uri?: string | null;
+  image_model?: string;
+}
+
+// --- WS4: Feedback Types ---
+
+export interface FeedbackItem {
+  _id: string;
+  workflow_id: string;
+  content_id?: string;
+  stage_key: string;
+  item_type: string;
+  item_id: string;
+  user_id: string;
+  user_name?: string;
+  reaction?: 'like' | 'dislike' | null;
+  comment?: string | null;
+  source?: 'fdm' | 'client';
+  created_at: string;
+  updated_at: string;
+}
+
+export interface FeedbackSummaryItem {
+  item_id: string;
+  likes: number;
+  dislikes: number;
+  comments: number;
+}

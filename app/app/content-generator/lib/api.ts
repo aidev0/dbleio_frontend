@@ -1,5 +1,5 @@
 import { apiGet, apiPost, apiFetch, apiDelete } from '../../video-simulation/lib/api';
-import type { ContentWorkflow, ContentWorkflowNode, ContentTimelineEntry, WorkflowStateSnapshot } from './types';
+import type { ContentWorkflow, ContentWorkflowNode, ContentTimelineEntry, WorkflowStateSnapshot, ContentCalendarItem, FeedbackItem, FeedbackSummaryItem } from './types';
 import type { Brand } from '../../brands/lib/types';
 
 // --- User ---
@@ -256,9 +256,12 @@ export async function generateConcepts(
   workflowId: string,
   num: number,
   tone: string,
-  content_type: string = 'reel'
+  content_type: string = 'reel',
+  contentId?: string,
 ): Promise<{ concepts: Array<Record<string, unknown>> }> {
-  const res = await apiPost(`/api/content/workflows/${workflowId}/generate-concepts`, { num, tone, content_type });
+  const body: Record<string, unknown> = { num, tone, content_type };
+  if (contentId) body.content_id = contentId;
+  const res = await apiPost(`/api/content/workflows/${workflowId}/generate-concepts`, body);
   if (!res.ok) throw new Error('Failed to generate concepts');
   return res.json();
 }
@@ -314,11 +317,13 @@ export async function generateStoryboard(
   workflowId: string,
   conceptIndex: number,
   llmModel?: string,
-  imageModel?: string
-): Promise<Record<string, unknown>> {
+  imageModel?: string,
+  contentId?: string,
+): Promise<{ task_id: string; status: string }> {
   const body: Record<string, unknown> = { concept_index: conceptIndex };
   if (llmModel) body.llm_model = llmModel;
   if (imageModel) body.image_model = imageModel;
+  if (contentId) body.content_id = contentId;
   const res = await apiPost(`/api/content/workflows/${workflowId}/generate-storyboard`, body);
   if (!res.ok) {
     const text = await res.text();
@@ -329,17 +334,35 @@ export async function generateStoryboard(
   return res.json();
 }
 
+export async function pollStoryboardStatus(
+  workflowId: string,
+  taskId: string,
+): Promise<{ task_id: string; status: string; scenes_total: number; scenes_done: number; message: string; storyboard_entry?: Record<string, unknown> }> {
+  const res = await apiGet(`/api/content/workflows/${workflowId}/storyboard-status/${taskId}`);
+  if (!res.ok) throw new Error('Failed to get storyboard status');
+  return res.json();
+}
+
+export async function deleteStoryboard(workflowId: string, storyboardIndex: number, storyboardId?: string): Promise<{ ok: boolean; remaining: number }> {
+  const query = storyboardId ? `?storyboard_id=${encodeURIComponent(storyboardId)}` : '';
+  const res = await apiFetch(`/api/content/workflows/${workflowId}/storyboard/${storyboardIndex}${query}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error('Failed to delete storyboard');
+  return res.json();
+}
+
 export async function generateStoryboardImage(
   workflowId: string,
   conceptIndex: number,
   targetType: 'character' | 'scene',
   targetId: string,
   imageModel?: string,
-  variationIndex?: number
+  variationIndex?: number,
+  contentId?: string,
 ): Promise<{ task_id: string }> {
   const body: Record<string, unknown> = { concept_index: conceptIndex, target_type: targetType, target_id: targetId };
   if (variationIndex !== undefined) body.variation_index = variationIndex;
   if (imageModel) body.image_model = imageModel;
+  if (contentId) body.content_id = contentId;
   const res = await apiPost(`/api/content/workflows/${workflowId}/generate-storyboard-image`, body);
   if (!res.ok) {
     const text = await res.text();
@@ -365,7 +388,7 @@ export async function updateStoryboardScene(
   workflowId: string,
   storyboardIndex: number,
   sceneId: string,
-  updates: { title?: string; description?: string; shot_type?: string; duration_hint?: string; image_prompt?: string },
+  updates: { title?: string; description?: string; shot_type?: string; duration_hint?: string; image_prompt?: string; dialog?: string; lighting?: string; time_of_day?: string; camera_move?: string; character_descriptions?: Array<{ character_id: string; appearance_in_scene: string }> },
 ): Promise<{ ok: boolean; scene: Record<string, unknown> }> {
   const res = await apiFetch(`/api/content/workflows/${workflowId}/storyboard-scene`, {
     method: 'PATCH',
@@ -392,12 +415,14 @@ export async function generateVideo(
   resolution?: string,
   temperature?: number,
   customPrompt?: string,
+  contentId?: string,
 ): Promise<{ task_id: string; status: string; model: string; count: number }> {
   const body: Record<string, unknown> = { storyboard_index: storyboardIndex, count, model };
   if (outputFormat) body.output_format = outputFormat;
   if (resolution) body.resolution = resolution;
   if (temperature != null) body.temperature = temperature;
   if (customPrompt) body.custom_prompt = customPrompt;
+  if (contentId) body.content_id = contentId;
   const res = await apiPost(`/api/content/workflows/${workflowId}/generate-video`, body);
   if (!res.ok) {
     const text = await res.text();
@@ -494,11 +519,12 @@ export interface SimulationResult {
   reasoning: string;
   video_id?: string;
   video_title?: string;
+  content_id?: string;
 }
 
 export async function runContentSimulation(
   workflowId: string,
-  params: { genders: string[]; ages: string[]; model_provider: string; model_name: string; persona_ids?: string[]; video_ids?: string[] },
+  params: { genders: string[]; ages: string[]; model_provider: string; model_name: string; persona_ids?: string[]; video_ids?: string[]; content_id?: string },
 ): Promise<{ results: SimulationResult[] }> {
   const res = await apiPost(`/api/content/workflows/${workflowId}/simulate`, params);
   if (!res.ok) {
@@ -515,6 +541,7 @@ export async function runContentSimulation(
 export interface PredictionResult {
   video_id: string;
   video_title: string;
+  content_id?: string;
   expected_views: number;
   expected_likes: number;
   expected_comments: number;
@@ -534,9 +561,11 @@ export async function runPredictiveModeling(
   workflowId: string,
   modelName: string,
   videoIds?: string[],
+  contentId?: string,
 ): Promise<{ predictions: PredictionResult[]; benchmarks: PredictionBenchmarks }> {
   const body: Record<string, unknown> = { model_name: modelName };
   if (videoIds && videoIds.length > 0) body.video_ids = videoIds;
+  if (contentId) body.content_id = contentId;
   const res = await apiPost(`/api/content/workflows/${workflowId}/predict`, body);
   if (!res.ok) {
     const text = await res.text();
@@ -552,6 +581,7 @@ export async function runPredictiveModeling(
 export interface RankingResult {
   rank: number;
   video_id: string;
+  content_id?: string;
   video_title: string;
   composite_score: number;
   simulation_score: number;
@@ -568,11 +598,14 @@ export async function runContentRanking(
   workflowId: string,
   simulationWeight: number = 0.4,
   predictionWeight: number = 0.6,
+  contentId?: string,
 ): Promise<{ rankings: RankingResult[]; weights: { simulation: number; prediction: number } }> {
-  const res = await apiPost(`/api/content/workflows/${workflowId}/rank`, {
+  const body: Record<string, unknown> = {
     simulation_weight: simulationWeight,
     prediction_weight: predictionWeight,
-  });
+  };
+  if (contentId) body.content_id = contentId;
+  const res = await apiPost(`/api/content/workflows/${workflowId}/rank`, body);
   if (!res.ok) {
     const text = await res.text();
     let detail = text;
@@ -627,4 +660,135 @@ export async function publishContentTimelineEntry(workflowId: string, entryId: s
   const res = await apiPost(`/api/content/workflows/${workflowId}/timeline/${entryId}/publish`);
   if (!res.ok) throw new Error('Failed to publish timeline entry');
   return res.json();
+}
+
+// --- WS1: Content Calendar ---
+
+export async function listCalendarItems(workflowId: string): Promise<ContentCalendarItem[]> {
+  const res = await apiGet(`/api/content/workflows/${workflowId}/calendar`);
+  if (res.status === 404) return [];
+  if (!res.ok) throw new Error('Failed to load calendar items');
+  return res.json();
+}
+
+export async function createCalendarItem(
+  workflowId: string,
+  data: { content_id: string; platform: string; content_type: string; date: string; post_time?: string; frequency?: string; days?: number[]; start_date?: string; end_date?: string; title?: string; status?: string },
+): Promise<ContentCalendarItem> {
+  const res = await apiPost(`/api/content/workflows/${workflowId}/calendar`, data);
+  if (!res.ok) {
+    const text = await res.text();
+    let detail = text;
+    try { detail = JSON.parse(text).detail || text; } catch { /* */ }
+    throw new Error(detail);
+  }
+  return res.json();
+}
+
+export async function updateCalendarItem(
+  workflowId: string,
+  contentId: string,
+  data: Partial<ContentCalendarItem>,
+): Promise<ContentCalendarItem> {
+  const res = await apiFetch(`/api/content/workflows/${workflowId}/calendar/${contentId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error('Failed to update calendar item');
+  return res.json();
+}
+
+export async function deleteCalendarItem(workflowId: string, contentId: string): Promise<void> {
+  const res = await apiDelete(`/api/content/workflows/${workflowId}/calendar/${contentId}`);
+  if (!res.ok) throw new Error('Failed to delete calendar item');
+}
+
+export async function migrateCalendar(workflowId: string): Promise<{ migrated: number; total_items: number }> {
+  const res = await apiPost(`/api/content/workflows/${workflowId}/calendar/migrate`, {});
+  if (!res.ok) throw new Error('Failed to migrate calendar');
+  return res.json();
+}
+
+// --- WS4: Feedback ---
+
+export async function submitFeedback(
+  workflowId: string,
+  data: { content_id?: string; stage_key: string; item_type: string; item_id: string; reaction?: 'like' | 'dislike' | null; comment?: string | null },
+): Promise<FeedbackItem & { action?: string }> {
+  const res = await apiPost(`/api/content/workflows/${workflowId}/feedback`, data);
+  if (!res.ok) {
+    const text = await res.text();
+    let detail = text;
+    try { detail = JSON.parse(text).detail || text; } catch { /* */ }
+    throw new Error(detail);
+  }
+  clearFeedbackCache(workflowId, data.stage_key);
+  return res.json();
+}
+
+const feedbackCache = new Map<string, Promise<FeedbackItem[]>>();
+
+export function clearFeedbackCache(workflowId?: string, stageKey?: string) {
+  if (!workflowId) { feedbackCache.clear(); return; }
+  const prefix = `${workflowId}-${stageKey || ''}`;
+  for (const key of feedbackCache.keys()) {
+    if (key.startsWith(prefix)) feedbackCache.delete(key);
+  }
+}
+
+export async function getItemFeedback(
+  workflowId: string,
+  stageKey: string,
+  itemId: string,
+  contentId?: string,
+): Promise<FeedbackItem[]> {
+  try {
+    // Batch requests by stage to avoid N+1 queries.
+    // All components mounting at the same time will share the same promise.
+    const cacheKey = `${workflowId}-${stageKey}-${contentId || 'none'}`;
+    
+    if (!feedbackCache.has(cacheKey)) {
+      const promise = (async () => {
+        const qp = new URLSearchParams();
+        qp.set('stage_key', stageKey);
+        if (contentId) qp.set('content_id', contentId);
+        // Exclude item_id to fetch all feedback for the stage at once
+        const res = await apiGet(`/api/content/workflows/${workflowId}/feedback?${qp.toString()}`);
+        if (!res.ok) return [];
+        return res.json() as Promise<FeedbackItem[]>;
+      })();
+      feedbackCache.set(cacheKey, promise);
+      // Clear cache after a short delay so future updates will refetch
+      setTimeout(() => feedbackCache.delete(cacheKey), 500);
+    }
+    
+    const allFeedback = await feedbackCache.get(cacheKey)!;
+    // Filter down to the specific itemId requested
+    return allFeedback.filter(f => f.item_id === itemId);
+  } catch {
+    return [];
+  }
+}
+
+export async function getFeedbackSummary(
+  workflowId: string,
+  stageKey: string,
+  contentId?: string,
+): Promise<FeedbackSummaryItem[]> {
+  try {
+    const qp = new URLSearchParams();
+    qp.set('stage_key', stageKey);
+    if (contentId) qp.set('content_id', contentId);
+    const res = await apiGet(`/api/content/workflows/${workflowId}/feedback/summary?${qp.toString()}`);
+    if (!res.ok) return [];
+    return res.json();
+  } catch {
+    return [];
+  }
+}
+
+export async function deleteFeedback(workflowId: string, feedbackId: string): Promise<void> {
+  const res = await apiDelete(`/api/content/workflows/${workflowId}/feedback/${feedbackId}`);
+  if (!res.ok) throw new Error('Failed to delete feedback');
+  clearFeedbackCache(workflowId);
 }
