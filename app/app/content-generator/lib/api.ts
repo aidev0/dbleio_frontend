@@ -718,6 +718,8 @@ export async function submitFeedback(
   return res.json();
 }
 
+const feedbackCache = new Map<string, Promise<FeedbackItem[]>>();
+
 export async function getItemFeedback(
   workflowId: string,
   stageKey: string,
@@ -725,13 +727,28 @@ export async function getItemFeedback(
   contentId?: string,
 ): Promise<FeedbackItem[]> {
   try {
-    const qp = new URLSearchParams();
-    qp.set('stage_key', stageKey);
-    qp.set('item_id', itemId);
-    if (contentId) qp.set('content_id', contentId);
-    const res = await apiGet(`/api/content/workflows/${workflowId}/feedback?${qp.toString()}`);
-    if (!res.ok) return [];
-    return res.json();
+    // Batch requests by stage to avoid N+1 queries.
+    // All components mounting at the same time will share the same promise.
+    const cacheKey = `${workflowId}-${stageKey}-${contentId || 'none'}`;
+    
+    if (!feedbackCache.has(cacheKey)) {
+      const promise = (async () => {
+        const qp = new URLSearchParams();
+        qp.set('stage_key', stageKey);
+        if (contentId) qp.set('content_id', contentId);
+        // Exclude item_id to fetch all feedback for the stage at once
+        const res = await apiGet(`/api/content/workflows/${workflowId}/feedback?${qp.toString()}`);
+        if (!res.ok) return [];
+        return res.json() as Promise<FeedbackItem[]>;
+      })();
+      feedbackCache.set(cacheKey, promise);
+      // Clear cache after a short delay so future updates will refetch
+      setTimeout(() => feedbackCache.delete(cacheKey), 500);
+    }
+    
+    const allFeedback = await feedbackCache.get(cacheKey)!;
+    // Filter down to the specific itemId requested
+    return allFeedback.filter(f => f.item_id === itemId);
   } catch {
     return [];
   }

@@ -604,6 +604,7 @@ export default function ContentWorkflowDetailPage() {
   const [imageErrors, setImageErrors] = useState<Map<string, string>>(new Map());
   const [collapsedStoryboards, setCollapsedStoryboards] = useState<Set<number>>(new Set());
   const pollingRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
+  const migrationAttempted = useRef(false);
 
   // Brand context
   const [brand, setBrand] = useState<Brand | null>(null);
@@ -670,10 +671,12 @@ export default function ContentWorkflowDetailPage() {
   const [creatingBrand, setCreatingBrand] = useState(false);
   const [allBrands, setAllBrands] = useState<Brand[]>([]);
 
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+
   const isFDM = isTeamMember;
   const isActive = workflow && workflow.status === 'running';
 
-  // Detect user role
+  // Detect user role + cache userId for FeedbackBars
   useEffect(() => {
     (async () => {
       const me = await getUserMe();
@@ -681,6 +684,7 @@ export default function ContentWorkflowDetailPage() {
         const roles: string[] = me.roles || [];
         const team = roles.some((r) => ['admin', 'fde', 'fdm', 'qa'].includes(r));
         setIsTeamMember(team);
+        setCurrentUserId(me.workos_user_id || null);
       }
       setRoleLoaded(true);
     })();
@@ -791,7 +795,8 @@ export default function ContentWorkflowDetailPage() {
         }
         let resolvedCalendar = dbCalendarItems as ContentItem[];
         const legacyCalendar = ((ss.scheduling?.content_items as ContentItem[] | undefined) || []);
-        if (resolvedCalendar.length === 0 && legacyCalendar.length > 0) {
+        if (resolvedCalendar.length === 0 && legacyCalendar.length > 0 && !migrationAttempted.current) {
+          migrationAttempted.current = true;
           try {
             await migrateCalendar(workflowId);
             resolvedCalendar = await listCalendarItems(workflowId) as ContentItem[];
@@ -1978,29 +1983,44 @@ export default function ContentWorkflowDetailPage() {
                       };
                       const formatDate = (d?: string) => { if (!d) return ''; try { return new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); } catch { return d; } };
                       const showDayPicker = (freq?: string) => freq && freq !== 'once';
-                      const deleteContentItem = (itemId: string) => {
+                      const deleteContentItem = async (itemId: string) => {
+                        const originalItems = [...calendarItems];
+                        const originalPiece = selectedContentPiece;
                         updateStageSetting('scheduling', 'content_items', calendarItems.filter((i) => i.content_id !== itemId));
                         if (selectedContentPiece?.content_id === itemId) setSelectedContentPiece(null);
-                        void deleteCalendarItem(workflowId, itemId).catch((err) => {
+                        try {
+                          await deleteCalendarItem(workflowId, itemId);
+                        } catch (err) {
                           console.error('Failed to delete calendar item:', err);
-                          loadWorkflow();
-                        });
+                          updateStageSetting('scheduling', 'content_items', originalItems);
+                          setSelectedContentPiece(originalPiece);
+                        }
                       };
-                      const moveContentItem = (itemId: string, newDate: string) => {
+                      const moveContentItem = async (itemId: string, newDate: string) => {
+                        const originalItems = [...calendarItems];
+                        const originalPiece = selectedContentPiece;
                         updateStageSetting('scheduling', 'content_items', calendarItems.map((i) => i.content_id === itemId ? { ...i, date: newDate } : i));
                         if (selectedContentPiece?.content_id === itemId) setSelectedContentPiece({ ...selectedContentPiece, date: newDate });
-                        void updateCalendarItem(workflowId, itemId, { date: newDate }).catch((err) => {
+                        try {
+                          await updateCalendarItem(workflowId, itemId, { date: newDate });
+                        } catch (err) {
                           console.error('Failed to move calendar item:', err);
-                          loadWorkflow();
-                        });
+                          updateStageSetting('scheduling', 'content_items', originalItems);
+                          setSelectedContentPiece(originalPiece);
+                        }
                       };
-                      const updateContentItem = (itemId: string, field: keyof ContentItem, value: string | undefined) => {
+                      const updateContentItem = async (itemId: string, field: keyof ContentItem, value: string | undefined) => {
+                        const originalItems = [...calendarItems];
+                        const originalPiece = selectedContentPiece;
                         updateStageSetting('scheduling', 'content_items', calendarItems.map((i) => i.content_id === itemId ? { ...i, [field]: value } : i));
                         if (selectedContentPiece?.content_id === itemId) setSelectedContentPiece({ ...selectedContentPiece, [field]: value });
-                        void updateCalendarItem(workflowId, itemId, { [field]: value } as Partial<ContentItem>).catch((err) => {
+                        try {
+                          await updateCalendarItem(workflowId, itemId, { [field]: value } as Partial<ContentItem>);
+                        } catch (err) {
                           console.error('Failed to update calendar item:', err);
-                          loadWorkflow();
-                        });
+                          updateStageSetting('scheduling', 'content_items', originalItems);
+                          setSelectedContentPiece(originalPiece);
+                        }
                       };
                       return (
                       <div className="space-y-4">
@@ -2273,8 +2293,9 @@ export default function ContentWorkflowDetailPage() {
                                                 <button
                                                   onClick={() => {
                                                     const newItem: ContentItem = { content_id: crypto.randomUUID(), date: dateStr, platform: 'instagram', content_type: 'reel' };
+                                                    const originalItems = [...calendarItems];
                                                     updateStageSetting('scheduling', 'content_items', [...calendarItems, newItem]);
-                                                    void createCalendarItem(workflowId, {
+                                                    createCalendarItem(workflowId, {
                                                       content_id: newItem.content_id,
                                                       platform: newItem.platform,
                                                       content_type: newItem.content_type,
@@ -2283,7 +2304,7 @@ export default function ContentWorkflowDetailPage() {
                                                       status: 'scheduled',
                                                     }).catch((err) => {
                                                       console.error('Failed to create calendar item:', err);
-                                                      loadWorkflow();
+                                                      updateStageSetting('scheduling', 'content_items', originalItems);
                                                     });
                                                   }}
                                                   className="opacity-0 group-hover:opacity-100 hover:!opacity-100 text-muted-foreground/30 hover:text-foreground transition-opacity"
@@ -2567,6 +2588,7 @@ export default function ContentWorkflowDetailPage() {
                             <div className="pt-2 border-t border-border mt-2">
                               <FeedbackBar
                                 workflowId={workflowId}
+                                currentUserId={currentUserId}
                                 contentId={selectedContentPiece?.content_id}
                                 stageKey="concepts"
                                 itemType="concept"
@@ -2894,7 +2916,7 @@ export default function ContentWorkflowDetailPage() {
                                       </div>
                                     </div>
                                     <button
-                                      onClick={() => { if (confirm('Delete this storyboard?')) deleteStoryboard(workflowId, sbFlatIdx).then(() => loadWorkflow()).catch(() => {}); }}
+                                      onClick={() => { if (confirm('Delete this storyboard?')) deleteStoryboard(workflowId, sbFlatIdx).then(() => loadWorkflow()).catch((err) => { console.error('Delete storyboard failed:', err); setStoryboardError('Failed to delete storyboard'); }); }}
                                       className="shrink-0 h-6 w-6 rounded flex items-center justify-center text-muted-foreground/50 hover:text-red-500 hover:bg-red-500/10 transition-colors"
                                       title="Delete storyboard"
                                     >
@@ -2918,8 +2940,8 @@ export default function ContentWorkflowDetailPage() {
                                               updateStageSetting('storyboard', `storyline_${storyboardConceptIdx}_v${vi}`, val);
                                             }
                                           }}
-                                          dangerouslySetInnerHTML={{ __html: ((getSetting('storyboard', `storyline_${storyboardConceptIdx}_v${vi}`) as string) || sbStoryline).replace(/\n/g, '<br/>') }}
-                                        />
+                                          style={{ whiteSpace: 'pre-wrap' }}
+                                        >{(getSetting('storyboard', `storyline_${storyboardConceptIdx}_v${vi}`) as string) || sbStoryline}</div>
                                       </div>
 
                                       {/* Characters */}
@@ -2954,8 +2976,9 @@ export default function ContentWorkflowDetailPage() {
                                                 <Button size="sm" variant="outline" onClick={() => handleGenerateImageOverview('character', char.id)} disabled={generatingImages.has(char.id)} className="w-full h-5 text-[8px]">
                                                   {generatingImages.has(char.id) ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : char.image_url ? 'Regenerate' : 'Generate'}
                                                 </Button>
-                                                <FeedbackBar 
-                                                  workflowId={workflowId} 
+                                                <FeedbackBar
+                                                  workflowId={workflowId}
+                                                  currentUserId={currentUserId}
                                                   contentId={selectedContentPiece?.content_id} 
                                                   stageKey="storyboard" 
                                                   itemType="character" 
@@ -3023,8 +3046,9 @@ export default function ContentWorkflowDetailPage() {
                                                   {scene.time_of_day && <div><div className="font-mono text-[7px] uppercase text-muted-foreground/50">Time</div><p className="text-[8px] text-muted-foreground">{scene.time_of_day}</p></div>}
                                                   {scene.camera_move && <div><div className="font-mono text-[7px] uppercase text-muted-foreground/50">Camera</div><p className="text-[8px] text-muted-foreground">{scene.camera_move}</p></div>}
                                                   <div className="pt-1 border-t border-border mt-1">
-                                                    <FeedbackBar 
-                                                      workflowId={workflowId} 
+                                                    <FeedbackBar
+                                                      workflowId={workflowId}
+                                                      currentUserId={currentUserId}
                                                       contentId={selectedContentPiece?.content_id} 
                                                       stageKey="storyboard" 
                                                       itemType="scene" 
@@ -3043,8 +3067,9 @@ export default function ContentWorkflowDetailPage() {
 
                                   {/* Storyboard-level feedback — always visible at bottom of card */}
                                   <div className="px-3 py-2 border-t border-border">
-                                    <FeedbackBar 
-                                      workflowId={workflowId} 
+                                    <FeedbackBar
+                                      workflowId={workflowId}
+                                      currentUserId={currentUserId}
                                       contentId={selectedContentPiece?.content_id} 
                                       stageKey="storyboard" 
                                       itemType="storyboard" 
@@ -3133,8 +3158,9 @@ export default function ContentWorkflowDetailPage() {
                                               <div className="px-1.5 py-1 space-y-0.5 flex-1">
                                                 <div className="flex items-center gap-1"><span className="font-mono text-[7px] text-muted-foreground/50">{scene.scene_number}.</span><span className="text-[8px] font-medium truncate">{scene.title}</span></div>
                                                 <p className="text-[7px] text-muted-foreground leading-relaxed line-clamp-2">{scene.description}</p>
-                                                <FeedbackBar 
-                                                  workflowId={workflowId} 
+                                                <FeedbackBar
+                                                  workflowId={workflowId}
+                                                  currentUserId={currentUserId}
                                                   contentId={selectedContentPiece?.content_id} 
                                                   stageKey="video_generation" 
                                                   itemType="scene" 
@@ -3162,14 +3188,15 @@ export default function ContentWorkflowDetailPage() {
                                                     {vid?.preview ? (
                                                       <div className={`${oVideoAspect} bg-black`}>
                                                         <video src={vid.preview} className="h-full w-full object-contain bg-black [&:fullscreen]:h-screen [&:fullscreen]:w-auto [&:fullscreen]:mx-auto" controls playsInline />
-                                                        {vid.id && <button className="absolute top-0.5 right-0.5 h-4 w-4 rounded-full bg-black/60 text-white/70 hover:text-white hover:bg-red-600/80 opacity-0 group-hover/vid:opacity-100 transition-opacity flex items-center justify-center" onClick={() => deleteVideoVariation(workflowId, vid.id).then(() => loadWorkflow()).catch(() => {})}><X className="h-2.5 w-2.5" /></button>}
+                                                        {vid.id && <button className="absolute top-0.5 right-0.5 h-4 w-4 rounded-full bg-black/60 text-white/70 hover:text-white hover:bg-red-600/80 opacity-0 group-hover/vid:opacity-100 transition-opacity flex items-center justify-center" onClick={() => deleteVideoVariation(workflowId, vid.id).then(() => loadWorkflow()).catch((err) => console.error('Delete video failed:', err))}><X className="h-2.5 w-2.5" /></button>}
                                                       </div>
                                                     ) : (
                                                       <div className={`${oVideoAspect} bg-muted/50 flex items-center justify-center`}><span className="font-mono text-[8px] text-muted-foreground/40">rendering...</span></div>
                                                     )}
                                                     <div className="px-1.5 py-1">
-                                                      <FeedbackBar 
-                                                        workflowId={workflowId} 
+                                                      <FeedbackBar
+                                                        workflowId={workflowId}
+                                                        currentUserId={currentUserId}
                                                         contentId={selectedContentPiece?.content_id} 
                                                         stageKey="video_generation" 
                                                         itemType="video" 
@@ -3204,19 +3231,18 @@ export default function ContentWorkflowDetailPage() {
                                         {fullVars.map((v) => (
                                           <div key={v.id} className="rounded-lg border border-border overflow-hidden bg-muted relative group/gv3">
                                             <video src={v.preview} className={`w-full ${va3} object-contain bg-black [&:fullscreen]:h-screen [&:fullscreen]:w-auto [&:fullscreen]:mx-auto`} controls playsInline />
-                                            <button className="absolute top-1 right-1 h-5 w-5 rounded-full bg-black/60 text-white/70 hover:text-white hover:bg-red-600/80 opacity-0 group-hover/gv3:opacity-100 transition-opacity flex items-center justify-center" onClick={() => deleteVideoVariation(workflowId, v.id).then(() => loadWorkflow()).catch(() => {})}><X className="h-3 w-3" /></button>
+                                            <button className="absolute top-1 right-1 h-5 w-5 rounded-full bg-black/60 text-white/70 hover:text-white hover:bg-red-600/80 opacity-0 group-hover/gv3:opacity-100 transition-opacity flex items-center justify-center" onClick={() => deleteVideoVariation(workflowId, v.id).then(() => loadWorkflow()).catch((err) => console.error('Delete video failed:', err))}><X className="h-3 w-3" /></button>
                                             <div className="p-1.5">
                                               <p className="text-[9px] font-medium truncate">{v.title}</p>
-                                              {/* WS8: FeedbackBar */}
-                                                                                             <FeedbackBar 
-                                                                                               workflowId={workflowId} 
-                                                                                               contentId={selectedContentPiece?.content_id} 
-                                                                                               stageKey="video_generation" 
-                                                                                               itemType="video" 
-                                                                                               itemId={v.id} 
-                                                                                               onRegenerate={() => handleGenerateRowOverview(0)}
-                                                                                             />
-                                              
+                                              <FeedbackBar
+                                                workflowId={workflowId}
+                                                currentUserId={currentUserId}
+                                                contentId={selectedContentPiece?.content_id}
+                                                stageKey="video_generation"
+                                                itemType="video"
+                                                itemId={v.id}
+                                                onRegenerate={() => handleGenerateRowOverview(0)}
+                                              />
                                             </div>
                                           </div>
                                         ))}
@@ -3329,7 +3355,7 @@ export default function ContentWorkflowDetailPage() {
                                   <span className="text-muted-foreground/60">{job.scenes_done}/{job.scenes_total}</span>
                                   {job.scenes_failed > 0 && <span className="text-red-500">{job.scenes_failed}&#x2717;</span>}
                                   <span className="text-muted-foreground/40 truncate">{job.task_id.slice(0, 8)}</span>
-                                  <button className="ml-auto shrink-0 h-4 w-4 rounded hover:bg-destructive/20 text-muted-foreground/40 hover:text-destructive flex items-center justify-center transition-colors" onClick={() => deleteVideoJob(workflowId, job.task_id).then(() => loadWorkflow()).catch(() => {})} title="Delete job"><X className="h-2.5 w-2.5" /></button>
+                                  <button className="ml-auto shrink-0 h-4 w-4 rounded hover:bg-destructive/20 text-muted-foreground/40 hover:text-destructive flex items-center justify-center transition-colors" onClick={() => deleteVideoJob(workflowId, job.task_id).then(() => loadWorkflow()).catch((err) => console.error('Delete job failed:', err))} title="Delete job"><X className="h-2.5 w-2.5" /></button>
                                 </div>
                               ))}
                             </div>
@@ -3552,8 +3578,9 @@ export default function ContentWorkflowDetailPage() {
                                                 <div className="flex items-center gap-2 mb-2">
                                                   <span className="font-mono text-[10px] font-semibold">{vidTitle}</span>
                                                   <span className="inline-flex items-center rounded-full bg-muted px-1.5 py-0.5 font-mono text-[8px] text-muted-foreground">avg {avgScore}</span>
-                                                  <FeedbackBar 
-                                                  workflowId={workflowId} 
+                                                  <FeedbackBar
+                                                  workflowId={workflowId}
+                                                  currentUserId={currentUserId}
                                                   contentId={selectedContentPiece?.content_id} 
                                                   stageKey="simulation_testing" 
                                                   itemType="simulation" 
@@ -3724,8 +3751,9 @@ export default function ContentWorkflowDetailPage() {
                                     <div className="flex items-center justify-between px-4 py-2.5 bg-muted/30 border-b border-border">
                                       <span className="font-mono text-[10px] font-semibold">{pred.video_title}</span>
                                       <div className="flex items-center gap-2">
-                                        <FeedbackBar 
-                                          workflowId={workflowId} 
+                                        <FeedbackBar
+                                          workflowId={workflowId}
+                                          currentUserId={currentUserId}
                                           contentId={selectedContentPiece?.content_id} 
                                           stageKey="predictive_modeling" 
                                           itemType="prediction" 
@@ -3852,8 +3880,9 @@ export default function ContentWorkflowDetailPage() {
                                         <span className="font-mono text-[10px] font-semibold">{r.video_title}</span>
                                       </div>
                                       <div className="flex items-center gap-2">
-                                        <FeedbackBar 
-                                          workflowId={workflowId} 
+                                        <FeedbackBar
+                                          workflowId={workflowId}
+                                          currentUserId={currentUserId}
                                           contentId={selectedContentPiece?.content_id} 
                                           stageKey="content_ranking" 
                                           itemType="ranking" 
@@ -4350,29 +4379,44 @@ export default function ContentWorkflowDetailPage() {
                   };
                   const showDayPicker = (freq?: string) => freq && freq !== 'once';
                   const formatDate = (d?: string) => { if (!d) return ''; try { return new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); } catch { return d; } };
-                  const deleteContentItem = (itemId: string) => {
+                  const deleteContentItem = async (itemId: string) => {
+                    const originalItems = [...calendarItems];
+                    const originalPiece = selectedContentPiece;
                     updateStageSetting('scheduling', 'content_items', calendarItems.filter((i) => i.content_id !== itemId));
                     if (selectedContentPiece?.content_id === itemId) setSelectedContentPiece(null);
-                    void deleteCalendarItem(workflowId, itemId).catch((err) => {
+                    try {
+                      await deleteCalendarItem(workflowId, itemId);
+                    } catch (err) {
                       console.error('Failed to delete calendar item:', err);
-                      loadWorkflow();
-                    });
+                      updateStageSetting('scheduling', 'content_items', originalItems);
+                      setSelectedContentPiece(originalPiece);
+                    }
                   };
-                  const moveContentItem = (itemId: string, newDate: string) => {
+                  const moveContentItem = async (itemId: string, newDate: string) => {
+                    const originalItems = [...calendarItems];
+                    const originalPiece = selectedContentPiece;
                     updateStageSetting('scheduling', 'content_items', calendarItems.map((i) => i.content_id === itemId ? { ...i, date: newDate } : i));
                     if (selectedContentPiece?.content_id === itemId) setSelectedContentPiece({ ...selectedContentPiece, date: newDate });
-                    void updateCalendarItem(workflowId, itemId, { date: newDate }).catch((err) => {
+                    try {
+                      await updateCalendarItem(workflowId, itemId, { date: newDate });
+                    } catch (err) {
                       console.error('Failed to move calendar item:', err);
-                      loadWorkflow();
-                    });
+                      updateStageSetting('scheduling', 'content_items', originalItems);
+                      setSelectedContentPiece(originalPiece);
+                    }
                   };
-                  const updateContentItem = (itemId: string, field: keyof ContentItem, value: string | undefined) => {
+                  const updateContentItem = async (itemId: string, field: keyof ContentItem, value: string | undefined) => {
+                    const originalItems = [...calendarItems];
+                    const originalPiece = selectedContentPiece;
                     updateStageSetting('scheduling', 'content_items', calendarItems.map((i) => i.content_id === itemId ? { ...i, [field]: value } : i));
                     if (selectedContentPiece?.content_id === itemId) setSelectedContentPiece({ ...selectedContentPiece, [field]: value });
-                    void updateCalendarItem(workflowId, itemId, { [field]: value } as Partial<ContentItem>).catch((err) => {
+                    try {
+                      await updateCalendarItem(workflowId, itemId, { [field]: value } as Partial<ContentItem>);
+                    } catch (err) {
                       console.error('Failed to update calendar item:', err);
-                      loadWorkflow();
-                    });
+                      updateStageSetting('scheduling', 'content_items', originalItems);
+                      setSelectedContentPiece(originalPiece);
+                    }
                   };
                   return (
                   <div className="space-y-4">
@@ -5272,8 +5316,8 @@ export default function ContentWorkflowDetailPage() {
                                 updateStageSetting('storyboard', `storyline_${storyboardConceptIdx}`, val);
                               }
                             }}
-                            dangerouslySetInnerHTML={{ __html: ((getSetting('storyboard', `storyline_${storyboardConceptIdx}`) as string) || storyline).replace(/\n/g, '<br/>') }}
-                          />
+                            style={{ whiteSpace: 'pre-wrap' }}
+                          >{(getSetting('storyboard', `storyline_${storyboardConceptIdx}`) as string) || storyline}</div>
                           <div className="flex items-center gap-3 mt-1">
                             <span className="font-mono text-[9px] text-muted-foreground">{totalCuts} cuts</span>
                             <span className="font-mono text-[9px] text-muted-foreground">{characters.length} characters</span>
@@ -5318,8 +5362,9 @@ export default function ContentWorkflowDetailPage() {
                                   <Button size="sm" variant="outline" onClick={() => handleGenerateImage('character', char.id)} disabled={generatingImages.has(char.id)} className="w-full h-6 text-[9px]">
                                     {generatingImages.has(char.id) ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : char.image_url ? 'Regenerate' : 'Generate'}
                                   </Button>
-                                  <FeedbackBar 
-                                    workflowId={workflowId} 
+                                  <FeedbackBar
+                                    workflowId={workflowId}
+                                    currentUserId={currentUserId}
                                     contentId={selectedContentPiece?.content_id} 
                                     stageKey="storyboard" 
                                     itemType="character" 
@@ -5382,8 +5427,9 @@ export default function ContentWorkflowDetailPage() {
                                     <Button size="sm" variant="outline" onClick={() => handleGenerateImage('scene', scene.id)} disabled={generatingImages.has(scene.id) || !charsReady} title={!charsReady ? 'Generate character images first' : undefined} className="w-full h-5 text-[8px] mt-auto">
                                       {generatingImages.has(scene.id) ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : !charsReady ? 'Chars required' : scene.image_url ? 'Regenerate' : 'Generate'}
                                     </Button>
-                                    <FeedbackBar 
-                                      workflowId={workflowId} 
+                                    <FeedbackBar
+                                      workflowId={workflowId}
+                                      currentUserId={currentUserId}
                                       contentId={selectedContentPiece?.content_id} 
                                       stageKey="storyboard" 
                                       itemType="scene" 
@@ -5447,8 +5493,9 @@ export default function ContentWorkflowDetailPage() {
                           </div>
                         </div>
                         <div className="pt-2 border-t border-border mt-2">
-                          <FeedbackBar 
-                            workflowId={workflowId} 
+                          <FeedbackBar
+                            workflowId={workflowId}
+                            currentUserId={currentUserId}
                             contentId={selectedContentPiece?.content_id} 
                             stageKey="storyboard" 
                             itemType="storyboard" 
@@ -5782,7 +5829,7 @@ export default function ContentWorkflowDetailPage() {
                                                   {vid.id && (
                                                     <button
                                                       className="absolute top-0.5 right-0.5 h-4 w-4 rounded-full bg-black/60 text-white/70 hover:text-white hover:bg-red-600/80 opacity-0 group-hover/vid:opacity-100 transition-opacity flex items-center justify-center"
-                                                      onClick={() => deleteVideoVariation(workflowId, vid.id).then(() => loadWorkflow()).catch(() => {})}
+                                                      onClick={() => deleteVideoVariation(workflowId, vid.id).then(() => loadWorkflow()).catch((err) => console.error('Delete video failed:', err))}
                                                     >
                                                       <X className="h-2.5 w-2.5" />
                                                     </button>
@@ -5873,7 +5920,7 @@ export default function ContentWorkflowDetailPage() {
                                         <div className="absolute top-0.5 left-0.5"><span className="inline-flex items-center rounded-full bg-black/60 px-1 py-px font-mono text-[6px] text-white">S{v.scene_number}</span></div>
                                         <button
                                           className="absolute top-0.5 right-0.5 h-4 w-4 rounded-full bg-black/60 text-white/70 hover:text-white hover:bg-red-600/80 opacity-0 group-hover/sv:opacity-100 transition-opacity flex items-center justify-center"
-                                          onClick={() => deleteVideoVariation(workflowId, v.id).then(() => loadWorkflow()).catch(() => {})}
+                                          onClick={() => deleteVideoVariation(workflowId, v.id).then(() => loadWorkflow()).catch((err) => console.error('Delete video failed:', err))}
                                         ><X className="h-2.5 w-2.5" /></button>
                                       </div>
                                     ))}
@@ -5887,7 +5934,7 @@ export default function ContentWorkflowDetailPage() {
                                         <video src={v.preview} className={`w-full ${vidAspect2} object-contain bg-black`} controls playsInline />
                                         <button
                                           className="absolute top-1 right-1 h-5 w-5 rounded-full bg-black/60 text-white/70 hover:text-white hover:bg-red-600/80 opacity-0 group-hover/fv:opacity-100 transition-opacity flex items-center justify-center"
-                                          onClick={() => deleteVideoVariation(workflowId, v.id).then(() => loadWorkflow()).catch(() => {})}
+                                          onClick={() => deleteVideoVariation(workflowId, v.id).then(() => loadWorkflow()).catch((err) => console.error('Delete video failed:', err))}
                                         ><X className="h-3 w-3" /></button>
                                         <div className="p-1"><span className="text-[8px] font-medium">{v.title}</span></div>
                                       </div>
@@ -6064,7 +6111,7 @@ export default function ContentWorkflowDetailPage() {
                               <span className="text-muted-foreground/40 truncate">{job.task_id.slice(0, 8)}</span>
                               <button
                                 className="ml-auto shrink-0 h-4 w-4 rounded hover:bg-destructive/20 text-muted-foreground/40 hover:text-destructive flex items-center justify-center transition-colors"
-                                onClick={() => deleteVideoJob(workflowId, job.task_id).then(() => loadWorkflow()).catch(() => {})}
+                                onClick={() => deleteVideoJob(workflowId, job.task_id).then(() => loadWorkflow()).catch((err) => console.error('Delete job failed:', err))}
                                 title="Delete job"
                               >
                                 <X className="h-2.5 w-2.5" />
