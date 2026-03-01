@@ -838,25 +838,38 @@ export default function ContentWorkflowDetailPage() {
       // Load video jobs
       getVideoJobs(workflowId).then((jobs) => setVideoJobs((prev) => JSON.stringify(prev) === JSON.stringify(jobs) ? prev : jobs)).catch(() => {});
 
-      // Recover simulation results from node output_data
+      // Recover simulation results from node output_data (merge all by_content entries)
       const simNode = nodeList.find((n) => n.stage_key === 'simulation_testing');
-      if (simNode?.output_data?.results) {
-        setSimResults((prev) => JSON.stringify(prev) === JSON.stringify(simNode.output_data.results) ? prev : simNode.output_data.results as SimulationResult[]);
+      if (simNode?.output_data) {
+        const simByContent = (simNode.output_data.by_content || {}) as Record<string, { results: SimulationResult[] }>;
+        const allSimResults = Object.values(simByContent).flatMap((entry) => entry.results || []);
+        // Fall back to top-level results if by_content is empty (legacy data)
+        const mergedSimResults = allSimResults.length > 0 ? allSimResults : (simNode.output_data.results || []) as SimulationResult[];
+        setSimResults((prev) => JSON.stringify(prev) === JSON.stringify(mergedSimResults) ? prev : mergedSimResults);
       }
 
-      // Recover predictive modeling results
+      // Recover predictive modeling results (merge all by_content entries)
       const predNode = nodeList.find((n) => n.stage_key === 'predictive_modeling');
-      if (predNode?.output_data?.predictions) {
-        setPredResults((prev) => JSON.stringify(prev) === JSON.stringify(predNode.output_data.predictions) ? prev : predNode.output_data.predictions as PredictionResult[]);
+      if (predNode?.output_data) {
+        const predByContent = (predNode.output_data.by_content || {}) as Record<string, { predictions: PredictionResult[]; benchmarks?: PredictionBenchmarks }>;
+        const allPredResults = Object.values(predByContent).flatMap((entry) => entry.predictions || []);
+        // Fall back to top-level predictions if by_content is empty (legacy data)
+        const mergedPredResults = allPredResults.length > 0 ? allPredResults : (predNode.output_data.predictions || []) as PredictionResult[];
+        setPredResults((prev) => JSON.stringify(prev) === JSON.stringify(mergedPredResults) ? prev : mergedPredResults);
+        // For benchmarks, use latest run's benchmarks (top-level) as fallback
         if (predNode.output_data.benchmarks) {
           setPredBenchmarks((prev) => JSON.stringify(prev) === JSON.stringify(predNode.output_data.benchmarks) ? prev : predNode.output_data.benchmarks as PredictionBenchmarks);
         }
       }
 
-      // Recover content ranking results
+      // Recover content ranking results (merge all by_content entries)
       const rankNode = nodeList.find((n) => n.stage_key === 'content_ranking');
-      if (rankNode?.output_data?.rankings) {
-        setRankResults((prev) => JSON.stringify(prev) === JSON.stringify(rankNode.output_data.rankings) ? prev : rankNode.output_data.rankings as RankingResult[]);
+      if (rankNode?.output_data) {
+        const rankByContent = (rankNode.output_data.by_content || {}) as Record<string, { rankings: RankingResult[] }>;
+        const allRankResults = Object.values(rankByContent).flatMap((entry) => entry.rankings || []);
+        // Fall back to top-level rankings if by_content is empty (legacy data)
+        const mergedRankResults = allRankResults.length > 0 ? allRankResults : (rankNode.output_data.rankings || []) as RankingResult[];
+        setRankResults((prev) => JSON.stringify(prev) === JSON.stringify(mergedRankResults) ? prev : mergedRankResults);
       }
 
       // Load brand context if available (only on first load or when brand changes)
@@ -1673,17 +1686,22 @@ export default function ContentWorkflowDetailPage() {
                 selectedContentPiece?.content_id,
               );
               // Poll for completion
+              let completed = false;
               for (let attempt = 0; attempt < 120; attempt++) {
                 await new Promise(r => setTimeout(r, 3000));
                 const status = await pollStoryboardStatus(workflowId, task_id);
                 if (status.status === 'completed') {
                   await loadWorkflow();
                   setStoryboardVariationIdx(oConceptVariations.length);
+                  completed = true;
                   break;
                 }
                 if (status.status === 'failed') {
                   throw new Error(status.message || 'Storyboard generation failed');
                 }
+              }
+              if (!completed) {
+                throw new Error('Storyboard generation timed out');
               }
             } catch (err) {
               setStoryboardError(err instanceof Error ? err.message : 'Storyboard generation failed');
@@ -2904,7 +2922,7 @@ export default function ContentWorkflowDetailPage() {
                         {oConceptVariations.length > 0 && (
                           <div className="space-y-3">
                             {oConceptVariations.map((sbRaw, vi) => {
-                              const sbFlatIdx = oStoryboards.indexOf(sbRaw);
+                              const sbFlatIdx = oAllStoryboards.indexOf(sbRaw);
                               const sbKey = `sb-${storyboardConceptIdx}-${vi}`;
                               const sbChars = [...(sbRaw.characters || []) as SbChar[]];
                               const sbScenes = [...(sbRaw.scenes || []) as SbScene[]];
@@ -3092,7 +3110,7 @@ export default function ContentWorkflowDetailPage() {
                                       contentId={selectedContentPiece?.content_id} 
                                       stageKey="storyboard" 
                                       itemType="storyboard" 
-                                      itemId={sbKey} 
+                                      itemId={`sb_${sbFlatIdx}`} 
                                       onRegenerate={handleGenerateStoryboardOverview}
                                     />
                                   </div>
@@ -3391,22 +3409,41 @@ export default function ContentWorkflowDetailPage() {
                       }
                       type SimTest = { id: string; persona_ids: string[]; genders: string[]; ages: string[]; llm: string; video_ids: string[]; results?: SimulationResult[]; error?: string; running?: boolean };
                       const simNode = nodes.find((n) => n.stage_key === 'simulation_testing');
+                      const selectedCid = selectedContentPiece?.content_id;
+                      // Prefer by_content scoped results for the selected content piece
+                      const simByContent = (simNode?.output_data?.by_content || {}) as Record<string, { results: SimulationResult[]; config?: Record<string, unknown> }>;
+                      const contentEntry = selectedCid && simByContent[selectedCid] ? simByContent[selectedCid] : null;
+                      const topLevelResults = contentEntry
+                        ? (contentEntry.results || [])
+                        : ((simNode?.output_data?.results || []) as SimulationResult[]).filter(r => !selectedCid || r.content_id === selectedCid);
                       const savedTests = ((simNode?.output_data?.tests || []) as SimTest[]);
                       // If top-level results exist but no tests, create a synthetic test to display them
-                      const topLevelResults = (simNode?.output_data?.results || []) as SimulationResult[];
+                      const topLevelConfig = contentEntry?.config || (simNode?.output_data?.config as Record<string, unknown>) || {};
                       const fallbackTests: SimTest[] = savedTests.length === 0 && topLevelResults.length > 0
-                        ? [{ id: 'legacy', persona_ids: [], genders: [...new Set(topLevelResults.map(r => r.gender))], ages: [...new Set(topLevelResults.map(r => r.age))], llm: (simNode?.output_data?.config as Record<string, unknown>)?.model_name as string || 'gemini-pro-3', video_ids: [], results: topLevelResults }]
+                        ? [{ id: 'legacy', persona_ids: [], genders: [...new Set(topLevelResults.map(r => r.gender))], ages: [...new Set(topLevelResults.map(r => r.age))], llm: topLevelConfig?.model_name as string || 'gemini-pro-3', video_ids: [], results: topLevelResults }]
                         : savedTests;
-                      const tests = ((getSetting('simulation_testing', 'tests') as SimTest[]) || fallbackTests).map((t: SimTest) => ({ ...t, video_ids: t.video_ids || [] }));
+                      // Load tests scoped per content_id
+                      const allTestsSetting = getSetting('simulation_testing', 'tests');
+                      const testsForPiece = Array.isArray(allTestsSetting)
+                        ? allTestsSetting // legacy flat array
+                        : (allTestsSetting && selectedCid ? (allTestsSetting as Record<string, SimTest[]>)[selectedCid] || [] : []);
+                      const tests = ((testsForPiece.length > 0 ? testsForPiece : fallbackTests) as SimTest[]).map((t: SimTest) => ({ ...t, video_ids: t.video_ids || [] }));
 
                       // Get full videos for selection (stitched + video types, not individual scenes)
                       const vidNode = nodes.find((n) => n.stage_key === 'video_generation');
-                      const selectedCid = selectedContentPiece?.content_id;
                       const allVars = ((vidNode?.output_data?.variations || []) as Array<{ id: string; title?: string; preview?: string; type: string; model?: string; scene_number?: number; task_id?: string; content_id?: string }>).filter((v) => !selectedCid || v.content_id === selectedCid);
                       const stitchedVars = allVars.filter((v) => v.preview && (v.type === 'stitched' || v.type === 'video'));
                       const firstVideo = stitchedVars[0];
 
-                      const updateTests = (next: SimTest[]) => updateStageSetting('simulation_testing', 'tests', next);
+                      const updateTests = (next: SimTest[]) => {
+                        if (selectedCid) {
+                          const existing = getSetting('simulation_testing', 'tests') || {};
+                          const keyed = Array.isArray(existing) ? {} : existing as Record<string, SimTest[]>;
+                          updateStageSetting('simulation_testing', 'tests', { ...keyed, [selectedCid]: next });
+                        } else {
+                          updateStageSetting('simulation_testing', 'tests', next);
+                        }
+                      };
                       const addTest = () => {
                         const newTest: SimTest = { id: `t${Date.now()}`, persona_ids: [], genders: ['Male', 'Female'], ages: ['18-24', '25-34'], llm: 'gemini-pro-3', video_ids: [] };
                         updateTests([...tests, newTest]);
@@ -3686,7 +3723,11 @@ export default function ContentWorkflowDetailPage() {
                             predVideoIds.length > 0 ? predVideoIds : undefined,
                             selectedContentPiece?.content_id,
                           );
-                          setPredResults(res.predictions);
+                          // Merge new predictions: replace results for this content_id, keep others
+                          setPredResults((prev) => {
+                            const otherPreds = prev.filter((p) => p.content_id !== selectedCid);
+                            return [...otherPreds, ...res.predictions];
+                          });
                           setPredBenchmarks(res.benchmarks);
                           loadWorkflow();
                         } catch (err) {
@@ -3863,7 +3904,11 @@ export default function ContentWorkflowDetailPage() {
                         setRankError(null);
                         try {
                           const res = await runContentRanking(workflowId, 0.4, 0.6, selectedContentPiece?.content_id);
-                          setRankResults(res.rankings);
+                          // Merge new rankings: replace results for this content_id, keep others
+                          setRankResults((prev) => {
+                            const otherRanks = prev.filter((r) => r.content_id !== selectedCid);
+                            return [...otherRanks, ...res.rankings];
+                          });
                           loadWorkflow();
                         } catch (err) {
                           setRankError(err instanceof Error ? err.message : 'Ranking failed');
@@ -5077,17 +5122,22 @@ export default function ContentWorkflowDetailPage() {
                         selectedContentPiece?.content_id,
                       );
                       // Poll for completion
+                      let completed = false;
                       for (let attempt = 0; attempt < 120; attempt++) {
                         await new Promise(r => setTimeout(r, 3000));
                         const status = await pollStoryboardStatus(workflowId, task_id);
                         if (status.status === 'completed') {
                           await loadWorkflow();
                           setStoryboardVariationIdx(conceptVariations.length);
+                          completed = true;
                           break;
                         }
                         if (status.status === 'failed') {
                           throw new Error(status.message || 'Storyboard generation failed');
                         }
+                      }
+                      if (!completed) {
+                        throw new Error('Storyboard generation timed out');
                       }
                     } catch (err) {
                       const msg = err instanceof Error ? err.message : 'Storyboard generation failed';
@@ -6151,7 +6201,11 @@ export default function ContentWorkflowDetailPage() {
                         video_ids: simVideoIds.length > 0 ? simVideoIds : undefined,
                         content_id: selectedContentPiece.content_id,
                       });
-                      setSimResults(res.results);
+                      // Merge new simulation results: replace results for this content_id, keep others
+                      setSimResults((prev) => {
+                        const otherResults = prev.filter((r) => r.content_id !== selectedCid);
+                        return [...otherResults, ...res.results];
+                      });
                       loadWorkflow();
                     } catch (err) {
                       setSimError(err instanceof Error ? err.message : 'Simulation failed');
@@ -6259,7 +6313,11 @@ export default function ContentWorkflowDetailPage() {
                         predVideoIds.length > 0 ? predVideoIds : undefined,
                         selectedContentPiece?.content_id,
                       );
-                      setPredResults(res.predictions);
+                      // Merge new predictions: replace results for this content_id, keep others
+                      setPredResults((prev) => {
+                        const otherPreds = prev.filter((p) => p.content_id !== selectedCid);
+                        return [...otherPreds, ...res.predictions];
+                      });
                       setPredBenchmarks(res.benchmarks);
                       loadWorkflow();
                     } catch (err) {
@@ -6328,7 +6386,11 @@ export default function ContentWorkflowDetailPage() {
                     setRankError(null);
                     try {
                       const res = await runContentRanking(workflowId, 0.4, 0.6, selectedContentPiece?.content_id);
-                      setRankResults(res.rankings);
+                      // Merge new rankings: replace results for this content_id, keep others
+                      setRankResults((prev) => {
+                        const otherRanks = prev.filter((r) => r.content_id !== selectedCid);
+                        return [...otherRanks, ...res.rankings];
+                      });
                       loadWorkflow();
                     } catch (err) {
                       setRankError(err instanceof Error ? err.message : 'Ranking failed');
