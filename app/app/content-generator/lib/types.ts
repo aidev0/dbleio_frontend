@@ -221,7 +221,28 @@ export interface ResearchData {
 
 export interface ContentCalendarItem {
   _id: string;
-  content_id: string;
+  workflow_id: string;
+  brand_id?: string;
+  organization_id?: string;
+  platform: string;
+  content_type: string;
+  frequency?: string;
+  days?: number[];
+  start_date?: string;
+  end_date?: string;
+  post_time?: string;
+  title?: string;
+  status: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+// --- Content Piece ---
+
+export interface ContentPiece {
+  _id: string;
+  content_id: string;  // same as _id
+  schedule_id: string;
   workflow_id: string;
   brand_id?: string;
   organization_id?: string;
@@ -229,10 +250,6 @@ export interface ContentCalendarItem {
   content_type: string;
   date: string;
   post_time?: string;
-  frequency?: string;
-  days?: number[];
-  start_date?: string;
-  end_date?: string;
   title?: string;
   status: string;
   created_at?: string;

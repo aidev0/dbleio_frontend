@@ -74,9 +74,11 @@ import {
   runContentRanking,
   listCalendarItems,
   createCalendarItem,
-  updateCalendarItem,
   deleteCalendarItem,
-  migrateCalendar,
+  listContents,
+  createContent,
+  updateContent,
+  deleteContent,
 } from '../lib/api';
 import type { VideoJob, SimulationResult, Persona, PredictionResult, PredictionBenchmarks, RankingResult } from '../lib/api';
 import type { Campaign } from '../lib/api';
@@ -109,14 +111,15 @@ interface ContentEntry {
   timezone?: string;
 }
 
-/** First-class calendar item — individually movable, editable, deletable. */
+/** First-class content piece — content_id = _id from the contents collection. */
 interface ContentItem {
-  content_id: string;  // crypto.randomUUID() — stable forever
+  content_id: string;  // MongoDB ObjectId string from backend
   date: string;        // "YYYY-MM-DD" — editable (move)
   platform: string;
   content_type: string;
   post_time?: string;
   timezone?: string;
+  schedule_id: string; // links to content_calendars._id
 }
 
 /** Group content items by day-of-month for the given month. */
@@ -132,18 +135,25 @@ function getContentItemsByDate(items: ContentItem[], year: number, month: number
   return map;
 }
 
-/** Expand a scheduling rule into individual ContentItem objects. */
-function materializeItems(entry: ContentEntry): ContentItem[] {
-  const items: ContentItem[] = [];
-  if (!entry.start_date) return items;
+/** Expand a scheduling rule into date strings for creating content pieces. */
+interface MaterializedDate {
+  date: string;
+  platform: string;
+  content_type: string;
+  post_time?: string;
+}
+
+function materializeDates(entry: ContentEntry): MaterializedDate[] {
+  const dates: MaterializedDate[] = [];
+  if (!entry.start_date) return dates;
   const start = new Date(entry.start_date + 'T00:00:00');
   const end = entry.end_date ? new Date(entry.end_date + 'T00:00:00') : start;
   const freq = entry.frequency || 'once';
   const selectedDays = entry.days && entry.days.length > 0 ? entry.days : null;
-  const base = { platform: entry.platform, content_type: entry.content_type, post_time: entry.post_time, timezone: entry.timezone };
+  const base = { platform: entry.platform, content_type: entry.content_type, post_time: entry.post_time };
   if (freq === 'once') {
-    items.push({ ...base, content_id: crypto.randomUUID(), date: entry.start_date });
-    return items;
+    dates.push({ ...base, date: entry.start_date });
+    return dates;
   }
   const cur = new Date(start);
   while (cur <= end) {
@@ -161,20 +171,11 @@ function materializeItems(entry: ContentEntry): ContentItem[] {
       const y = cur.getFullYear();
       const m = String(cur.getMonth() + 1).padStart(2, '0');
       const d = String(cur.getDate()).padStart(2, '0');
-      items.push({ ...base, content_id: crypto.randomUUID(), date: `${y}-${m}-${d}` });
+      dates.push({ ...base, date: `${y}-${m}-${d}` });
     }
     cur.setDate(cur.getDate() + 1);
   }
-  return items;
-}
-
-/** Migrate old content_entries into content_items (one-time backfill). */
-function migrateEntriesToItems(entries: ContentEntry[]): ContentItem[] {
-  const items: ContentItem[] = [];
-  for (const entry of entries) {
-    items.push(...materializeItems(entry));
-  }
-  return items;
+  return dates;
 }
 
 // Content-type-specific concept interfaces
@@ -247,7 +248,7 @@ interface ContentVariation {
   id: string;
   title: string;
   preview?: string;
-  type: 'video' | 'image' | 'copy';
+  type: 'video' | 'image' | 'copy' | 'scene' | 'stitched';
   score?: number;
   scheduled_at?: string;
   status: 'draft' | 'approved' | 'scheduled' | 'published';
@@ -778,10 +779,10 @@ export default function ContentWorkflowDetailPage() {
   // Load workflow + nodes
   const loadWorkflow = useCallback(async () => {
     try {
-      const [wf, nodeList, dbCalendarItems] = await Promise.all([
+      const [wf, nodeList, dbContents] = await Promise.all([
         getContentWorkflow(workflowId),
         getContentNodes(workflowId),
-        listCalendarItems(workflowId),
+        listContents(workflowId),
       ]);
       // Only update state when data actually changed to avoid re-rendering videos
       setWorkflow((prev) => JSON.stringify(prev) === JSON.stringify(wf) ? prev : wf);
@@ -794,26 +795,21 @@ export default function ContentWorkflowDetailPage() {
         if (ss.video_generation) {
           ss.video_generation = { ...ss.video_generation, _generating_rows: [], _row_errors: {} };
         }
-        let resolvedCalendar = dbCalendarItems as ContentItem[];
-        const legacyCalendar = ((ss.scheduling?.content_items as ContentItem[] | undefined) || []);
-        if (resolvedCalendar.length === 0 && legacyCalendar.length > 0 && !migrationAttempted.current) {
-          migrationAttempted.current = true;
-          try {
-            await migrateCalendar(workflowId);
-            resolvedCalendar = await listCalendarItems(workflowId) as ContentItem[];
-          } catch {
-            // Keep legacy calendar if migrate fails.
-            resolvedCalendar = legacyCalendar;
-          }
-        }
-        if (resolvedCalendar.length > 0) {
-          ss.scheduling = { ...(ss.scheduling || {}), content_items: resolvedCalendar };
-        }
+        // Load content items from the contents collection
+        const contentItems: ContentItem[] = dbContents.map((c) => ({
+          content_id: c.content_id,
+          date: c.date,
+          platform: c.platform,
+          content_type: c.content_type,
+          post_time: c.post_time,
+          schedule_id: c.schedule_id,
+        }));
+        ss.scheduling = { ...(ss.scheduling || {}), content_items: contentItems };
         setStageSettings((prev) => JSON.stringify(prev) === JSON.stringify(ss) ? prev : ss);
         setSelectedContentPiece((prev) => {
-          if (!resolvedCalendar.length) return prev;
+          if (!contentItems.length) return prev;
           if (!prev) return prev;
-          return resolvedCalendar.find((it) => it.content_id === prev.content_id) || null;
+          return contentItems.find((it) => it.content_id === prev.content_id) || null;
         });
       }
 
@@ -997,9 +993,27 @@ export default function ContentWorkflowDetailPage() {
     updateStageSetting('scheduling', 'content_items', calendarItems.filter((i) => i.content_id !== itemId));
     if (selectedContentPiece?.content_id === itemId) setSelectedContentPiece(null);
     try {
-      await deleteCalendarItem(workflowId, itemId);
+      await deleteContent(workflowId, itemId);
     } catch (err) {
-      console.error('Failed to delete calendar item:', err);
+      console.error('Failed to delete content item:', err);
+      updateStageSetting('scheduling', 'content_items', originalItems);
+      setSelectedContentPiece(originalPiece);
+    }
+  };
+
+  const handleDeleteSchedule = async (calendarItems: ContentItem[], scheduleId: string) => {
+    const itemsToDelete = calendarItems.filter((i) => i.schedule_id === scheduleId);
+    if (itemsToDelete.length === 0) return;
+    const confirmed = window.confirm(`Delete all ${itemsToDelete.length} items from this schedule?`);
+    if (!confirmed) return;
+    const originalItems = [...calendarItems];
+    const originalPiece = selectedContentPiece;
+    updateStageSetting('scheduling', 'content_items', calendarItems.filter((i) => i.schedule_id !== scheduleId));
+    if (selectedContentPiece && itemsToDelete.some((i) => i.content_id === selectedContentPiece.content_id)) setSelectedContentPiece(null);
+    try {
+      await deleteCalendarItem(workflowId, scheduleId);
+    } catch (err) {
+      console.error('Failed to delete schedule:', err);
       updateStageSetting('scheduling', 'content_items', originalItems);
       setSelectedContentPiece(originalPiece);
     }
@@ -1010,9 +1024,9 @@ export default function ContentWorkflowDetailPage() {
     updateStageSetting('scheduling', 'content_items', calendarItems.map((i) => i.content_id === itemId ? { ...i, date: newDate } : i));
     if (selectedContentPiece?.content_id === itemId) setSelectedContentPiece({ ...selectedContentPiece, date: newDate });
     try {
-      await updateCalendarItem(workflowId, itemId, { date: newDate });
+      await updateContent(workflowId, itemId, { date: newDate });
     } catch (err) {
-      console.error('Failed to move calendar item:', err);
+      console.error('Failed to move content item:', err);
       updateStageSetting('scheduling', 'content_items', originalItems);
       setSelectedContentPiece(originalPiece);
     }
@@ -1023,9 +1037,9 @@ export default function ContentWorkflowDetailPage() {
     updateStageSetting('scheduling', 'content_items', calendarItems.map((i) => i.content_id === itemId ? { ...i, [field]: value } : i));
     if (selectedContentPiece?.content_id === itemId) setSelectedContentPiece({ ...selectedContentPiece, [field]: value });
     try {
-      await updateCalendarItem(workflowId, itemId, { [field]: value } as Partial<ContentItem>);
+      await updateContent(workflowId, itemId, { [field]: value });
     } catch (err) {
-      console.error('Failed to update calendar item:', err);
+      console.error('Failed to update content item:', err);
       updateStageSetting('scheduling', 'content_items', originalItems);
       setSelectedContentPiece(originalPiece);
     }
@@ -1579,10 +1593,12 @@ export default function ContentWorkflowDetailPage() {
           const oStoryboardNode = nodes.find((n) => n.stage_key === 'storyboard');
           const oStoryboardOutput = (oStoryboardNode?.output_data || {}) as { storyboards?: Array<Record<string, unknown>> };
           const oAllStoryboards = oStoryboardOutput.storyboards || [];
-          const oStoryboards = oAllStoryboards.filter((sb) => {
+          const oStoryboards = (() => {
             const selectedCid = selectedContentPiece?.content_id;
-            return !selectedCid || (sb.content_id as string | undefined) === selectedCid;
-          });
+            if (!selectedCid) return [];
+            const filtered = oAllStoryboards.filter((sb) => (sb.content_id as string | undefined) === selectedCid);
+            return filtered;
+          })();
 
           type SbChar = { id: string; name: string; description: string; image_prompt: string; image_url: string | null; gs_uri: string | null; image_model: string };
           type SbScene = { id: string; scene_number: number; title: string; description: string; shot_type: string; duration_hint: string; character_ids: string[]; image_prompt: string; image_url: string | null; gs_uri: string | null; image_model: string; dialog?: string; lighting?: string; time_of_day?: string; camera_move?: string; character_descriptions?: Array<{ character_id: string; appearance_in_scene: string }> };
@@ -1979,12 +1995,7 @@ export default function ContentWorkflowDetailPage() {
                     {/* ── Scheduling ── */}
                     {stage.key === 'scheduling' && (() => {
                       const contentEntries = (getSetting('scheduling', 'content_entries') as ContentEntry[] | undefined) || [];
-                      // Content items: migrate from old content_entries if needed
-                      let calendarItems = (getSetting('scheduling', 'content_items') as ContentItem[] | undefined) || [];
-                      if (calendarItems.length === 0 && contentEntries.length > 0) {
-                        calendarItems = migrateEntriesToItems(contentEntries);
-                        updateStageSetting('scheduling', 'content_items', calendarItems);
-                      }
+                      const calendarItems = (getSetting('scheduling', 'content_items') as ContentItem[] | undefined) || [];
                       const addPlatform = (getSetting('scheduling', 'add_platform') as string) || '';
                       const addContentType = (getSetting('scheduling', 'add_content_type') as string) || '';
                       const addFrequency = (getSetting('scheduling', 'add_frequency') as string) || '';
@@ -1997,36 +2008,59 @@ export default function ContentWorkflowDetailPage() {
                         const next = addDays.includes(dayId) ? addDays.filter((d) => d !== dayId) : [...addDays, dayId].sort();
                         updateStageSetting('scheduling', 'add_days', next.length > 0 ? next : []);
                       };
-                      const addEntry = () => {
+                      const addEntry = async () => {
                         if (!addPlatform || !addContentType) return;
-                        const newRule: ContentEntry = {
-                          id: crypto.randomUUID(),
-                          platform: addPlatform, content_type: addContentType,
-                          frequency: addFrequency || undefined, days: addDays.length > 0 ? addDays : undefined,
-                          start_date: addStartDate || undefined,
-                          end_date: addEndDate || undefined, post_time: addPostTime || undefined,
-                          timezone: addTimezone || undefined,
-                        };
-                        updateStageSetting('scheduling', 'content_entries', [...contentEntries, newRule]);
-                        // Materialize individual content items
-                        const newItems = materializeItems(newRule);
-                        const nextItems = [...calendarItems, ...newItems];
-                        updateStageSetting('scheduling', 'content_items', nextItems);
-                        void Promise.all(
-                          newItems.map((item) =>
-                            createCalendarItem(workflowId, {
-                              content_id: item.content_id,
-                              platform: item.platform,
-                              content_type: item.content_type,
-                              date: item.date,
-                              post_time: item.post_time,
-                              status: 'scheduled',
-                            })
-                          )
-                        ).catch((err) => {
-                          console.error('Failed to persist calendar items:', err);
+                        try {
+                          // 1. Create the scheduling rule (1 doc in content_calendars)
+                          const calendarDoc = await createCalendarItem(workflowId, {
+                            platform: addPlatform,
+                            content_type: addContentType,
+                            frequency: addFrequency || undefined,
+                            days: addDays.length > 0 ? addDays : undefined,
+                            start_date: addStartDate || undefined,
+                            end_date: addEndDate || undefined,
+                            post_time: addPostTime || undefined,
+                            status: 'scheduled',
+                          });
+                          const scheduleId = calendarDoc._id;
+                          const newRule: ContentEntry = {
+                            id: scheduleId,
+                            platform: addPlatform, content_type: addContentType,
+                            frequency: addFrequency || undefined, days: addDays.length > 0 ? addDays : undefined,
+                            start_date: addStartDate || undefined,
+                            end_date: addEndDate || undefined, post_time: addPostTime || undefined,
+                            timezone: addTimezone || undefined,
+                          };
+                          updateStageSetting('scheduling', 'content_entries', [...contentEntries, newRule]);
+
+                          // 2. Materialize dates and create content pieces (N docs in contents)
+                          const dates = materializeDates(newRule);
+                          const createdPieces = await Promise.all(
+                            dates.map((d) =>
+                              createContent(workflowId, {
+                                schedule_id: scheduleId,
+                                platform: d.platform,
+                                content_type: d.content_type,
+                                date: d.date,
+                                post_time: d.post_time,
+                              })
+                            )
+                          );
+
+                          // 3. Update local state with backend-generated content_ids
+                          const newItems: ContentItem[] = createdPieces.map((piece) => ({
+                            content_id: piece.content_id,
+                            date: piece.date,
+                            platform: piece.platform,
+                            content_type: piece.content_type,
+                            post_time: piece.post_time,
+                            schedule_id: scheduleId,
+                          }));
+                          updateStageSetting('scheduling', 'content_items', [...calendarItems, ...newItems]);
+                        } catch (err) {
+                          console.error('Failed to create schedule:', err);
                           loadWorkflow();
-                        });
+                        }
                         updateStageSetting('scheduling', 'add_platform', '');
                         updateStageSetting('scheduling', 'add_content_type', '');
                         updateStageSetting('scheduling', 'add_frequency', '');
@@ -2037,6 +2071,8 @@ export default function ContentWorkflowDetailPage() {
                         updateStageSetting('scheduling', 'add_timezone', '');
                       };
                       const removeEntry = (idx: number) => {
+                        const entry = contentEntries[idx];
+                        handleDeleteSchedule(calendarItems, entry.id);
                         updateStageSetting('scheduling', 'content_entries', contentEntries.filter((_, i) => i !== idx));
                         if (editingContentIdx === idx) setEditingContentIdx(null);
                       };
@@ -2326,21 +2362,28 @@ export default function ContentWorkflowDetailPage() {
                                               <div className="flex items-center justify-between px-0.5 mb-0.5">
                                                 <span className={`text-[10px] ${isToday(day) ? 'font-bold text-foreground' : 'text-muted-foreground/60'}`}>{day}</span>
                                                 <button
-                                                  onClick={() => {
-                                                    const newItem: ContentItem = { content_id: crypto.randomUUID(), date: dateStr, platform: 'instagram', content_type: 'reel' };
-                                                    const originalItems = [...calendarItems];
-                                                    updateStageSetting('scheduling', 'content_items', [...calendarItems, newItem]);
-                                                    createCalendarItem(workflowId, {
-                                                      content_id: newItem.content_id,
-                                                      platform: newItem.platform,
-                                                      content_type: newItem.content_type,
-                                                      date: newItem.date,
-                                                      post_time: newItem.post_time,
-                                                      status: 'scheduled',
-                                                    }).catch((err) => {
-                                                      console.error('Failed to create calendar item:', err);
-                                                      updateStageSetting('scheduling', 'content_items', originalItems);
-                                                    });
+                                                  onClick={async () => {
+                                                    try {
+                                                      // Use existing schedule rule
+                                                      const scheduleId = contentEntries[0]?.id;
+                                                      if (!scheduleId) { console.error('No calendar rule found'); return; }
+                                                      const created = await createContent(workflowId, {
+                                                        schedule_id: scheduleId,
+                                                        platform: 'instagram',
+                                                        content_type: 'reel',
+                                                        date: dateStr,
+                                                      });
+                                                      const newItem: ContentItem = {
+                                                        content_id: created._id,
+                                                        date: dateStr,
+                                                        platform: 'instagram',
+                                                        content_type: 'reel',
+                                                        schedule_id: scheduleId,
+                                                      };
+                                                      updateStageSetting('scheduling', 'content_items', [...calendarItems, newItem]);
+                                                    } catch (err) {
+                                                      console.error('Failed to create content item:', err);
+                                                    }
                                                   }}
                                                   className="opacity-0 group-hover:opacity-100 hover:!opacity-100 text-muted-foreground/30 hover:text-foreground transition-opacity"
                                                   title="Add content item"
@@ -2472,9 +2515,6 @@ export default function ContentWorkflowDetailPage() {
 
                     {/* ── Concepts ── */}
                     {stage.key === 'concepts' && (() => {
-                      if (!selectedContentPiece) {
-                        return <div className="text-center py-8 text-muted-foreground/50"><CalendarClock className="h-8 w-8 mx-auto mb-2 opacity-30" /><p className="text-xs">Select a content piece from the calendar to generate concepts</p></div>;
-                      }
                       const conceptRows = (getSetting('concepts', 'concept_allocations') as Array<{ num: string; tone: string; model?: string }>) || [{ num: '3', tone: '', model: '' }];
                       const totalConcepts = conceptRows.reduce((sum, r) => sum + (parseInt(r.num) || 0), 0);
                       const pieceConcepts = ((getPieceSetting('concepts', 'generated_concepts') as GeneratedConcept[]) || []) as GeneratedConcept[];
@@ -2695,9 +2735,6 @@ export default function ContentWorkflowDetailPage() {
 
                     {/* ── Image Generation ── */}
                     {stage.key === 'image_generation' && (() => {
-                      if (!selectedContentPiece) {
-                        return <div className="text-center py-8 text-muted-foreground/50"><CalendarClock className="h-8 w-8 mx-auto mb-2 opacity-30" /><p className="text-xs">Select a content piece from the calendar first</p></div>;
-                      }
                       const pieceConcepts = ((getPieceSetting('concepts', 'generated_concepts') as GeneratedConcept[]) || []) as GeneratedConcept[];
                       return (
                       <>
@@ -2805,9 +2842,6 @@ export default function ContentWorkflowDetailPage() {
 
                     {/* ── Storyboard ── */}
                     {stage.key === 'storyboard' && (() => {
-                      if (!selectedContentPiece) {
-                        return <div className="text-center py-8 text-muted-foreground/50"><CalendarClock className="h-8 w-8 mx-auto mb-2 opacity-30" /><p className="text-xs">Select a content piece from the calendar first</p></div>;
-                      }
                       return (
                       <>
                         {(() => {
@@ -3130,9 +3164,6 @@ export default function ContentWorkflowDetailPage() {
 
                     {/* ── Video Generation ── */}
                     {stage.key === 'video_generation' && (() => {
-                      if (!selectedContentPiece) {
-                        return <div className="text-center py-8 text-muted-foreground/50"><CalendarClock className="h-8 w-8 mx-auto mb-2 opacity-30" /><p className="text-xs">Select a content piece from the calendar first</p></div>;
-                      }
                       return (
                       <>
                         {/* Storyboard selector */}
@@ -3165,7 +3196,7 @@ export default function ContentWorkflowDetailPage() {
                                 {oVidScenes.length > 0 && (() => {
                                   const vidNode = nodes.find((n) => n.stage_key === 'video_generation');
                                   const selectedCid = selectedContentPiece?.content_id;
-                                  const allVars = ((vidNode?.output_data?.variations || []) as Array<{ id: string; title: string; preview?: string; type: string; task_id?: string; scene_number?: number; model?: string; content_id?: string }>).filter((v) => !selectedCid || v.content_id === selectedCid);
+                                  const allVars = ((vidNode?.output_data?.variations || []) as Array<{ id: string; title: string; preview?: string; type: string; task_id?: string; scene_number?: number; model?: string; content_id?: string }>).filter((v) => selectedCid && v.content_id === selectedCid);
                                   const sceneVars = allVars.filter((v) => v.type === 'scene');
                                   const taskIds = [...new Set(sceneVars.map((v) => v.task_id || '').filter(Boolean))].reverse();
                                   const oOutputFmt = (getSetting('video_generation', 'output_format') as string) || 'reel_9_16';
@@ -3256,7 +3287,7 @@ export default function ContentWorkflowDetailPage() {
                                 {(() => {
                                   const vidNode2 = nodes.find((n) => n.stage_key === 'video_generation');
                                   const selectedCid = selectedContentPiece?.content_id;
-                                  const fullVars = ((vidNode2?.output_data?.variations || []) as Array<{ id: string; title: string; preview?: string; type: string; content_id?: string }>).filter((v) => v.type !== 'scene' && (!selectedCid || v.content_id === selectedCid));
+                                  const fullVars = ((vidNode2?.output_data?.variations || []) as Array<{ id: string; title: string; preview?: string; type: string; content_id?: string }>).filter((v) => v.type !== 'scene' && (selectedCid && v.content_id === selectedCid));
                                   if (fullVars.length === 0) return null;
                                   const fmt3 = (getSetting('video_generation', 'output_format') as string) || 'reel_9_16';
                                   const fmtMap3: Record<string, string> = { 'reel_9_16': 'aspect-[9/16]', 'story_9_16': 'aspect-[9/16]', 'post_1_1': 'aspect-square', 'landscape_16_9': 'aspect-video' };
@@ -3404,9 +3435,6 @@ export default function ContentWorkflowDetailPage() {
 
                     {/* ── Simulation & Testing ── */}
                     {stage.key === 'simulation_testing' && (() => {
-                      if (!selectedContentPiece) {
-                        return <div className="text-center py-8 text-muted-foreground/50"><CalendarClock className="h-8 w-8 mx-auto mb-2 opacity-30" /><p className="text-xs">Select a content piece from the calendar first</p></div>;
-                      }
                       type SimTest = { id: string; persona_ids: string[]; genders: string[]; ages: string[]; llm: string; video_ids: string[]; results?: SimulationResult[]; error?: string; running?: boolean };
                       const simNode = nodes.find((n) => n.stage_key === 'simulation_testing');
                       const selectedCid = selectedContentPiece?.content_id;
@@ -3415,7 +3443,7 @@ export default function ContentWorkflowDetailPage() {
                       const contentEntry = selectedCid && simByContent[selectedCid] ? simByContent[selectedCid] : null;
                       const topLevelResults = contentEntry
                         ? (contentEntry.results || [])
-                        : ((simNode?.output_data?.results || []) as SimulationResult[]).filter(r => !selectedCid || r.content_id === selectedCid);
+                        : ((simNode?.output_data?.results || []) as SimulationResult[]).filter(r => selectedCid && r.content_id === selectedCid);
                       const topLevelConfig = contentEntry?.config || (simNode?.output_data?.config as Record<string, unknown>) || {};
                       // Fallback: only create synthetic test if there are results for this content piece
                       const fallbackTests: SimTest[] = topLevelResults.length > 0
@@ -3423,9 +3451,9 @@ export default function ContentWorkflowDetailPage() {
                         : [];
                       // Load tests scoped per content_id
                       const allTestsSetting = getSetting('simulation_testing', 'tests');
-                      const testsForPiece = Array.isArray(allTestsSetting)
-                        ? (selectedCid ? allTestsSetting.filter((t: SimTest) => t.results && t.results.some((r: SimulationResult) => r.content_id === selectedCid)) : allTestsSetting) // legacy: only show tests with results for this content
-                        : (allTestsSetting && selectedCid ? (allTestsSetting as Record<string, SimTest[]>)[selectedCid] || [] : []);
+                      const testsForPiece = !selectedCid ? [] : Array.isArray(allTestsSetting)
+                        ? allTestsSetting.filter((t: SimTest) => t.results && t.results.some((r: SimulationResult) => r.content_id === selectedCid))
+                        : (allTestsSetting ? (allTestsSetting as Record<string, SimTest[]>)[selectedCid] || [] : []);
                       const tests = ((testsForPiece.length > 0 ? testsForPiece : fallbackTests) as SimTest[]).map((t: SimTest) => ({
                         ...t,
                         video_ids: t.video_ids || [],
@@ -3435,7 +3463,7 @@ export default function ContentWorkflowDetailPage() {
 
                       // Get full videos for selection (stitched + video types, not individual scenes)
                       const vidNode = nodes.find((n) => n.stage_key === 'video_generation');
-                      const allVars = ((vidNode?.output_data?.variations || []) as Array<{ id: string; title?: string; preview?: string; type: string; model?: string; scene_number?: number; task_id?: string; content_id?: string }>).filter((v) => !selectedCid || v.content_id === selectedCid);
+                      const allVars = ((vidNode?.output_data?.variations || []) as Array<{ id: string; title?: string; preview?: string; type: string; model?: string; scene_number?: number; task_id?: string; content_id?: string }>).filter((v) => selectedCid && v.content_id === selectedCid);
                       const stitchedVars = allVars.filter((v) => v.preview && (v.type === 'stitched' || v.type === 'video'));
                       const firstVideo = stitchedVars[0];
 
@@ -3466,7 +3494,7 @@ export default function ContentWorkflowDetailPage() {
 
                       const runTest = async (testId: string) => {
                         const test = tests.find((t) => t.id === testId);
-                        if (!test) return;
+                        if (!test || !selectedContentPiece) return;
                         updateTests(tests.map((t) => t.id === testId ? { ...t, running: true, error: undefined } : t));
                         try {
                           const res = await runContentSimulation(workflowId, {
@@ -3704,16 +3732,13 @@ export default function ContentWorkflowDetailPage() {
 
                     {/* ── Predictive Modeling ── */}
                     {stage.key === 'predictive_modeling' && (() => {
-                      if (!selectedContentPiece) {
-                        return <div className="text-center py-8 text-muted-foreground/50"><CalendarClock className="h-8 w-8 mx-auto mb-2 opacity-30" /><p className="text-xs">Select a content piece from the calendar first</p></div>;
-                      }
                       const vidNode = nodes.find((n) => n.stage_key === 'video_generation');
                       const selectedCid = selectedContentPiece?.content_id;
-                      const allVars = ((vidNode?.output_data?.variations || []) as Array<{ id: string; title?: string; preview?: string; type: string; model?: string; content_id?: string }>).filter((v) => !selectedCid || v.content_id === selectedCid);
+                      const allVars = ((vidNode?.output_data?.variations || []) as Array<{ id: string; title?: string; preview?: string; type: string; model?: string; content_id?: string }>).filter((v) => selectedCid && v.content_id === selectedCid);
                       const stitchedVars = allVars.filter((v) => v.preview && (v.type === 'stitched' || v.type === 'video'));
                       const predLlm = (getSetting('predictive_modeling', 'llm') as string) || 'gemini-pro-3';
                       const predVideoIds = ((getSetting('predictive_modeling', 'video_ids') as string[]) || []);
-                      const scopedPredResults = predResults.filter((pred) => pred.content_id === selectedCid);
+                      const scopedPredResults = selectedCid ? predResults.filter((pred) => pred.content_id === selectedCid) : [];
 
                       const fmtNum = (n: number) => n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)}M` : n >= 1_000 ? `${(n / 1_000).toFixed(1)}K` : String(n);
 
@@ -3892,15 +3917,12 @@ export default function ContentWorkflowDetailPage() {
 
                     {/* ── Content Ranking ── */}
                     {stage.key === 'content_ranking' && (() => {
-                      if (!selectedContentPiece) {
-                        return <div className="text-center py-8 text-muted-foreground/50"><CalendarClock className="h-8 w-8 mx-auto mb-2 opacity-30" /><p className="text-xs">Select a content piece from the calendar first</p></div>;
-                      }
                       const vidNode = nodes.find((n) => n.stage_key === 'video_generation');
                       const selectedCid = selectedContentPiece?.content_id;
-                      const allVars = ((vidNode?.output_data?.variations || []) as Array<{ id: string; title?: string; preview?: string; type: string; model?: string; content_id?: string }>).filter((v) => !selectedCid || v.content_id === selectedCid);
+                      const allVars = ((vidNode?.output_data?.variations || []) as Array<{ id: string; title?: string; preview?: string; type: string; model?: string; content_id?: string }>).filter((v) => selectedCid && v.content_id === selectedCid);
                       const stitchedVars = allVars.filter((v) => v.preview && (v.type === 'stitched' || v.type === 'video'));
-                      const scopedPredResults = predResults.filter((pred) => pred.content_id === selectedCid);
-                      const scopedRankResults = rankResults.filter((rank) => rank.content_id === selectedCid);
+                      const scopedPredResults = selectedCid ? predResults.filter((pred) => pred.content_id === selectedCid) : [];
+                      const scopedRankResults = selectedCid ? rankResults.filter((rank) => rank.content_id === selectedCid) : [];
                       const fmtNum = (n: number) => n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)}M` : n >= 1_000 ? `${(n / 1_000).toFixed(1)}K` : String(n);
 
                       const handleRunRankInline = async () => {
@@ -4375,10 +4397,6 @@ export default function ContentWorkflowDetailPage() {
                 {openStageKey === 'scheduling' && (() => {
                   const contentEntries = (getSetting('scheduling', 'content_entries') as ContentEntry[] | undefined) || [];
                   let calendarItems = (getSetting('scheduling', 'content_items') as ContentItem[] | undefined) || [];
-                  if (calendarItems.length === 0 && contentEntries.length > 0) {
-                    calendarItems = migrateEntriesToItems(contentEntries);
-                    updateStageSetting('scheduling', 'content_items', calendarItems);
-                  }
                   const addPlatform = (getSetting('scheduling', 'add_platform') as string) || '';
                   const addContentType = (getSetting('scheduling', 'add_content_type') as string) || '';
                   const addFrequency = (getSetting('scheduling', 'add_frequency') as string) || '';
@@ -4391,35 +4409,54 @@ export default function ContentWorkflowDetailPage() {
                     const next = addDays.includes(dayId) ? addDays.filter((d) => d !== dayId) : [...addDays, dayId].sort();
                     updateStageSetting('scheduling', 'add_days', next.length > 0 ? next : []);
                   };
-                  const addEntry = () => {
+                  const addEntry = async () => {
                     if (!addPlatform || !addContentType) return;
-                    const newRule: ContentEntry = {
-                      id: crypto.randomUUID(),
-                      platform: addPlatform, content_type: addContentType,
-                      frequency: addFrequency || undefined, days: addDays.length > 0 ? addDays : undefined,
-                      start_date: addStartDate || undefined,
-                      end_date: addEndDate || undefined, post_time: addPostTime || undefined,
-                      timezone: addTimezone || undefined,
-                    };
-                    updateStageSetting('scheduling', 'content_entries', [...contentEntries, newRule]);
-                    const newItems = materializeItems(newRule);
-                    const nextItems = [...calendarItems, ...newItems];
-                    updateStageSetting('scheduling', 'content_items', nextItems);
-                    void Promise.all(
-                      newItems.map((item) =>
-                        createCalendarItem(workflowId, {
-                          content_id: item.content_id,
-                          platform: item.platform,
-                          content_type: item.content_type,
-                          date: item.date,
-                          post_time: item.post_time,
-                          status: 'scheduled',
-                        })
-                      )
-                    ).catch((err) => {
-                      console.error('Failed to persist calendar items:', err);
+                    try {
+                      const calendarDoc = await createCalendarItem(workflowId, {
+                        platform: addPlatform,
+                        content_type: addContentType,
+                        frequency: addFrequency || undefined,
+                        days: addDays.length > 0 ? addDays : undefined,
+                        start_date: addStartDate || undefined,
+                        end_date: addEndDate || undefined,
+                        post_time: addPostTime || undefined,
+                        status: 'scheduled',
+                      });
+                      const scheduleId = calendarDoc._id;
+                      const newRule: ContentEntry = {
+                        id: scheduleId,
+                        platform: addPlatform, content_type: addContentType,
+                        frequency: addFrequency || undefined, days: addDays.length > 0 ? addDays : undefined,
+                        start_date: addStartDate || undefined,
+                        end_date: addEndDate || undefined, post_time: addPostTime || undefined,
+                        timezone: addTimezone || undefined,
+                      };
+                      updateStageSetting('scheduling', 'content_entries', [...contentEntries, newRule]);
+                      const dates = materializeDates(newRule);
+                      const createdPieces = await Promise.all(
+                        dates.map((d) =>
+                          createContent(workflowId, {
+                            schedule_id: scheduleId,
+                            platform: d.platform,
+                            content_type: d.content_type,
+                            date: d.date,
+                            post_time: d.post_time,
+                          })
+                        )
+                      );
+                      const newItems: ContentItem[] = createdPieces.map((piece) => ({
+                        content_id: piece.content_id,
+                        date: piece.date,
+                        platform: piece.platform,
+                        content_type: piece.content_type,
+                        post_time: piece.post_time,
+                        schedule_id: scheduleId,
+                      }));
+                      updateStageSetting('scheduling', 'content_items', [...calendarItems, ...newItems]);
+                    } catch (err) {
+                      console.error('Failed to create schedule:', err);
                       loadWorkflow();
-                    });
+                    }
                     updateStageSetting('scheduling', 'add_platform', '');
                     updateStageSetting('scheduling', 'add_content_type', '');
                     updateStageSetting('scheduling', 'add_frequency', '');
@@ -4430,6 +4467,8 @@ export default function ContentWorkflowDetailPage() {
                     updateStageSetting('scheduling', 'add_timezone', '');
                   };
                   const removeEntry = (idx: number) => {
+                    const entry = contentEntries[idx];
+                    handleDeleteSchedule(calendarItems, entry.id);
                     updateStageSetting('scheduling', 'content_entries', contentEntries.filter((_, i) => i !== idx));
                     if (editingContentIdx === idx) setEditingContentIdx(null);
                   };
@@ -4790,9 +4829,6 @@ export default function ContentWorkflowDetailPage() {
 
                 {/* ── Concepts ── */}
                 {openStageKey === 'concepts' && (() => {
-                  if (!selectedContentPiece) {
-                    return <div className="text-center py-8 text-muted-foreground/50"><CalendarClock className="h-8 w-8 mx-auto mb-2 opacity-30" /><p className="text-xs">Select a content piece from the calendar to generate concepts</p></div>;
-                  }
                   const conceptRows = (getSetting('concepts', 'concept_allocations') as Array<{ num: string; tone: string; model?: string }>) || [{ num: '3', tone: '', model: '' }];
                   const totalConcepts = conceptRows.reduce((sum, r) => sum + (parseInt(r.num) || 0), 0);
                   const pieceConcepts = ((getPieceSetting('concepts', 'generated_concepts') as GeneratedConcept[]) || []) as GeneratedConcept[];
@@ -4952,9 +4988,6 @@ export default function ContentWorkflowDetailPage() {
 
                 {/* ── Image Generation (optional, between Concepts & Storyboard) ── */}
                 {openStageKey === 'image_generation' && (() => {
-                  if (!selectedContentPiece) {
-                    return <div className="text-center py-8 text-muted-foreground/50"><CalendarClock className="h-8 w-8 mx-auto mb-2 opacity-30" /><p className="text-xs">Select a content piece from the calendar first</p></div>;
-                  }
                   const pieceConcepts = ((getPieceSetting('concepts', 'generated_concepts') as GeneratedConcept[]) || []) as GeneratedConcept[];
                   type ImgGenRow = { conceptIdx: number; llm: string; imageModel: string };
                   const rows = (getSetting('image_generation', 'rows') as ImgGenRow[]) || [{ conceptIdx: 0, llm: 'gemini-pro-3', imageModel: 'google/nano-banana' }];
@@ -5086,19 +5119,17 @@ export default function ContentWorkflowDetailPage() {
 
                 {/* ── Storyboard ── */}
                 {openStageKey === 'storyboard' && (() => {
-                  if (!selectedContentPiece) {
-                    return <div className="text-center py-8 text-muted-foreground/50"><CalendarClock className="h-8 w-8 mx-auto mb-2 opacity-30" /><p className="text-xs">Select a content piece from the calendar first</p></div>;
-                  }
                   // Get concepts from piece settings (per content piece) or fallback to top-level
                   const generatedConcepts = ((getPieceSetting('concepts', 'generated_concepts') || getSetting('concepts', 'generated_concepts')) as Array<{ title: string; hook: string; script: string; messaging: string[]; tone?: string }>) || [];
                   // Get storyboard data from nodes
                   const storyboardNode = nodes.find((n) => n.stage_key === 'storyboard');
                   const storyboardOutput = (storyboardNode?.output_data || {}) as { storyboards?: Array<Record<string, unknown>> };
                   const allStoryboards = storyboardOutput.storyboards || [];
-                  const storyboards = allStoryboards.filter((sb) => {
+                  const storyboards = (() => {
                     const selectedCid = selectedContentPiece?.content_id;
-                    return !selectedCid || (sb.content_id as string | undefined) === selectedCid;
-                  });
+                    if (!selectedCid) return [];
+                    return allStoryboards.filter((sb) => (sb.content_id as string | undefined) === selectedCid);
+                  })();
                   const conceptVariations = storyboards.filter((sb) => (sb.concept_index as number) === storyboardConceptIdx);
                   const currentStoryboard = conceptVariations[storyboardVariationIdx] || conceptVariations[0] as Record<string, unknown> | undefined;
                   const currentSbFlatIdx = currentStoryboard ? allStoryboards.indexOf(currentStoryboard) : 0;
@@ -5573,9 +5604,6 @@ export default function ContentWorkflowDetailPage() {
 
                 {/* ── Video Generation ── */}
                 {openStageKey === 'video_generation' && (() => {
-                  if (!selectedContentPiece) {
-                    return <div className="text-center py-8 text-muted-foreground/50"><CalendarClock className="h-8 w-8 mx-auto mb-2 opacity-30" /><p className="text-xs">Select a content piece from the calendar first</p></div>;
-                  }
                   const rawAlloc = getSetting('video_generation', 'creative_allocations') as Array<{ count: string | number; model: string }> | undefined;
                   const allocations = (rawAlloc && rawAlloc.length > 0 ? rawAlloc : [{ count: '1', model: '' }]).map(a => ({ ...a, count: String(a.count || '1') }));
                   const totalCreatives = allocations.reduce((sum, a) => sum + (parseInt(a.count) || 0), 0);
@@ -5656,10 +5684,11 @@ export default function ContentWorkflowDetailPage() {
                   const storyboardNode = nodes.find((n) => n.stage_key === 'storyboard');
                   const storyboardOutput = (storyboardNode?.output_data || {}) as { storyboards?: Array<Record<string, unknown>> };
                   const allStoryboards = storyboardOutput.storyboards || [];
-                  const storyboards = allStoryboards.filter((sb) => {
+                  const storyboards = (() => {
                     const selectedCid = selectedContentPiece?.content_id;
-                    return !selectedCid || (sb.content_id as string | undefined) === selectedCid;
-                  });
+                    if (!selectedCid) return [];
+                    return allStoryboards.filter((sb) => (sb.content_id as string | undefined) === selectedCid);
+                  })();
                   const generatedConcepts = ((getPieceSetting('concepts', 'generated_concepts') || getSetting('concepts', 'generated_concepts')) as Array<{ title: string; hook: string; script: string; messaging: string[]; tone?: string }>) || [];
                   const selectedSbIdxRaw = (getSetting('video_generation', 'selected_storyboard') as number) ?? 0;
                   const selectedSbIdx = storyboards.length > 0 ? Math.min(Math.max(selectedSbIdxRaw, 0), storyboards.length - 1) : 0;
@@ -5763,7 +5792,7 @@ export default function ContentWorkflowDetailPage() {
                             {sbScenes.length > 0 && (() => {
                               const vidNode = nodes.find((n) => n.stage_key === 'video_generation');
                               const selectedCid = selectedContentPiece?.content_id;
-                              const allVariations = ((vidNode?.output_data?.variations || []) as Array<{ id: string; title: string; preview?: string; type: string; task_id?: string; scene_number?: number; model?: string; content_id?: string }>).filter((v) => !selectedCid || v.content_id === selectedCid);
+                              const allVariations = ((vidNode?.output_data?.variations || []) as Array<{ id: string; title: string; preview?: string; type: string; task_id?: string; scene_number?: number; model?: string; content_id?: string }>).filter((v) => selectedCid && v.content_id === selectedCid);
                               const sceneVariations = allVariations.filter((v) => v.type === 'scene');
                               const taskIds = [...new Set(sceneVariations.map((v) => v.task_id || '').filter(Boolean))].reverse();
                               const outputFormat = (getSetting('video_generation', 'output_format') as string) || 'reel_9_16';
@@ -5919,7 +5948,7 @@ export default function ContentWorkflowDetailPage() {
                     {(() => {
                       const vidNode = nodes.find((n) => n.stage_key === 'video_generation');
                       const selectedCid = selectedContentPiece?.content_id;
-                      const allVars = ((vidNode?.output_data?.variations || []) as Array<{ id: string; title: string; preview?: string; type: string; task_id?: string; scene_number?: number; model?: string; content_id?: string }>).filter((v) => !selectedCid || v.content_id === selectedCid);
+                      const allVars = ((vidNode?.output_data?.variations || []) as Array<{ id: string; title: string; preview?: string; type: string; task_id?: string; scene_number?: number; model?: string; content_id?: string }>).filter((v) => selectedCid && v.content_id === selectedCid);
                       if (allVars.length === 0) return null;
 
                       const fmt2 = (getSetting('video_generation', 'output_format') as string) || 'reel_9_16';
@@ -6176,9 +6205,6 @@ export default function ContentWorkflowDetailPage() {
 
                 {/* ── Simulation & Testing ── */}
                 {openStageKey === 'simulation_testing' && (() => {
-                  if (!selectedContentPiece) {
-                    return <div className="text-center py-8 text-muted-foreground/50"><CalendarClock className="h-8 w-8 mx-auto mb-2 opacity-30" /><p className="text-xs">Select a content piece from the calendar first</p></div>;
-                  }
                   const simGenders = ((getSetting('simulation_testing', 'genders') as string[]) || ['Male', 'Female']);
                   const simAges = ((getSetting('simulation_testing', 'ages') as string[]) || ['18-24', '25-34']);
                   const simLlm = (getSetting('simulation_testing', 'llm') as string) || 'gemini-pro-3';
@@ -6189,10 +6215,11 @@ export default function ContentWorkflowDetailPage() {
                   // Get stitched videos for selection
                   const simVidNode = nodes.find((n) => n.stage_key === 'video_generation');
                   const selectedCid = selectedContentPiece?.content_id;
-                  const simAllVars = ((simVidNode?.output_data?.variations || []) as Array<{ id: string; title?: string; preview?: string; type: string; model?: string; task_id?: string; content_id?: string }>).filter((v) => !selectedCid || v.content_id === selectedCid);
+                  const simAllVars = ((simVidNode?.output_data?.variations || []) as Array<{ id: string; title?: string; preview?: string; type: string; model?: string; task_id?: string; content_id?: string }>).filter((v) => selectedCid && v.content_id === selectedCid);
                   const simStitchedVars = simAllVars.filter((v) => v.preview && (v.type === 'stitched' || v.type === 'video'));
 
                   const handleRunSim = async () => {
+                    if (!selectedContentPiece) return;
                     setSimRunning(true);
                     setSimError(null);
                     try {
@@ -6295,17 +6322,14 @@ export default function ContentWorkflowDetailPage() {
 
                 {/* ── Predictive Modeling ── */}
                 {openStageKey === 'predictive_modeling' && (() => {
-                  if (!selectedContentPiece) {
-                    return <div className="text-center py-8 text-muted-foreground/50"><CalendarClock className="h-8 w-8 mx-auto mb-2 opacity-30" /><p className="text-xs">Select a content piece from the calendar first</p></div>;
-                  }
                   const predLlm = (getSetting('predictive_modeling', 'llm') as string) || 'gemini-pro-3';
                   const predVideoIds = ((getSetting('predictive_modeling', 'video_ids') as string[]) || []);
 
                   const predVidNode = nodes.find((n) => n.stage_key === 'video_generation');
                   const selectedCid = selectedContentPiece?.content_id;
-                  const predAllVars = ((predVidNode?.output_data?.variations || []) as Array<{ id: string; title?: string; preview?: string; type: string; model?: string; content_id?: string }>).filter((v) => !selectedCid || v.content_id === selectedCid);
+                  const predAllVars = ((predVidNode?.output_data?.variations || []) as Array<{ id: string; title?: string; preview?: string; type: string; model?: string; content_id?: string }>).filter((v) => selectedCid && v.content_id === selectedCid);
                   const predStitchedVars = predAllVars.filter((v) => v.preview && (v.type === 'stitched' || v.type === 'video'));
-                  const scopedPredResults = predResults.filter((pred) => pred.content_id === selectedCid);
+                  const scopedPredResults = selectedCid ? predResults.filter((pred) => pred.content_id === selectedCid) : [];
 
                   const handleRunPred = async () => {
                     setPredRunning(true);
@@ -6379,12 +6403,9 @@ export default function ContentWorkflowDetailPage() {
 
                 {/* ── Content Ranking ── */}
                 {openStageKey === 'content_ranking' && (() => {
-                  if (!selectedContentPiece) {
-                    return <div className="text-center py-8 text-muted-foreground/50"><CalendarClock className="h-8 w-8 mx-auto mb-2 opacity-30" /><p className="text-xs">Select a content piece from the calendar first</p></div>;
-                  }
                   const selectedCid = selectedContentPiece?.content_id;
-                  const scopedPredResults = predResults.filter((pred) => pred.content_id === selectedCid);
-                  const scopedRankResults = rankResults.filter((rank) => rank.content_id === selectedCid);
+                  const scopedPredResults = selectedCid ? predResults.filter((pred) => pred.content_id === selectedCid) : [];
+                  const scopedRankResults = selectedCid ? rankResults.filter((rank) => rank.content_id === selectedCid) : [];
                   const handleRunRank = async () => {
                     setRankRunning(true);
                     setRankError(null);

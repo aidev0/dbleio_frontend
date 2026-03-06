@@ -1,5 +1,5 @@
 import { apiGet, apiPost, apiFetch, apiDelete } from '../../video-simulation/lib/api';
-import type { ContentWorkflow, ContentWorkflowNode, ContentTimelineEntry, WorkflowStateSnapshot, ContentCalendarItem, FeedbackItem, FeedbackSummaryItem } from './types';
+import type { ContentWorkflow, ContentWorkflowNode, ContentTimelineEntry, WorkflowStateSnapshot, ContentCalendarItem, ContentPiece, FeedbackItem, FeedbackSummaryItem } from './types';
 import type { Brand } from '../../brands/lib/types';
 
 // --- User ---
@@ -673,7 +673,7 @@ export async function listCalendarItems(workflowId: string): Promise<ContentCale
 
 export async function createCalendarItem(
   workflowId: string,
-  data: { content_id: string; platform: string; content_type: string; date: string; post_time?: string; frequency?: string; days?: number[]; start_date?: string; end_date?: string; title?: string; status?: string },
+  data: { platform: string; content_type: string; frequency?: string; days?: number[]; start_date?: string; end_date?: string; post_time?: string; title?: string; status?: string },
 ): Promise<ContentCalendarItem> {
   const res = await apiPost(`/api/content/workflows/${workflowId}/calendar`, data);
   if (!res.ok) {
@@ -687,10 +687,10 @@ export async function createCalendarItem(
 
 export async function updateCalendarItem(
   workflowId: string,
-  contentId: string,
+  calendarId: string,
   data: Partial<ContentCalendarItem>,
 ): Promise<ContentCalendarItem> {
-  const res = await apiFetch(`/api/content/workflows/${workflowId}/calendar/${contentId}`, {
+  const res = await apiFetch(`/api/content/workflows/${workflowId}/calendar/${calendarId}`, {
     method: 'PATCH',
     body: JSON.stringify(data),
   });
@@ -698,8 +698,8 @@ export async function updateCalendarItem(
   return res.json();
 }
 
-export async function deleteCalendarItem(workflowId: string, contentId: string): Promise<void> {
-  const res = await apiDelete(`/api/content/workflows/${workflowId}/calendar/${contentId}`);
+export async function deleteCalendarItem(workflowId: string, calendarId: string): Promise<void> {
+  const res = await apiDelete(`/api/content/workflows/${workflowId}/calendar/${calendarId}`);
   if (!res.ok) throw new Error('Failed to delete calendar item');
 }
 
@@ -707,6 +707,47 @@ export async function migrateCalendar(workflowId: string): Promise<{ migrated: n
   const res = await apiPost(`/api/content/workflows/${workflowId}/calendar/migrate`, {});
   if (!res.ok) throw new Error('Failed to migrate calendar');
   return res.json();
+}
+
+// --- Contents ---
+
+export async function listContents(workflowId: string): Promise<ContentPiece[]> {
+  const res = await apiGet(`/api/content/workflows/${workflowId}/contents`);
+  if (res.status === 404) return [];
+  if (!res.ok) throw new Error('Failed to load contents');
+  return res.json();
+}
+
+export async function createContent(
+  workflowId: string,
+  data: { schedule_id: string; platform: string; content_type: string; date: string; post_time?: string; title?: string; status?: string },
+): Promise<ContentPiece> {
+  const res = await apiPost(`/api/content/workflows/${workflowId}/contents`, data);
+  if (!res.ok) {
+    const text = await res.text();
+    let detail = text;
+    try { detail = JSON.parse(text).detail || text; } catch { /* */ }
+    throw new Error(detail);
+  }
+  return res.json();
+}
+
+export async function updateContent(
+  workflowId: string,
+  contentId: string,
+  data: Partial<ContentPiece>,
+): Promise<ContentPiece> {
+  const res = await apiFetch(`/api/content/workflows/${workflowId}/contents/${contentId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error('Failed to update content');
+  return res.json();
+}
+
+export async function deleteContent(workflowId: string, contentId: string): Promise<void> {
+  const res = await apiDelete(`/api/content/workflows/${workflowId}/contents/${contentId}`);
+  if (!res.ok) throw new Error('Failed to delete content');
 }
 
 // --- WS4: Feedback ---
