@@ -1404,7 +1404,7 @@ export default function ContentWorkflowDetailPage() {
   ];
 
   return (
-    <div className="flex h-screen flex-col">
+    <div className="flex h-screen flex-col md:[zoom:1.3]">
       {/* Header */}
       <div className="flex items-center gap-2 border-b border-border px-3 md:px-4 py-2">
         {/* Pipeline dropdown */}
