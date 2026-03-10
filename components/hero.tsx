@@ -27,19 +27,15 @@ export function Hero({ onContactUs }: HeroProps) {
 
       <div className="relative z-10 mx-auto flex sm:min-h-screen max-w-6xl flex-col sm:justify-center px-4 sm:px-6 pt-20 sm:pt-20 pb-8 sm:pb-0">
         <div className="max-w-4xl">
-          <div className="mb-4 sm:mb-8 hidden sm:inline-flex items-center gap-3 font-mono text-xs tracking-widest text-muted-foreground">
-            <span className="h-px w-12 bg-foreground/30" />
-            <span>MARKETING INTELLIGENCE PLATFORM</span>
-          </div>
-
+      
           <h1 className="text-balance text-4xl font-light italic tracking-tight text-foreground sm:text-6xl md:text-7xl lg:text-8xl">
             The Palantir
             <span className="block not-italic font-normal">for DTC marketing</span>
           </h1>
 
           <p className="mt-3 sm:mt-8 max-w-xl text-pretty text-sm sm:text-xl leading-relaxed text-muted-foreground">
-            <span className="sm:hidden">AI-powered ad systems. We run it, you scale.</span>
-            <span className="hidden sm:inline">Custom AI systems across every ad platform. We build, deploy, and run it—you scale at the speed of software.</span>
+            <span className="sm:hidden">AI-powered DTC marketing automation with expert marketers and engineers in the loop.</span>
+            <span className="hidden sm:inline">AI-powered DTC marketing automation platform with expert marketers and engineers in the loop guaranteeing quality contents and robust operations.</span>
           </p>
 
           <div className="mt-6 sm:mt-14 flex flex-row gap-3 sm:gap-4 items-center justify-center sm:justify-start">
