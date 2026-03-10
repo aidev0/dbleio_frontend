@@ -404,6 +404,25 @@ export async function updateStoryboardScene(
   return res.json();
 }
 
+export async function deleteStoryboardScene(
+  workflowId: string,
+  storyboardIndex: number,
+  sceneId: string,
+): Promise<{ ok: boolean }> {
+  const res = await apiFetch(`/api/content/workflows/${workflowId}/storyboard-scene`, {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ storyboard_index: storyboardIndex, scene_id: sceneId }),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    let detail = text;
+    try { detail = JSON.parse(text).detail || text; } catch { /* */ }
+    throw new Error(detail);
+  }
+  return res.json();
+}
+
 // --- Video Generation ---
 
 export async function generateVideo(

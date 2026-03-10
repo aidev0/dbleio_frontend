@@ -65,6 +65,7 @@ import {
   generateVideo,
   getVideoStatus,
   updateStoryboardScene,
+  deleteStoryboardScene,
   getVideoJobs,
   deleteVideoJob,
   deleteVideoVariation,
@@ -87,6 +88,7 @@ import type { BrandAsset, Strategy } from '../../brands/lib/types';
 import type { Brand } from '../../brands/lib/types';
 import type { ContentWorkflow, ContentWorkflowNode, ContentTimelineEntry } from '../lib/types';
 import { CONTENT_PIPELINE_STAGES, CONTENT_STAGE_LABELS } from '../lib/types';
+import { getDetailedIdeas } from '../lib/instagram-api';
 
 type TabMode = 'overview' | 'steps' | 'graph' | 'content';
 
@@ -645,6 +647,9 @@ export default function ContentWorkflowDetailPage() {
   const [viewingAsset, setViewingAsset] = useState<BrandAsset | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Research ideas (from extracted ideas)
+  const [researchIdeas, setResearchIdeas] = useState<Array<Record<string, unknown>>>([]);
+
   // Graph component (lazy loaded)
   const [GraphComponent, setGraphComponent] = useState<React.ComponentType<{
     nodes: ContentWorkflowNode[];
@@ -708,6 +713,22 @@ export default function ContentWorkflowDetailPage() {
   useEffect(() => {
     getBrands().then(setAllBrands).catch(() => {});
   }, []);
+
+  // Load research ideas when brand is available
+  useEffect(() => {
+    if (!brand) return;
+    const brandUsername = brand?.social_urls?.instagram?.replace(/.*instagram\.com\//, '').replace(/\/$/, '');
+    const competitors = brand?.competitors || [];
+    if (!brandUsername || competitors.length === 0) return;
+    const competitorUsername = competitors[0]?.instagram_username;
+    if (!competitorUsername) return;
+    getDetailedIdeas(brandUsername, competitorUsername).then((res) => {
+      if (res.status === 'ready' && res.data) {
+        const ideas = (res.data as Record<string, unknown>).ideas as Array<Record<string, unknown>> || [];
+        setResearchIdeas(ideas);
+      }
+    }).catch(() => {});
+  }, [brand]);
 
   // Create new workflow
   const handleCreateWorkflow = async () => {
@@ -1590,6 +1611,7 @@ export default function ContentWorkflowDetailPage() {
           // Pre-compute shared data for inline sections
           const wfConfig = workflow.config as Record<string, unknown> | undefined;
           const oGeneratedConcepts = ((getPieceSetting('concepts', 'generated_concepts') || getSetting('concepts', 'generated_concepts')) as Array<{ title: string; hook: string; script: string; messaging: string[]; tone?: string }>) || [];
+          const oSelectedConceptIndices = ((getPieceSetting('concepts', 'selected_concepts') || []) as number[]).filter((i) => i < oGeneratedConcepts.length);
           const oStoryboardNode = nodes.find((n) => n.stage_key === 'storyboard');
           const oStoryboardOutput = (oStoryboardNode?.output_data || {}) as { storyboards?: Array<Record<string, unknown>> };
           const oAllStoryboards = oStoryboardOutput.storyboards || [];
@@ -1687,6 +1709,25 @@ export default function ContentWorkflowDetailPage() {
           const updateImgRow = (idx: number, field: keyof ImgGenRow, value: string | number) => { const next = oImgRows.map((r, i) => i === idx ? { ...r, [field]: value } : r); updateImgRows(next); };
           const addImgRow = () => updateImgRows([...oImgRows, { conceptIdx: 0, llm: 'gemini-pro-3', imageModel: 'google/nano-banana' }]);
           const removeImgRow = (idx: number) => updateImgRows(oImgRows.filter((_, i) => i !== idx));
+
+          // Convert research idea to concept and add to generated_concepts
+          const handleSelectResearchIdea = (idea: Record<string, unknown>) => {
+            const ba = (idea.brand_adaptation || {}) as Record<string, unknown>;
+            const ob = (idea.original_breakdown || {}) as Record<string, unknown>;
+            const hook = (ba.hook_text || (ob.hook as Record<string, unknown>)?.exact_text || '') as string;
+            const script = (ba.adapted_transcript || ob.full_transcript || '') as string;
+            const concept = {
+              title: (ba.title || ob.title || 'Research Idea') as string,
+              hook,
+              script,
+              content_type: 'reel' as const,
+              audio_cues: (ob.music_mood || '') as string,
+              duration: ba.duration_seconds ? `${ba.duration_seconds}s` : ob.duration_seconds ? `${ob.duration_seconds}s` : '',
+              tone: 'research',
+            };
+            const existing = (getPieceSetting('concepts', 'generated_concepts') || []) as Record<string, unknown>[];
+            updatePieceSetting('concepts', 'generated_concepts', [...existing, concept]);
+          };
 
           // Storyboard handlers
           const handleGenerateStoryboardOverview = async () => {
@@ -2576,6 +2617,7 @@ export default function ContentWorkflowDetailPage() {
                         updateStageSetting={updateStageSetting}
                         brandUsername={brand?.social_urls?.instagram?.replace(/.*instagram\.com\//, '').replace(/\/$/, '') || undefined}
                         brandCompetitors={brand?.competitors}
+                        onSelectIdea={handleSelectResearchIdea}
                       />
                     )}
 
@@ -2584,6 +2626,13 @@ export default function ContentWorkflowDetailPage() {
                       const conceptRows = (getSetting('concepts', 'concept_allocations') as Array<{ num: string; tone: string; model?: string }>) || [{ num: '3', tone: '', model: '' }];
                       const totalConcepts = conceptRows.reduce((sum, r) => sum + (parseInt(r.num) || 0), 0);
                       const pieceConcepts = ((getPieceSetting('concepts', 'generated_concepts') as GeneratedConcept[]) || []) as GeneratedConcept[];
+                      const selectedConceptIndices = ((getPieceSetting('concepts', 'selected_concepts') as number[]) || []) as number[];
+                      const toggleConceptSelected = (idx: number) => {
+                        const next = selectedConceptIndices.includes(idx)
+                          ? selectedConceptIndices.filter((i) => i !== idx)
+                          : [...selectedConceptIndices, idx];
+                        updatePieceSetting('concepts', 'selected_concepts', next);
+                      };
 
                       const updateConceptRowsO = (next: Array<{ num: string; tone: string; model?: string }>) => {
                         updateStageSetting('concepts', 'concept_allocations', next);
@@ -2596,6 +2645,8 @@ export default function ContentWorkflowDetailPage() {
 
                       const deleteConceptO = (idx: number) => {
                         updatePieceSetting('concepts', 'generated_concepts', pieceConcepts.filter((_, i) => i !== idx));
+                        // Adjust selected indices after deletion
+                        updatePieceSetting('concepts', 'selected_concepts', selectedConceptIndices.filter((i) => i !== idx).map((i) => i > idx ? i - 1 : i));
                         if (editingConceptIdx === idx) setEditingConceptIdx(null);
                       };
                       const updateConceptO = (idx: number, field: string, value: unknown) => {
@@ -2627,15 +2678,21 @@ export default function ContentWorkflowDetailPage() {
                       const renderConceptCard = (concept: GeneratedConcept, idx: number) => {
                         const ct = (concept as Record<string, unknown>).content_type as string | undefined;
                         const isEditing = editingConceptIdx === idx;
+                        const isSelected = selectedConceptIndices.includes(idx);
                         return (
-                          <div key={idx} className="relative group/card rounded border border-border p-3 space-y-2">
+                          <div key={idx} className={`relative group/card rounded border p-3 space-y-2 cursor-pointer transition-all ${isSelected ? 'border-foreground bg-foreground/[0.03] ring-1 ring-foreground/20' : 'border-border hover:border-foreground/20'}`} onClick={() => toggleConceptSelected(idx)} onClickCapture={(e) => { const tag = (e.target as HTMLElement).tagName; if (tag === 'TEXTAREA' || tag === 'INPUT') e.stopPropagation(); }}>
                             <div className="absolute top-2 right-2 flex items-center gap-1">
                               <span className="inline-flex items-center rounded-full border border-border bg-background px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider text-foreground/70">{(concept as Record<string, unknown>).tone as string || 'general'}</span>
                               {ct && <span className="inline-flex items-center rounded-full border border-border bg-background px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider text-foreground/70">{ct}</span>}
-                              <button onClick={() => setEditingConceptIdx(isEditing ? null : idx)} className="opacity-0 group-hover/card:opacity-100 rounded p-1 text-muted-foreground hover:text-foreground transition-all"><Pencil className="h-3 w-3" /></button>
-                              <button onClick={() => deleteConceptO(idx)} className="opacity-0 group-hover/card:opacity-100 rounded p-1 text-muted-foreground hover:text-destructive transition-all"><Trash2 className="h-3 w-3" /></button>
+                              <button onClick={(e) => { e.stopPropagation(); setEditingConceptIdx(isEditing ? null : idx); }} className="opacity-0 group-hover/card:opacity-100 rounded p-1 text-muted-foreground hover:text-foreground transition-all"><Pencil className="h-3 w-3" /></button>
+                              <button onClick={(e) => { e.stopPropagation(); deleteConceptO(idx); }} className="opacity-0 group-hover/card:opacity-100 rounded p-1 text-muted-foreground hover:text-destructive transition-all"><Trash2 className="h-3 w-3" /></button>
                             </div>
-                            <h4 className="text-xs font-semibold pr-28">{concept.title}</h4>
+                            <div className="absolute top-2 left-2">
+                              <div className={`h-4 w-4 rounded-full border flex items-center justify-center transition-all ${isSelected ? 'border-foreground bg-foreground' : 'border-border'}`}>
+                                {isSelected && <Check className="h-2.5 w-2.5 text-background" />}
+                              </div>
+                            </div>
+                            <h4 className="text-xs font-semibold pl-6 pr-28">{concept.title}</h4>
 
                             {/* Reel layout */}
                             {ct === 'reel' && (() => {
@@ -2726,7 +2783,7 @@ export default function ContentWorkflowDetailPage() {
                                 {fc.messaging && fc.messaging.length > 0 && <div><div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/60 mb-0.5">Key Messaging</div><ul className="space-y-0.5">{fc.messaging.map((msg, mi) => (<li key={mi} className="text-[10px] text-muted-foreground flex items-start gap-1.5"><span className="text-muted-foreground/40 shrink-0">&#x2022;</span><span className="whitespace-pre-line">{msg}</span></li>))}</ul></div>}
                               </>);
                             })()}
-                            <div className="pt-2 border-t border-border mt-2">
+                            <div className="pt-2 border-t border-border mt-2" onClick={(e) => e.stopPropagation()}>
                               <FeedbackBar
                                 workflowId={workflowId}
                                 currentUserId={currentUserId}
@@ -2787,9 +2844,56 @@ export default function ContentWorkflowDetailPage() {
                             </div>
                           </div>
 
+                          {researchIdeas.length > 0 && (
+                            <div>
+                              <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground mb-1.5">Research Ideas ({researchIdeas.length})</div>
+                              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                                {researchIdeas.map((idea, idx) => {
+                                  const ob = (idea.original_breakdown || {}) as Record<string, unknown>;
+                                  const ba = (idea.brand_adaptation || {}) as Record<string, unknown>;
+                                  const stats = (idea.original_stats || {}) as Record<string, unknown>;
+                                  const title = (ba.title || ob.title || `Idea ${idx + 1}`) as string;
+                                  const hook = (ba.hook_text || (ob.hook as Record<string, unknown>)?.exact_text || '') as string;
+                                  const isAdded = pieceConcepts.some((c) => c.title === title);
+                                  return (
+                                    <div key={idx} className={`relative group/card rounded border p-3 space-y-2 cursor-pointer transition-all ${isAdded ? 'border-foreground bg-foreground/[0.03] ring-1 ring-foreground/20' : 'border-border hover:border-foreground/20'}`}
+                                      onClick={() => {
+                                        if (isAdded) {
+                                          // Remove it
+                                          const newConcepts = pieceConcepts.filter((c) => c.title !== title);
+                                          updatePieceSetting('concepts', 'generated_concepts', newConcepts);
+                                        } else {
+                                          // Add as concept
+                                          handleSelectResearchIdea(idea);
+                                        }
+                                      }}
+                                    >
+                                      <div className="absolute top-2 left-2">
+                                        <div className={`h-4 w-4 rounded-full border flex items-center justify-center transition-all ${isAdded ? 'border-foreground bg-foreground' : 'border-border'}`}>
+                                          {isAdded && <Check className="h-2.5 w-2.5 text-background" />}
+                                        </div>
+                                      </div>
+                                      <div className="flex items-start gap-2">
+                                        <span className="bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 px-1.5 py-0.5 rounded-full text-[9px] font-bold ml-6 shrink-0">#{idx + 1}</span>
+                                        <h4 className="text-xs font-semibold">{title}</h4>
+                                      </div>
+                                      {hook && <div><div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/60 mb-0.5">Hook</div><p className="text-[10px] text-muted-foreground leading-relaxed">{hook}</p></div>}
+                                      <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
+                                        {ob.format && <span>{ob.format as string}</span>}
+                                        {ob.duration_seconds && <span>{ob.duration_seconds as number}s</span>}
+                                        {stats.likes && <span>{(stats.likes as number).toLocaleString()} likes</span>}
+                                      </div>
+                                      <span className="inline-flex items-center rounded-full border border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-900/20 px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider text-purple-600 dark:text-purple-400">research</span>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
+
                           {pieceConcepts.length > 0 && (
                             <div>
-                              <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground mb-1.5">Generated Concepts ({pieceConcepts.length})</div>
+                              <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground mb-1.5">Generated Concepts ({pieceConcepts.length}){selectedConceptIndices.length > 0 && <span className="ml-2 text-foreground">&middot; {selectedConceptIndices.length} selected</span>}</div>
                               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
                                 {pieceConcepts.map((concept, idx) => renderConceptCard(concept, idx))}
                               </div>
@@ -2817,7 +2921,7 @@ export default function ContentWorkflowDetailPage() {
                                   <Select value={String(row.conceptIdx)} onValueChange={(v) => updateImgRow(idx, 'conceptIdx', Number(v))}>
                                     <SelectTrigger className="h-7 w-[280px] text-xs"><SelectValue placeholder="Concept" /></SelectTrigger>
                                     <SelectContent>
-                                      {pieceConcepts.map((c, ci) => (<SelectItem key={ci} value={String(ci)}>{c.title}</SelectItem>))}
+                                      {(oSelectedConceptIndices.length > 0 ? oSelectedConceptIndices : pieceConcepts.map((_, ci) => ci)).map((ci) => (<SelectItem key={ci} value={String(ci)}>{pieceConcepts[ci]?.title || `Concept ${ci + 1}`}</SelectItem>))}
                                       {pieceConcepts.length === 0 && <SelectItem value="0" disabled>No concepts yet</SelectItem>}
                                     </SelectContent>
                                   </Select>
@@ -2911,11 +3015,11 @@ export default function ContentWorkflowDetailPage() {
                       return (
                       <>
                         {(() => {
-                          type SbRow = { conceptIdx: number; chars: string; scenes: string; duration: string; llm: string; imageModel: string };
-                          const oSbRows = (getSetting('storyboard', 'storyboard_rows') as SbRow[]) || [{ conceptIdx: 0, chars: '3', scenes: '6', duration: '30s', llm: 'gemini-pro-3', imageModel: '' }];
+                          type SbRow = { conceptIdx: number; chars: string; scenes: string; duration: string; llm: string; imageModel: string; temperature?: string };
+                          const oSbRows = (getSetting('storyboard', 'storyboard_rows') as SbRow[]) || [{ conceptIdx: 0, chars: '3', scenes: '6', duration: '30s', llm: 'gemini-pro-3', imageModel: '', temperature: '0.7' }];
                           const updateSbRows = (next: SbRow[]) => updateStageSetting('storyboard', 'storyboard_rows', next);
                           const updateSbRow = (idx: number, field: keyof SbRow, value: string | number) => updateSbRows(oSbRows.map((r, i) => i === idx ? { ...r, [field]: value } : r));
-                          const addSbRow = () => updateSbRows([...oSbRows, { conceptIdx: 0, chars: '3', scenes: '6', duration: '30s', llm: 'gemini-pro-3', imageModel: '' }]);
+                          const addSbRow = () => updateSbRows([...oSbRows, { conceptIdx: 0, chars: '3', scenes: '6', duration: '30s', llm: 'gemini-pro-3', imageModel: '', temperature: '0.7' }]);
                           const removeSbRow = (idx: number) => updateSbRows(oSbRows.filter((_, i) => i !== idx));
 
                           return (
@@ -2932,8 +3036,9 @@ export default function ContentWorkflowDetailPage() {
                                     <Select value={String(row.conceptIdx)} onValueChange={(v) => updateSbRow(idx, 'conceptIdx', Number(v))}>
                                       <SelectTrigger className="h-7 text-xs w-auto max-w-[260px]"><SelectValue placeholder="Concept" /></SelectTrigger>
                                       <SelectContent>
-                                        {oGeneratedConcepts.map((c, ci) => (<SelectItem key={ci} value={String(ci)}>{c.title}</SelectItem>))}
+                                        {(oSelectedConceptIndices.length > 0 ? oSelectedConceptIndices : oGeneratedConcepts.map((_, ci) => ci)).map((ci) => (<SelectItem key={ci} value={String(ci)}>{oGeneratedConcepts[ci]?.title || `Concept ${ci + 1}`}</SelectItem>))}
                                         {oGeneratedConcepts.length === 0 && <SelectItem value="0" disabled>No concepts yet</SelectItem>}
+                                        {oGeneratedConcepts.length > 0 && oSelectedConceptIndices.length === 0 && <SelectItem value="-1" disabled className="text-muted-foreground/50 text-[9px]">Tip: Select concepts in the Concepts stage</SelectItem>}
                                       </SelectContent>
                                     </Select>
                                   </div>
@@ -2976,6 +3081,15 @@ export default function ContentWorkflowDetailPage() {
                                       <SelectContent>
                                         {imageModels.map((m) => (<SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>))}
                                         {imageModels.length === 0 && (<><SelectItem value="google/nano-banana-pro">Nano Banana Pro</SelectItem><SelectItem value="black-forest-labs/flux-schnell">Flux Schnell</SelectItem></>)}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                  <div className="shrink-0">
+                                    <div className="font-mono text-[8px] uppercase tracking-wider text-muted-foreground mb-0.5">Temp</div>
+                                    <Select value={row.temperature || '0.7'} onValueChange={(v) => updateSbRow(idx, 'temperature', v)}>
+                                      <SelectTrigger className="h-7 w-[64px] text-[10px]"><SelectValue /></SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="0">0</SelectItem><SelectItem value="0.3">0.3</SelectItem><SelectItem value="0.5">0.5</SelectItem><SelectItem value="0.7">0.7</SelectItem><SelectItem value="0.9">0.9</SelectItem><SelectItem value="1.0">1.0</SelectItem><SelectItem value="1.2">1.2</SelectItem><SelectItem value="1.5">1.5</SelectItem>
                                       </SelectContent>
                                     </Select>
                                   </div>
@@ -3159,6 +3273,7 @@ export default function ContentWorkflowDetailPage() {
                                                   <div className="flex items-center gap-1">
                                                     <span className="font-mono text-[8px] text-muted-foreground/50">{scene.scene_number}.</span>
                                                     <input className="text-[10px] font-medium bg-transparent border-b border-transparent hover:border-border focus:border-primary focus:outline-none flex-1 min-w-0" defaultValue={scene.title} onBlur={(e) => { if (e.target.value !== scene.title) updateStoryboardScene(workflowId, sbFlatIdx, scene.id, { title: e.target.value }).then(() => loadWorkflow()).catch(() => { e.target.value = scene.title; }); }} onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} />
+                                                    <button onClick={() => { if (confirm('Delete this scene?')) deleteStoryboardScene(workflowId, sbFlatIdx, scene.id).then(() => loadWorkflow()); }} className="shrink-0 rounded p-0.5 text-muted-foreground/30 hover:text-red-500 transition-colors" title="Delete scene"><Trash2 className="h-2.5 w-2.5" /></button>
                                                   </div>
                                                   <textarea className="text-[8px] text-muted-foreground leading-relaxed bg-transparent border border-transparent hover:border-border focus:border-primary focus:outline-none w-full resize-none" defaultValue={scene.description} rows={3} onBlur={(e) => { if (e.target.value !== scene.description) updateStoryboardScene(workflowId, sbFlatIdx, scene.id, { description: e.target.value }).then(() => loadWorkflow()).catch(() => { e.target.value = scene.description; }); }} />
                                                   <div className="flex items-center gap-1.5 flex-wrap">
@@ -3178,10 +3293,10 @@ export default function ContentWorkflowDetailPage() {
                                                   <Button size="sm" variant="outline" onClick={() => handleGenerateImageOverview('scene', scene.id)} disabled={generatingImages.has(scene.id) || !charsReady} title={!charsReady ? 'Generate character images first' : undefined} className="w-full h-5 text-[8px] mt-auto">
                                                     {generatingImages.has(scene.id) ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : !charsReady ? 'Chars required' : scene.image_url ? 'Regenerate' : 'Generate'}
                                                   </Button>
-                                                  {scene.dialog && <div><div className="font-mono text-[7px] uppercase text-muted-foreground/50">Dialog</div><p className="text-[8px] text-muted-foreground">{scene.dialog}</p></div>}
-                                                  {scene.lighting && <div><div className="font-mono text-[7px] uppercase text-muted-foreground/50">Lighting</div><p className="text-[8px] text-muted-foreground">{scene.lighting}</p></div>}
-                                                  {scene.time_of_day && <div><div className="font-mono text-[7px] uppercase text-muted-foreground/50">Time</div><p className="text-[8px] text-muted-foreground">{scene.time_of_day}</p></div>}
-                                                  {scene.camera_move && <div><div className="font-mono text-[7px] uppercase text-muted-foreground/50">Camera</div><p className="text-[8px] text-muted-foreground">{scene.camera_move}</p></div>}
+                                                  {scene.dialog != null && <div><div className="font-mono text-[7px] uppercase text-muted-foreground/50">Dialog</div><textarea className="text-[8px] text-muted-foreground leading-relaxed bg-transparent border border-transparent hover:border-border focus:border-primary focus:outline-none w-full resize-none" defaultValue={scene.dialog} rows={2} onBlur={(e) => { if (e.target.value !== scene.dialog) updateStoryboardScene(workflowId, sbFlatIdx, scene.id, { dialog: e.target.value }).then(() => loadWorkflow()).catch(() => { e.target.value = scene.dialog || ''; }); }} /></div>}
+                                                  {scene.lighting != null && <div><div className="font-mono text-[7px] uppercase text-muted-foreground/50">Lighting</div><input className="text-[8px] text-muted-foreground bg-transparent border-b border-transparent hover:border-border focus:border-primary focus:outline-none w-full" defaultValue={scene.lighting} onBlur={(e) => { if (e.target.value !== scene.lighting) updateStoryboardScene(workflowId, sbFlatIdx, scene.id, { lighting: e.target.value }).then(() => loadWorkflow()).catch(() => { e.target.value = scene.lighting || ''; }); }} onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} /></div>}
+                                                  {scene.time_of_day != null && <div><div className="font-mono text-[7px] uppercase text-muted-foreground/50">Time</div><input className="text-[8px] text-muted-foreground bg-transparent border-b border-transparent hover:border-border focus:border-primary focus:outline-none w-full" defaultValue={scene.time_of_day} onBlur={(e) => { if (e.target.value !== scene.time_of_day) updateStoryboardScene(workflowId, sbFlatIdx, scene.id, { time_of_day: e.target.value }).then(() => loadWorkflow()).catch(() => { e.target.value = scene.time_of_day || ''; }); }} onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} /></div>}
+                                                  {scene.camera_move != null && <div><div className="font-mono text-[7px] uppercase text-muted-foreground/50">Camera</div><input className="text-[8px] text-muted-foreground bg-transparent border-b border-transparent hover:border-border focus:border-primary focus:outline-none w-full" defaultValue={scene.camera_move} onBlur={(e) => { if (e.target.value !== scene.camera_move) updateStoryboardScene(workflowId, sbFlatIdx, scene.id, { camera_move: e.target.value }).then(() => loadWorkflow()).catch(() => { e.target.value = scene.camera_move || ''; }); }} onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} /></div>}
                                                   <div className="pt-1 border-t border-border mt-1">
                                                     <FeedbackBar
                                                       workflowId={workflowId}
@@ -4938,6 +5053,7 @@ export default function ContentWorkflowDetailPage() {
                     updateStageSetting={updateStageSetting}
                     brandUsername={brand?.social_urls?.instagram?.replace(/.*instagram\.com\//, '').replace(/\/$/, '') || undefined}
                     brandCompetitors={brand?.competitors}
+                    onSelectIdea={handleSelectResearchIdea}
                   />
                 )}
 

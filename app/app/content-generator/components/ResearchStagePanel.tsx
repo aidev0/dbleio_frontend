@@ -865,10 +865,11 @@ function TagList({ items, color }: { items: string[]; color: string }) {
   );
 }
 
-function IdeaCard({ idea, index }: { idea: any; index: number }) {
+function IdeaCard({ idea, index, onSelectIdea }: { idea: any; index: number; onSelectIdea?: (idea: any) => void }) {
   const [expanded, setExpanded] = useState(false);
   const [showTranscript, setShowTranscript] = useState(false);
   const [showAdaptedTranscript, setShowAdaptedTranscript] = useState(false);
+  const [added, setAdded] = useState(false);
 
   const ob = idea.original_breakdown || {};
   const ba = idea.brand_adaptation || {};
@@ -901,7 +902,17 @@ function IdeaCard({ idea, index }: { idea: any; index: number }) {
               </span>
             </div>
           </div>
-          {expanded ? <ChevronUp className="h-4 w-4 shrink-0 mt-1" /> : <ChevronDown className="h-4 w-4 shrink-0 mt-1" />}
+          <div className="flex items-center gap-2 shrink-0 mt-1">
+            {onSelectIdea && (
+              <button
+                className={`px-2.5 py-1 rounded text-[10px] font-mono uppercase tracking-wider transition-all ${added ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300' : 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 hover:bg-purple-200 dark:hover:bg-purple-900/50'}`}
+                onClick={(e) => { e.stopPropagation(); onSelectIdea(idea); setAdded(true); setTimeout(() => setAdded(false), 2000); }}
+              >
+                {added ? 'Added!' : 'Use as Concept'}
+              </button>
+            )}
+            {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+          </div>
         </div>
       </button>
 
@@ -1107,9 +1118,11 @@ function IdeaCard({ idea, index }: { idea: any; index: number }) {
 function ExtractedIdeasSection({
   brandUsername,
   competitorUsername,
+  onSelectIdea,
 }: {
   brandUsername: string;
   competitorUsername: string;
+  onSelectIdea?: (idea: any) => void;
 }) {
   const [ideas, setIdeas] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -1145,7 +1158,7 @@ function ExtractedIdeasSection({
       </div>
       <div className="space-y-2">
         {ideas.ideas.map((idea: any, i: number) => (
-          <IdeaCard key={i} idea={idea} index={i} />
+          <IdeaCard key={i} idea={idea} index={i} onSelectIdea={onSelectIdea} />
         ))}
       </div>
     </div>
@@ -1288,12 +1301,14 @@ interface ResearchStagePanelProps {
   updateStageSetting: (stage: string, key: string, value: unknown) => void;
   brandUsername?: string;
   brandCompetitors?: Array<{ instagram_username: string; name?: string; url?: string }>;
+  onSelectIdea?: (idea: any) => void;
 }
 
 export default function ResearchStagePanel({
   workflowId,
   brandUsername: propBrandUsername,
   brandCompetitors,
+  onSelectIdea,
 }: ResearchStagePanelProps) {
   const [researchData, setResearchData] = useState<ResearchData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -1443,6 +1458,7 @@ export default function ResearchStagePanel({
       <ExtractedIdeasSection
         brandUsername={brandUsername}
         competitorUsername={competitorUsername}
+        onSelectIdea={onSelectIdea}
       />
 
       {hasNoResearchData ? (

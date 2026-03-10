@@ -30,12 +30,12 @@ export function Hero({ onContactUs }: HeroProps) {
       
           <h1 className="text-balance text-4xl font-light italic tracking-tight text-foreground sm:text-6xl md:text-7xl lg:text-8xl">
             The Palantir
-            <span className="block not-italic font-normal">for DTC marketing</span>
+            <span className="block not-italic font-normal">for DTC brands marketing</span>
           </h1>
 
           <p className="mt-3 sm:mt-8 max-w-xl text-pretty text-sm sm:text-xl leading-relaxed text-muted-foreground">
             <span className="sm:hidden">AI-powered DTC marketing automation with expert marketers and engineers in the loop.</span>
-            <span className="hidden sm:inline">AI-powered DTC marketing automation platform with expert marketers and engineers in the loop guaranteeing quality contents and robust operations.</span>
+            <span className="hidden sm:inline">AI-powered DTC marketing automation platform with expert marketers and engineers in the loop guaranteeing quality brand-aligned social media contents and optimized marketing campaigns to maximize audience engagements, sales conversions and ROI.</span>
           </p>
 
           <div className="mt-6 sm:mt-14 flex flex-row gap-3 sm:gap-4 items-center justify-center sm:justify-start">
