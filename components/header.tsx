@@ -26,7 +26,6 @@ export function Header({ isAuthenticated, onLogin, onRequestAccess }: HeaderProp
           <nav className="hidden items-center gap-8 md:flex">
             <a href="/#platform" className="font-mono text-xs uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground">Platform</a>
             <a href="/#pricing" className="font-mono text-xs uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground">Pricing</a>
-            <a href="/#security" className="font-mono text-xs uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground">Security</a>
             <a href="/faq" className="font-mono text-xs uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground">FAQ</a>
           </nav>
         </div>
@@ -91,7 +90,6 @@ export function Header({ isAuthenticated, onLogin, onRequestAccess }: HeaderProp
           <div className="flex flex-col gap-1">
             <a href="/#platform" className="py-2 font-mono text-xs uppercase tracking-wider text-muted-foreground">Platform</a>
             <a href="/#pricing" className="py-2 font-mono text-xs uppercase tracking-wider text-muted-foreground">Pricing</a>
-            <a href="/#security" className="py-2 font-mono text-xs uppercase tracking-wider text-muted-foreground">Security</a>
             <a href="/faq" className="py-2 font-mono text-xs uppercase tracking-wider text-muted-foreground">FAQ</a>
             <div className="mt-2 flex flex-col gap-2">
               {isAuthenticated ? (

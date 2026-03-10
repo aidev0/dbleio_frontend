@@ -6,7 +6,7 @@ import { Header } from "@/components/header"
 import { Hero } from "@/components/hero"
 import { HowItWorks } from "@/components/how-it-works"
 import { Pricing } from "@/components/pricing"
-import { Security } from "@/components/security"
+
 import { Footer } from "@/components/footer"
 import { ContactFormModal } from "@/components/contact-form-modal"
 import { useAuth } from "./app/video-simulation/auth/authContext"
@@ -32,7 +32,7 @@ export default function Home() {
         <Hero onContactUs={handleContactUs} />
         <HowItWorks />
         <Pricing />
-        <Security />
+
       </main>
       <Footer onContactUs={handleContactUs} />
       <ContactFormModal

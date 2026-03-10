@@ -78,7 +78,7 @@ export function Hero({ onContactUs }: HeroProps) {
             {[
               {
                 name: "Meta",
-                logo: "https://upload.wikimedia.org/wikipedia/commons/thumb/7/7b/Meta_Platforms_Inc._logo.svg/1024px-Meta_Platforms_Inc._logo.svg.png"
+                logo: "/logos/meta.svg"
               },
               {
                 name: "Instagram",
@@ -102,7 +102,7 @@ export function Hero({ onContactUs }: HeroProps) {
               },
               {
                 name: "X",
-                logo: "https://upload.wikimedia.org/wikipedia/commons/thumb/c/ce/X_logo_2023.svg/512px-X_logo_2023.svg.png"
+                logo: "/logos/x.svg"
               },
               {
                 name: "YouTube",
@@ -114,7 +114,7 @@ export function Hero({ onContactUs }: HeroProps) {
                   src={platform.logo}
                   alt={`${platform.name} logo`}
                   className={`object-contain filter grayscale ${
-                    platform.name === 'Instagram' || platform.name === 'Pinterest' || platform.name === 'TikTok'
+                    platform.name === 'Instagram' || platform.name === 'Pinterest' || platform.name === 'TikTok' || platform.name === 'Meta' || platform.name === 'YouTube'
                       ? 'h-6 w-6 sm:h-12 sm:w-12'
                       : platform.name === 'X'
                       ? 'h-5 w-5 sm:h-10 sm:w-10'
