@@ -9,7 +9,7 @@ import {
   ChevronLeft, ChevronRight, ChevronDown, Bot, User as UserIcon, Image as ImageIcon,
   Megaphone, Paperclip, Settings2, X, Pencil,
   Film, Music, Type as TypeIconLucide, Eye, Check, Plus, Upload,
-  FileText, BarChart2, Globe, ExternalLink, Layers, CircleDot, Clapperboard, RefreshCw,
+  FileText, BarChart2, Globe, ExternalLink, Layers, CircleDot, Clapperboard, RefreshCw, Users,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -1900,6 +1900,70 @@ export default function ContentWorkflowDetailPage() {
                               )}
                             </div>
                           ))}
+
+                          {/* Competitors */}
+                          <div className="pt-2 border-t border-border space-y-2">
+                            <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/50 flex items-center gap-1.5">
+                              <Users className="h-3 w-3" /> Competitors
+                            </div>
+                            {(brand.competitors || []).map((comp, idx) => (
+                              <div key={idx} className="flex items-center gap-2">
+                                <span className="text-xs text-muted-foreground w-5 text-right shrink-0">{idx + 1}.</span>
+                                <input
+                                  type="text"
+                                  defaultValue={comp.name || ''}
+                                  placeholder="Name"
+                                  onBlur={(e) => {
+                                    const updated = [...(brand.competitors || [])];
+                                    updated[idx] = { ...updated[idx], name: e.target.value || undefined };
+                                    saveBrandField('competitors', updated);
+                                  }}
+                                  className="w-28 h-7 rounded border border-border bg-background px-2 text-xs text-foreground"
+                                />
+                                <input
+                                  type="text"
+                                  defaultValue={comp.instagram_username || ''}
+                                  placeholder="@instagram"
+                                  onBlur={(e) => {
+                                    const val = e.target.value.replace(/^@/, '');
+                                    const updated = [...(brand.competitors || [])];
+                                    updated[idx] = { ...updated[idx], instagram_username: val };
+                                    saveBrandField('competitors', updated);
+                                  }}
+                                  className="w-28 h-7 rounded border border-border bg-background px-2 text-xs text-foreground"
+                                />
+                                <input
+                                  type="url"
+                                  defaultValue={comp.url || ''}
+                                  placeholder="https://..."
+                                  onBlur={(e) => {
+                                    const updated = [...(brand.competitors || [])];
+                                    updated[idx] = { ...updated[idx], url: e.target.value || undefined };
+                                    saveBrandField('competitors', updated);
+                                  }}
+                                  className="flex-1 h-7 rounded border border-border bg-background px-2 text-xs text-foreground"
+                                />
+                                <button
+                                  onClick={() => {
+                                    const updated = (brand.competitors || []).filter((_, i) => i !== idx);
+                                    saveBrandField('competitors', updated);
+                                  }}
+                                  className="text-muted-foreground/40 hover:text-destructive transition-colors shrink-0"
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </button>
+                              </div>
+                            ))}
+                            <button
+                              onClick={() => {
+                                const updated = [...(brand.competitors || []), { instagram_username: '', name: '', url: '' }];
+                                saveBrandField('competitors', updated);
+                              }}
+                              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                            >
+                              <Plus className="h-3 w-3" /> Add competitor
+                            </button>
+                          </div>
                         </div>
                       ) : (
                         <p className="text-xs text-muted-foreground/50">No brand selected</p>
@@ -2504,12 +2568,14 @@ export default function ContentWorkflowDetailPage() {
                       );
                     })()}
 
-                    {/* ── Research ── */}
+                    {/* ── Research & Competitive Analysis ── */}
                     {stage.key === 'research' && (
                       <ResearchStagePanel
                         workflowId={workflowId}
                         getSetting={getSetting}
                         updateStageSetting={updateStageSetting}
+                        brandUsername={brand?.social_urls?.instagram?.replace(/.*instagram\.com\//, '').replace(/\/$/, '') || undefined}
+                        brandCompetitors={brand?.competitors}
                       />
                     )}
 
@@ -4276,6 +4342,52 @@ export default function ContentWorkflowDetailPage() {
                           )}
                         </div>
                       ))}
+
+                      {/* Competitors */}
+                      <div className="pt-2 border-t border-border space-y-2">
+                        <div className="font-mono text-[8px] uppercase tracking-wider text-muted-foreground/50 flex items-center gap-1">
+                          <Users className="h-2.5 w-2.5" /> Competitors
+                        </div>
+                        {(brand.competitors || []).map((comp, idx) => (
+                          <div key={idx} className="flex items-center gap-1.5">
+                            <span className="text-[10px] text-muted-foreground w-4 text-right shrink-0">{idx + 1}.</span>
+                            <input type="text" defaultValue={comp.name || ''} placeholder="Name"
+                              onBlur={(e) => {
+                                const updated = [...(brand.competitors || [])];
+                                updated[idx] = { ...updated[idx], name: e.target.value || undefined };
+                                saveBrandField('competitors', updated);
+                              }}
+                              className="w-24 h-6 rounded border border-border bg-background px-2 text-[10px] text-foreground" />
+                            <input type="text" defaultValue={comp.instagram_username || ''} placeholder="@instagram"
+                              onBlur={(e) => {
+                                const val = e.target.value.replace(/^@/, '');
+                                const updated = [...(brand.competitors || [])];
+                                updated[idx] = { ...updated[idx], instagram_username: val };
+                                saveBrandField('competitors', updated);
+                              }}
+                              className="w-24 h-6 rounded border border-border bg-background px-2 text-[10px] text-foreground" />
+                            <input type="url" defaultValue={comp.url || ''} placeholder="https://..."
+                              onBlur={(e) => {
+                                const updated = [...(brand.competitors || [])];
+                                updated[idx] = { ...updated[idx], url: e.target.value || undefined };
+                                saveBrandField('competitors', updated);
+                              }}
+                              className="flex-1 h-6 rounded border border-border bg-background px-2 text-[10px] text-foreground" />
+                            <button onClick={() => {
+                              const updated = (brand.competitors || []).filter((_, i) => i !== idx);
+                              saveBrandField('competitors', updated);
+                            }} className="text-muted-foreground/40 hover:text-destructive transition-colors shrink-0">
+                              <Trash2 className="h-2.5 w-2.5" />
+                            </button>
+                          </div>
+                        ))}
+                        <button onClick={() => {
+                          const updated = [...(brand.competitors || []), { instagram_username: '', name: '', url: '' }];
+                          saveBrandField('competitors', updated);
+                        }} className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors">
+                          <Plus className="h-2.5 w-2.5" /> Add competitor
+                        </button>
+                      </div>
                     </div>
                   ) : (
                     <p className="text-xs text-muted-foreground/50">No brand selected</p>
@@ -4818,12 +4930,14 @@ export default function ContentWorkflowDetailPage() {
                   );
                 })()}
 
-                {/* ── Research ── */}
+                {/* ── Research & Competitive Analysis ── */}
                 {openStageKey === 'research' && (
                   <ResearchStagePanel
                     workflowId={workflowId}
                     getSetting={getSetting}
                     updateStageSetting={updateStageSetting}
+                    brandUsername={brand?.social_urls?.instagram?.replace(/.*instagram\.com\//, '').replace(/\/$/, '') || undefined}
+                    brandCompetitors={brand?.competitors}
                   />
                 )}
 

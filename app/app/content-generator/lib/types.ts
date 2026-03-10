@@ -101,7 +101,7 @@ export const CONTENT_PIPELINE_STAGES: StageDefinition[] = [
   // --- Input ---
   { key: 'brand', label: 'Brand', stageType: 'human', description: 'Review brand details, URLs, and social profiles.', category: 'Input', approvalRequired: false, available: true },
   { key: 'campaign_strategy', label: 'Campaign & Strategy & Assets', stageType: 'human', description: 'Select campaign, strategy, and manage brand assets.', category: 'Input', approvalRequired: false, available: true },
-  { key: 'research', label: 'Research', stageType: 'agent', description: 'Discover trends and identify patterns relevant to your audience.', category: 'Input', approvalRequired: false, available: true },
+  { key: 'research', label: 'Research & Competitive Analysis', stageType: 'agent', description: 'Discover trends, analyze competitors, and identify patterns relevant to your audience.', category: 'Input', approvalRequired: false, available: true },
   { key: 'scheduling', label: 'Scheduling', stageType: 'human', description: 'Plan the content calendar.', category: 'Input', approvalRequired: false, available: true },
   // --- Content Generation ---
   { key: 'concepts', label: 'Concepts', stageType: 'both', description: 'Generate ideas and develop scripts for content pieces.', category: 'Content Generation', approvalRequired: false, available: true },
@@ -167,7 +167,8 @@ export interface ResearchTopPerformer {
 export interface ResearchInstagramData {
   username: string;
   followers: number;
-  total_reels: number;
+  total_posts?: number;
+  total_reels?: number; // legacy
   top_count?: number;
   top_performers: ResearchTopPerformer[];
   success_analysis?: Record<string, unknown>;
