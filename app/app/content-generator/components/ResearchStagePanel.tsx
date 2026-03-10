@@ -878,9 +878,12 @@ function IdeaCard({ idea, index, onSelectIdea }: { idea: any; index: number; onS
 
   return (
     <div className="border rounded-lg overflow-hidden">
-      <button
-        className="w-full text-left p-4 hover:bg-muted/30 transition-colors"
+      <div
+        className="w-full text-left p-4 hover:bg-muted/30 transition-colors cursor-pointer"
         onClick={() => setExpanded(!expanded)}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setExpanded(!expanded); }}
       >
         <div className="flex items-start justify-between gap-3">
           <div className="space-y-1">
@@ -914,7 +917,7 @@ function IdeaCard({ idea, index, onSelectIdea }: { idea: any; index: number; onS
             {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
           </div>
         </div>
-      </button>
+      </div>
 
       {expanded && (
         <div className="border-t p-4 space-y-5">
