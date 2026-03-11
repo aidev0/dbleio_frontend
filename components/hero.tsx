@@ -36,7 +36,7 @@ export function Hero({ onContactUs }: HeroProps) {
           <p className="mt-3 sm:mt-8 max-w-xl text-pretty text-sm sm:text-xl leading-relaxed text-muted-foreground">
             <span className="sm:hidden">AI-powered DTC marketing automation with expert marketers and engineers in the loop.</span>
             <span className="hidden sm:inline">AI-powered DTC marketing automation platform with expert marketers and engineers in the loop. Generate brand-aligned social media contents, optimize marketing campaigns, maximize audience engagements, and increase sales conversions and ROI.</span><br></br><br></br>
-            <span>We deploy custom AI agents that research market to find trends, performs competetive analysis, generates quality creatives, predict performance before launch, and optimize campaigns automatically, guided by expert engineers and marketers at every stage.</span>
+            <span>We deploy custom AI agents that research market to find trends, performs competetive analysis, generates quality creatives, simulate AB test on audience reactions, predict performance before launch, and optimize campaigns automatically.</span>
           </p>
 
           <div className="mt-6 sm:mt-14 flex flex-row gap-3 sm:gap-4 items-center justify-center sm:justify-start">
