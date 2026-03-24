@@ -97,16 +97,15 @@ export function Pricing() {
             We deploy production marketing systems into your organization. Every deployment includes the full intelligence engine and the dedicated operators behind it.
           </p>
 
-          <div className="mt-10 w-full max-w-md border border-border bg-card p-8 flex flex-col items-center">
-            <h3 className="font-mono text-xs uppercase tracking-wider text-muted-foreground">Agency</h3>
-            <div className="mt-4 flex items-baseline gap-1">
-              <span className="text-5xl font-light tracking-tight text-foreground">Custom</span>
+          <div className="mt-10 w-full max-w-2xl border border-border bg-card p-8 lg:p-10">
+            <h3 className="text-3xl font-light tracking-tight text-foreground">Agency</h3>
+            <div className="mt-3 flex items-center gap-4">
+              <span className="text-lg text-muted-foreground">Custom &middot; multi-brand</span>
+              <span className="text-sm text-muted-foreground/60">Annual Contract</span>
             </div>
-            <div className="mt-1 text-sm text-muted-foreground">multi-brand</div>
-            <div className="mt-1 text-xs text-muted-foreground/60">Annual Contract</div>
 
-            <div className="mt-8 w-full border-t border-border pt-6">
-              <ul className="space-y-3">
+            <div className="mt-8 border-t border-border pt-6">
+              <ul className="grid grid-cols-2 gap-x-8 gap-y-3">
                 {tiers[0].includes.map((item) => (
                   <li key={item} className="flex items-start gap-2 text-sm text-muted-foreground">
                     <Check className="mt-0.5 h-4 w-4 shrink-0 text-foreground/50" />
@@ -118,7 +117,7 @@ export function Pricing() {
 
             <Button
               onClick={() => handleContactClick("agency")}
-              className="mt-8 w-full font-mono text-xs uppercase tracking-wider bg-foreground text-background"
+              className="mt-8 font-mono text-xs uppercase tracking-wider bg-foreground text-background px-10"
               onMouseEnter={() => setHoveredButton("agency")}
               onMouseLeave={() => setHoveredButton(null)}
             >

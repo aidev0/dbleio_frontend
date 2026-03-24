@@ -7,8 +7,8 @@ export function HowItWorks() {
     },
     {
       number: "02",
-      title: "Two-Week Trial",
-      description: "The first two weeks serve as a trial period. We work directly with your team and the client, scope the work, and audit existing workflows.",
+      title: "Discovery Sprint",
+      description: "The first two weeks are a discovery sprint. We work directly with your team and the client, scope the work, and audit existing workflows.",
     },
     {
       number: "03",
