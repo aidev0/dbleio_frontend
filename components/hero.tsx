@@ -34,9 +34,9 @@ export function Hero({ onContactUs }: HeroProps) {
           </h1>
 
           <p className="mt-3 sm:mt-8 max-w-xl text-pretty text-sm sm:text-xl leading-relaxed text-muted-foreground">
-            <span className="sm:hidden">AI-powered DTC marketing automation with expert marketers and engineers in the loop.</span>
-            <span className="hidden sm:inline">AI-powered DTC marketing automation platform with expert marketers and engineers in the loop. Generate brand-aligned social media contents, optimize marketing campaigns, maximize audience engagements, and increase sales conversions and ROI.</span><br></br><br></br>
-            <span>We deploy custom AI agents that research market to find trends, performs competetive analysis, generates quality creatives, simulate AB test on audience reactions, predict performance before launch, and optimize campaigns automatically.</span>
+            <span className="sm:hidden">We build customized AI-powered marketing platforms that agencies deploy directly for their clients. Not software — an execution partner.</span>
+            <span className="hidden sm:inline">We design and build customized experiences, AI-powered solutions, and proprietary marketing platforms that agencies can deploy directly for their clients. Like Sitecore, we create composable, tailored experiences. Like Palantir, we embed forward-deployed engineers and marketers directly into the workflow.</span><br></br><br></br>
+            <span>dble.io is not a DIY platform or off-the-shelf software. We are an execution partner that eliminates friction in DTC marketing operations, optimizes existing workflows, and builds new acquisition pillars that drive measurable revenue growth for your agency and your clients&apos; brands.</span>
           </p>
 
           <div className="mt-6 sm:mt-14 flex flex-row gap-3 sm:gap-4 items-center justify-center sm:justify-start">

@@ -6,38 +6,40 @@ import { Check } from "lucide-react"
 import { ContactFormModal } from "@/components/contact-form-modal"
 
 const tiers = [
-  {
-    name: "Brand",
-    id: "brand",
-    price: "$8,000",
-    period: "/mo/brand",
-    commitment: "Monthly Subscription",
-    highlight: true,
-    mobileDesc: "Dedicated engineer + marketer",
-    includes: [
-      "Full platform access",
-      "1 Dedicated Engineer (FDE)",
-      "1 Dedicated Marketer (FDM)",
-      "Slack/email support",
-      "Weekly sync calls",
-      "Custom integrations",
-      "Custom predictive model",
-      "Custom LLM model",
-      "$1,000 cloud + LLM usage credits included",
-    ],
-  },
+  // {
+  //   name: "Brand",
+  //   id: "brand",
+  //   price: "$8,000",
+  //   period: "/mo/brand",
+  //   commitment: "Monthly Subscription",
+  //   highlight: true,
+  //   mobileDesc: "Dedicated engineer + marketer",
+  //   includes: [
+  //     "Custom platforms and solutions",
+  //     "1 Dedicated Engineer (FDE)",
+  //     "1 Dedicated Marketer (FDM)",
+  //     "Slack/email support",
+  //     "Weekly sync calls",
+  //     "Custom integrations",
+  //     "Custom predictive model",
+  //     "Custom LLM model",
+  //     "$1,000 cloud + LLM usage credits included",
+  //   ],
+  // },
   {
     name: "Agency",
     id: "agency",
     price: "Custom",
     period: "multi-brand",
     commitment: "Annual Contract",
-    highlight: false,
+    highlight: true,
     mobileDesc: "Dedicated teams + custom infra",
     includes: [
-      "Full platform access",
+      "Custom platforms and solutions",
       "Dedicated FDE team",
       "Dedicated FDM team",
+      "Slack/email support",
+      "Weekly sync calls",
       "Custom integrations",
       "Custom predictive model",
       "Custom LLM model",
@@ -52,20 +54,20 @@ const tiers = [
 
 const platformFeatures = [
   {
-    category: "Creative Generation",
-    features: ["AI video ad generation", "AI image ad generation", "Brand asset management", "Template library"],
+    category: "AI Agents",
+    features: ["Research & trend discovery", "Competitive analysis", "Content generation pipeline", "Persona simulation & A/B testing", "Predictive performance scoring", "Content ranking & scheduling"],
   },
   {
-    category: "Testing & Optimization",
-    features: ["Pre-launch creative scoring", "A/B test automation", "ROAS prediction", "Audience insights"],
+    category: "Creative Production",
+    features: ["AI video ad generation", "AI image ad generation", "Storyboard-to-video", "Multi-LLM support (GPT, Claude, Gemini)", "Brand asset management", "Shopify product sync"],
   },
   {
-    category: "Campaign Management",
-    features: ["Cross-platform campaigns", "Budget optimization", "Real-time bidding", "Performance alerts"],
+    category: "Campaign Intelligence",
+    features: ["Cross-platform campaigns (Meta, TikTok, Instagram, Amazon)", "Budget optimization", "Audience & persona targeting", "ROAS prediction & forecasting", "Real-time performance alerts"],
   },
   {
-    category: "Analytics & Reporting",
-    features: ["Unified dashboard", "Attribution modeling", "Custom reports", "API access"],
+    category: "Analytics & Integrations",
+    features: ["Unified analytics dashboard", "Instagram & competitor tracking", "Shopify integration", "Custom reports & attribution", "Interactive AI insights chat"],
   },
 ]
 
@@ -83,66 +85,61 @@ export function Pricing() {
   return (
     <section id="pricing" className="py-8 sm:py-16 md:py-20">
       <div className="mx-auto max-w-7xl px-4 sm:px-6">
-        <div className="mb-5 sm:mb-10 max-w-4xl">
-          <div className="mb-3 sm:mb-6 font-mono text-[10px] sm:text-xs uppercase tracking-widest text-muted-foreground">
+        {/* Desktop */}
+        <div className="hidden sm:flex flex-col items-center">
+          <div className="mb-3 font-mono text-[10px] sm:text-xs uppercase tracking-widest text-muted-foreground">
             Pricing
           </div>
-          <h2 className="text-2xl font-light italic tracking-tight text-foreground sm:text-5xl lg:text-6xl whitespace-nowrap">
+          <h2 className="text-2xl font-light italic tracking-tight text-foreground sm:text-5xl lg:text-6xl text-center">
             Scale Intelligence, Not Headcount
           </h2>
-          <p className="hidden sm:block mt-6 text-xl leading-relaxed text-muted-foreground">
+          <p className="mt-6 text-xl leading-relaxed text-muted-foreground text-center max-w-2xl">
             We deploy production marketing systems into your organization. Every deployment includes the full intelligence engine and the dedicated operators behind it.
           </p>
+
+          <div className="mt-10 w-full max-w-md border border-border bg-card p-8 flex flex-col items-center">
+            <h3 className="font-mono text-xs uppercase tracking-wider text-muted-foreground">Agency</h3>
+            <div className="mt-4 flex items-baseline gap-1">
+              <span className="text-5xl font-light tracking-tight text-foreground">Custom</span>
+            </div>
+            <div className="mt-1 text-sm text-muted-foreground">multi-brand</div>
+            <div className="mt-1 text-xs text-muted-foreground/60">Annual Contract</div>
+
+            <div className="mt-8 w-full border-t border-border pt-6">
+              <ul className="space-y-3">
+                {tiers[0].includes.map((item) => (
+                  <li key={item} className="flex items-start gap-2 text-sm text-muted-foreground">
+                    <Check className="mt-0.5 h-4 w-4 shrink-0 text-foreground/50" />
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            <Button
+              onClick={() => handleContactClick("agency")}
+              className="mt-8 w-full font-mono text-xs uppercase tracking-wider bg-foreground text-background"
+              onMouseEnter={() => setHoveredButton("agency")}
+              onMouseLeave={() => setHoveredButton(null)}
+            >
+              CONTACT US
+            </Button>
+          </div>
         </div>
 
-        {/* Tier Cards - Desktop */}
-        <div className="hidden sm:grid gap-px border border-border bg-border md:grid-cols-2">
-          {tiers.map((tier) => (
-            <div
-              key={tier.name}
-              className={`flex flex-col bg-background p-6 ${
-                tier.highlight ? "lg:bg-card" : ""
-              }`}
-            >
-              <div className="flex items-start justify-between">
-                <div>
-                  <h3 className="font-mono text-xs uppercase tracking-wider text-muted-foreground">{tier.name}</h3>
-                  <div className="mt-4 flex items-baseline gap-1">
-                    <span className={`font-light tracking-tight text-foreground ${tier.price === "Custom" ? "text-3xl" : "text-4xl"}`}>{tier.price}</span>
-                    <span className="text-sm text-muted-foreground">{tier.period}</span>
-                  </div>
-                </div>
-              </div>
-
-              {tier.name === "Agency" && (
-                <div className="mt-2 text-xs text-muted-foreground/60">{tier.commitment}</div>
-              )}
-
-              <div className="mt-6 flex-1">
-                <div className="mb-3 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">Includes</div>
-                <ul className="space-y-2">
-                  {tier.includes.map((item) => (
-                    <li key={item} className="flex items-start gap-2 text-base text-muted-foreground">
-                      <Check className="mt-0.5 h-4 w-4 shrink-0 text-foreground/50" />
-                      {item}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-
-              <Button
-                onClick={() => handleContactClick(tier.id)}
-                className={`mt-8 w-full font-mono text-xs uppercase tracking-wider transition-all ${
-                  hoveredButton === tier.id || (!hoveredButton && tier.highlight)
-                    ? "bg-foreground text-background"
-                    : "bg-transparent text-foreground border border-foreground"
-                }`}
-                variant={tier.highlight ? "default" : "outline"}
-                onMouseEnter={() => setHoveredButton(tier.id)}
-                onMouseLeave={() => setHoveredButton(null)}
-              >
-                CONTACT US
-              </Button>
+        {/* Platform Features */}
+        <div className="hidden sm:grid grid-cols-2 lg:grid-cols-4 gap-px border border-border bg-border mt-10">
+          {platformFeatures.map((cat) => (
+            <div key={cat.category} className="bg-background p-6">
+              <h3 className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground mb-4">{cat.category}</h3>
+              <ul className="space-y-2">
+                {cat.features.map((f) => (
+                  <li key={f} className="flex items-start gap-2 text-sm text-muted-foreground">
+                    <Check className="mt-0.5 h-3 w-3 shrink-0 text-foreground/50" />
+                    {f}
+                  </li>
+                ))}
+              </ul>
             </div>
           ))}
         </div>

@@ -2,39 +2,39 @@ export function Features() {
   const capabilities = [
     {
       id: "01",
-      title: "Video Generation",
-      description: "Automatically transforms your product catalog into video ads. Brand-consistent styling, messaging, and voiceover. Direct Shopify integration.",
-      specs: ["Auto-generation", "Brand consistency", "Platform optimization"],
+      title: "Research & Competitive Analysis",
+      description: "AI agents discover trends, analyze competitor content, track top-performing Instagram reels, and extract brand intelligence to inform every creative decision.",
+      specs: ["Trend discovery", "Competitor tracking", "Market research"],
     },
     {
       id: "02",
-      title: "Image Generation",
-      description: "Creates static ads from product images with dynamic text overlays using your brand fonts and colors. A/B variations generated automatically.",
-      specs: ["Dynamic overlays", "Brand fonts", "Auto-variations"],
+      title: "Content Generation Pipeline",
+      description: "10-stage AI pipeline: from research and strategy through storyboarding, video and image generation, to scheduling. Multi-LLM support across GPT, Claude, and Gemini.",
+      specs: ["10 AI agents", "Multi-LLM", "End-to-end"],
     },
     {
       id: "03",
-      title: "Creative Testing",
-      description: "AI predicts which ads will perform before you spend. Ranks all ads by predicted CTR, conversion rate, and ROAS.",
-      specs: ["Pre-launch prediction", "CTR ranking", "ROAS forecasting"],
+      title: "Persona Simulation & Testing",
+      description: "Simulate audience reactions before you spend. AI personas evaluate creatives, rank preferences, and predict performance with confidence scoring.",
+      specs: ["A/B simulation", "Persona modeling", "Pre-launch scoring"],
     },
     {
       id: "04",
-      title: "Campaign Optimization",
-      description: "Monitors all campaigns 24/7 across every platform. Automatically shifts budget from losers to winners. Pauses underperformers.",
-      specs: ["24/7 monitoring", "Auto-budgeting", "Real-time response"],
+      title: "Campaign Intelligence",
+      description: "Cross-platform campaign management across Meta, TikTok, Instagram, and Amazon. Budget optimization, audience targeting, and real-time performance alerts.",
+      specs: ["Cross-platform", "Auto-budgeting", "ROAS prediction"],
     },
     {
       id: "05",
-      title: "Reinforcement Learning",
-      description: "Gets smarter over time by learning from your results. Identifies patterns in what works for your specific products and audience.",
-      specs: ["Continuous learning", "Pattern detection", "Custom optimization"],
+      title: "Video & Creative Production",
+      description: "AI-generated video ads, image ads, voiceovers, and storyboards. Syncs directly with Shopify product catalogs. Brand-consistent output every time.",
+      specs: ["Video generation", "Shopify sync", "Brand consistency"],
     },
     {
       id: "06",
-      title: "Integration Suite",
-      description: "Shopify, Meta, TikTok, Google, Amazon, and all major analytics platforms. Everything connected seamlessly in one system.",
-      specs: ["All platforms", "Unified data", "Seamless sync"],
+      title: "Analytics & Integrations",
+      description: "Unified dashboard with AI-powered insights chat. Shopify, Instagram, and Meta integrations. Attribution modeling, custom reports, and predictive analytics.",
+      specs: ["AI insights chat", "Unified data", "Predictive analytics"],
     },
   ]
 
@@ -46,10 +46,10 @@ export function Features() {
             Platform
           </div>
           <h2 className="text-2xl font-light italic tracking-tight text-foreground sm:text-5xl lg:text-6xl">
-            Full access. <span className="not-italic">No locked features.</span>
+            Composable tools. <span className="not-italic">Tailored to your clients.</span>
           </h2>
           <p className="hidden sm:block mt-6 text-xl leading-relaxed text-muted-foreground">
-            Every plan gets the same tools. Only difference is scale.
+            Every deployment is customized. We build the stack your agency needs to deliver differentiated services.
           </p>
         </div>
 

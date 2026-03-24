@@ -2,28 +2,28 @@ export function HowItWorks() {
   const steps = [
     {
       number: "01",
-      title: "Define scope",
-      description: "Set brand goals, ingest assets, map content calendar.",
+      title: "Embed & Onboard",
+      description: "We embed engineers and marketers into your team from day one. Full onboarding of end-users and operators, close collaboration with your team and the brand.",
     },
     {
       number: "02",
-      title: "Research & Create",
-      description: "AI agents surface trends and generate concepts, scripts, and production-ready video.",
+      title: "Two-Week Trial",
+      description: "The first two weeks serve as a trial period. We work directly with your team and the client, scope the work, and audit existing workflows.",
     },
     {
       number: "03",
-      title: "Predict & Simulate",
-      description: "Custom ML ranks assets against KPIs. Simulation engine tests against AI personas.",
+      title: "Scope & Build",
+      description: "We deliver a full end-to-end solution for the scoped work — customized AI agents, predictive models, and proprietary tools tailored to the brand.",
     },
     {
       number: "04",
-      title: "Human Review",
-      description: "Your dedicated Forward Deployed Marketers (FDMs) review outputs, edit, and enforce strict brand standards before anything goes live.",
+      title: "Operate & Optimize",
+      description: "We don't hand off a solution and walk away. We stay embedded and take ownership — optimizing workflows, driving results, and building new acquisition pillars.",
     },
     {
       number: "05",
-      title: "Distribute & Learn",
-      description: "Content deploys automatically. Every human decision and live result powers our reinforcement learning, ensuring your next campaign is always smarter than your last.",
+      title: "Scale & Learn",
+      description: "Every human decision and live result feeds back into our systems. Your next campaign is always smarter than your last, compounding value over time.",
     },
   ]
 
@@ -36,10 +36,10 @@ export function HowItWorks() {
               Platform
             </div>
             <h2 className="text-2xl font-light italic tracking-tight text-foreground sm:text-5xl lg:text-6xl">
-              Your dedicated <span className="not-italic">AI + creative intelligence team</span>
+              Embedded from <span className="not-italic">day 1</span>
             </h2>
             <p className="hidden sm:block mt-6 text-xl leading-relaxed text-muted-foreground">
-              Embedded Forward Deployed experts and automated systems — not just software.
+              A customized DTC marketing platform with embedded forward-deployed engineers and marketers working directly with your team — not just software.
             </p>
           </div>
           <div className="border border-border">
