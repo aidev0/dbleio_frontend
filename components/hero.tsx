@@ -83,19 +83,19 @@ export function Hero({ onContactUs }: HeroProps) {
               },
               {
                 name: "Instagram",
-                logo: "https://upload.wikimedia.org/wikipedia/commons/9/95/Instagram_logo_2022.svg"
+                logo: "/logos/instagram.svg"
               },
               {
                 name: "Amazon",
-                logo: "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a9/Amazon_logo.svg/1024px-Amazon_logo.svg.png"
+                logo: "/logos/amazon.svg"
               },
               {
                 name: "TikTok",
-                logo: "https://upload.wikimedia.org/wikipedia/commons/3/34/Ionicons_logo-tiktok.svg"
+                logo: "/logos/tiktok.svg"
               },
               {
                 name: "Pinterest",
-                logo: "https://upload.wikimedia.org/wikipedia/commons/0/08/Pinterest-logo.png"
+                logo: "/logos/pinterest.png"
               },
               {
                 name: "Vibe",
@@ -107,7 +107,7 @@ export function Hero({ onContactUs }: HeroProps) {
               },
               {
                 name: "YouTube",
-                logo: "https://upload.wikimedia.org/wikipedia/commons/thumb/0/09/YouTube_full-color_icon_%282017%29.svg/512px-YouTube_full-color_icon_%282017%29.svg.png"
+                logo: "/logos/youtube.svg"
               },
             ].map((platform) => (
               <div key={platform.name} className="flex items-center justify-center mx-auto">
