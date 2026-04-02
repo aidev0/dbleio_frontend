@@ -7,7 +7,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 import {
   Code2, Tag, LayoutDashboard, Building2, LogOut,
   CalendarDays, FileText, CheckSquare, ImageIcon, Sparkles,
-  ChevronRight, Scale,
+  ChevronRight, Scale, Bot,
 } from "lucide-react";
 
 import { useAuth } from "./video-simulation/auth/authContext";
@@ -35,6 +35,7 @@ import {
 
 // Top-level items (no children)
 const topItems = [
+  { label: "Agents", icon: Bot, href: "/app/agents" },
   { label: "Developer", icon: Code2, href: "/app/developer" },
   { label: "Brands", icon: Tag, href: "/app/brands" },
   { label: "Competitive Analysis", icon: Scale, href: "/app/competitive-analysis" },

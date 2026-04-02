@@ -144,7 +144,7 @@ function AIDetail({ analysis }: { analysis: ResearchVideoAI }) {
 // Combined Competitive Analysis Chart (Recharts) — fetches raw data from backend
 // ---------------------------------------------------------------------------
 
-function CompetitiveAnalysisChart({
+export function CompetitiveAnalysisChart({
   brandUsername,
   competitorUsername,
   brandFollowers,
@@ -516,7 +516,7 @@ function TopPostDetailModal({
   );
 }
 
-function TopPostsComparison({
+export function TopPostsComparison({
   brandUsername,
   competitorUsername,
 }: {
@@ -670,7 +670,7 @@ function TopPostsComparison({
 // Brand URL Analysis Card
 // ---------------------------------------------------------------------------
 
-function BrandUrlCard({ data }: { data: ResearchBrandUrlAnalysis }) {
+export function BrandUrlCard({ data }: { data: ResearchBrandUrlAnalysis }) {
   if (data.error) return <div className="text-xs text-red-500">{data.error}</div>;
   return (
     <div className="space-y-2 text-xs">
@@ -713,7 +713,7 @@ function BrandUrlCard({ data }: { data: ResearchBrandUrlAnalysis }) {
 // Financial Data Card
 // ---------------------------------------------------------------------------
 
-function FinancialCard({ data, name }: { data: ResearchFinancialData; name: string }) {
+export function FinancialCard({ data, name }: { data: ResearchFinancialData; name: string }) {
   if (data.error) return <div className="text-xs text-red-500">{data.error}</div>;
   return (
     <div className="space-y-1.5 text-xs">
@@ -743,7 +743,7 @@ function FinancialCard({ data, name }: { data: ResearchFinancialData; name: stri
 // AI Analyzed Posts — shows all posts with AI analysis for brand + competitor
 // ---------------------------------------------------------------------------
 
-function AIAnalyzedPostsSection({
+export function AIAnalyzedPostsSection({
   brandUsername,
   competitorUsername,
 }: {
@@ -1118,7 +1118,7 @@ function IdeaCard({ idea, index, onSelectIdea }: { idea: any; index: number; onS
   );
 }
 
-function ExtractedIdeasSection({
+export function ExtractedIdeasSection({
   brandUsername,
   competitorUsername,
   onSelectIdea,
